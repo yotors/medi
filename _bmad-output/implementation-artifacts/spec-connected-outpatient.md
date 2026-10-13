@@ -158,3 +158,15 @@ Production hosting, live hospital/clinical validation, real tariffs/medication
 inventory, MFA/recovery, complete ASVS assessment, operating telemetry and tested
 production disaster recovery remain outside this completed synthetic outpatient
 MVP. Hospital mutation throughput has not been measured. See docs/readiness.md.
+
+
+### GitHub follow-up
+
+The first feature-commit run passed security, build, unit, original-browser and
+server checks;29/30 staff browser cases passed. The mobile handoff assertion
+matched both the textarea and newly persisted prescription during the effect
+that clears the draft. Added explicit empty-draft waits before matching saved
+note/prescription text in both affected journeys. This checks completed UI save
+state and removes selector ambiguity without retries or changed application logic.
+
+Affected desktop/mobile journeys4/4 pass after the explicit save-completion waits.

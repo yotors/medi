@@ -68,6 +68,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await page.getByLabel('Consultation note', { exact: true }).fill('Synthetic consultation for the connected journey.');
   await page.getByLabel('Consultation note', { exact: true }).press('Tab');
   await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
   await expect(page.getByText('Synthetic consultation for the connected journey.', { exact: true })).toBeVisible();
   await section(page, 'Diagnostics');
   await page.getByRole('button', { name: 'Request investigation', exact: true }).focus(); await page.keyboard.press('Enter');
@@ -203,6 +204,7 @@ test('department handoffs complete a visit with permitted API sections and priva
       await expect(page.getByText('requested', { exact: true })).toBeVisible();
       await section(page, 'Pharmacy'); await page.getByLabel('Fictional prescription instructions').fill('Fictional handoff prescription.');
       await page.getByRole('button', { name: 'Add prescription', exact: true }).click();
+      await expect(page.getByLabel('Fictional prescription instructions')).toHaveValue('');
       await expect(page.getByText('Fictional handoff prescription.', { exact: true })).toBeVisible();
     } else if (role === 'lab') {
       await page.getByRole('button', { name: 'Mark collected', exact: true }).click();
