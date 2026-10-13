@@ -6,7 +6,7 @@ import { balance, blockers, DomainError, execute, type State, type Visit } from 
 import { commandAction, commandRequestSchema, roleActions, roleSections, type VisitCommand, type VisitSummary, type VisitView } from '../shared/outpatient.ts';
 import type { RegisteredPatient, Session, StaffRole } from '../shared/registration.ts';
 import { ApiError } from './app.ts';
-import { digest } from './auth.ts';
+import { currentActor, digest } from './auth.ts';
 
 const uuid = z.uuid();
 const empty = z.strictObject({});
@@ -132,7 +132,11 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
       // Hospital-first locks serialize receipt keys, including keys reused on a
       // different patient/visit, and share registration's lock ordering.
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospitalId]);
-      const { rows: [p] } = await client.query('SELECT * FROM patients WHERE hospital_id=$1 AND id=$2 FOR UPDATE', [hospitalId, request.params.id]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
+      // Patient records are append-only. The hospital lock already serializes
+      // check-ins, so reading the patient does not require UPDATE privileges.
+      const { rows: [p] } = await client.query('SELECT * FROM patients WHERE hospital_id=$1 AND id=$2', [hospitalId, request.params.id]);
       if (!p) throw notFound();
       const { rows: [prior] } = await client.query('SELECT * FROM outpatient_requests WHERE hospital_id=$1 AND idempotency_key=$2', [hospitalId, key.data]);
       if (prior) {
@@ -166,6 +170,8 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
     try {
       await client.query('BEGIN');
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospitalId]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
       const row = await load(client, hospitalId, request.params.id, true);
       const { rows: [prior] } = await client.query('SELECT * FROM outpatient_requests WHERE hospital_id=$1 AND idempotency_key=$2', [hospitalId, key.data]);
       if (prior) {

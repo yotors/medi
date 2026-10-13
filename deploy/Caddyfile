@@ -1,0 +1,30 @@
+{
+	admin off
+	auto_https disable_redirects
+	# Rehearsal has no access logging; avoid request/header content in proxy diagnostics.
+	log default {
+		output discard
+	}
+}
+
+https://localhost {
+	tls internal
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+		-Server
+	}
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy api:3100
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		header Cache-Control no-store
+		file_server
+	}
+}

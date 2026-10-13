@@ -32,7 +32,7 @@ export async function readSession(pool: pg.Pool, token: string | undefined): Pro
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const { rows: [row] } = await pool.query(`
     SELECT u.id, u.display_name, u.role, h.id AS hospital_id, h.name AS hospital_name,
-      h.code AS hospital_code, s.csrf_token, s.expires_at
+      h.code AS hospital_code, s.csrf_token, s.expires_at, u.password_change_required
     FROM staff_sessions s JOIN staff_users u ON u.id=s.user_id
     JOIN hospitals h ON h.id=u.hospital_id
     WHERE s.token_hash=$1 AND s.expires_at > now() AND u.active=true`, [digest(token)]);
@@ -40,6 +40,7 @@ export async function readSession(pool: pg.Pool, token: string | undefined): Pro
     user: { id: row.id, displayName: row.display_name, role: row.role,
       hospital: { id: row.hospital_id, name: row.hospital_name, code: row.hospital_code } },
     csrfToken: row.csrf_token,
+    passwordChangeRequired: row.password_change_required,
     expiresAt: row.expires_at.toISOString(),
   } : null;
 }
@@ -68,4 +69,58 @@ export async function allowLogin(pool: pg.Pool, account: string, ip: string) {
     await client.query('ROLLBACK');
     throw error;
   } finally { client.release(); }
+}
+
+// Call after acquiring the hospital lock, before any clinical or administrative write.
+export async function currentActor(client: pg.PoolClient, session: Session) {
+  const { rows: [actor] } = await client.query(`SELECT u.* FROM staff_users u JOIN staff_sessions s ON s.user_id=u.id
+    WHERE u.id=$1 AND u.hospital_id=$2 AND u.active AND s.csrf_token=$3 AND s.expires_at > clock_timestamp()`,
+    [session.user.id, session.user.hospital.id, session.csrfToken]);
+  return actor && actor.role === session.user.role ? actor : null;
+}
+
+// Reauthentication uses its own namespaces, so successful administration cannot
+// exhaust sign-in budgets. A reservation covers concurrent password derivation.
+export async function reserveReauthentication(pool: pg.Pool, account: string, ip: string): Promise<null | (() => Promise<void>)> {
+  const client = await pool.connect();
+  const reservations: { hash: string; expiry: string }[] = [];
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(71934103)');
+    await client.query('DELETE FROM login_buckets WHERE expires_at <= clock_timestamp()');
+    const { rows: [count] } = await client.query('SELECT count(*)::integer AS count FROM login_buckets');
+    const buckets = [[`reauth-account:${account}`, 10], [`reauth-ip:${ip}`, 50]] as const;
+    let newBuckets = 0;
+    for (const [key, limit] of buckets) {
+      const { rows: [row] } = await client.query('SELECT attempts FROM login_buckets WHERE bucket_hash=$1', [digest(key)]);
+      if (!row) newBuckets++;
+      if (row && row.attempts >= limit) { await client.query('ROLLBACK'); return null; }
+    }
+    if (count.count + newBuckets > 10000) { await client.query('ROLLBACK'); return null; }
+    for (const [key] of buckets) {
+      const hash = digest(key);
+      const { rows: [row] } = await client.query(`INSERT INTO login_buckets(bucket_hash,attempts,expires_at)
+        VALUES ($1,1,clock_timestamp() + interval '15 minutes')
+        ON CONFLICT (bucket_hash) DO UPDATE SET attempts=login_buckets.attempts+1 RETURNING expires_at::text AS expires_at`, [hash]);
+      reservations.push({ hash, expiry: row.expires_at });
+    }
+    await client.query('COMMIT');
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+  let released = false;
+  return async () => {
+    if (released) return;
+    released = true;
+    const refund = await pool.connect();
+    try {
+      await refund.query('BEGIN');
+      await refund.query('SELECT pg_advisory_xact_lock(71934103)');
+      for (const reservation of reservations) {
+        // An expired/replaced bucket belongs to a different budget window.
+        await refund.query('UPDATE login_buckets SET attempts=GREATEST(attempts-1,0) WHERE bucket_hash=$1 AND expires_at=$2', [reservation.hash, reservation.expiry]);
+      }
+      await refund.query('COMMIT');
+    } catch (error) { await refund.query('ROLLBACK'); throw error; }
+    finally { refund.release(); }
+  };
 }

@@ -8,12 +8,13 @@ import type pg from 'pg';
 import { z } from 'zod';
 import { hashPassword, randomToken } from './auth.ts';
 import { createPool, migrate } from './db.ts';
+import { staffUsernameSchema } from '../shared/registration.ts';
 
 const noNul = (value: string) => !value.includes('\0');
 const staffSchema = z.strictObject({
   hospitalCode: z.string().trim().toLowerCase().min(1).max(60).regex(/^[a-z0-9-]+$/),
   hospitalName: z.string().trim().min(1).max(100).refine(noNul),
-  username: z.string().trim().toLowerCase().min(1).max(100).refine(noNul),
+  username: staffUsernameSchema,
   displayName: z.string().trim().min(1).max(100).refine(noNul),
   role: z.enum(['admin', 'receptionist', 'auditor', 'clinician', 'lab', 'pharmacist', 'cashier']),
   password: z.string().min(12).max(256).refine(noNul),

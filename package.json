@@ -24,12 +24,16 @@
     "db:local": "node tooling/local-db.mjs",
     "dev:api": "node --env-file-if-exists=.env --import tsx server/index.ts",
     "setup:staff": "node --env-file-if-exists=.env --import tsx server/setup.ts",
-    "test:server": "node --env-file-if-exists=.env --import tsx --test server/registration.test.ts server/outpatient.test.ts",
+    "test:server": "node --env-file-if-exists=.env --import tsx --test server/registration.test.ts server/outpatient.test.ts server/administration.test.ts server/configuration.test.ts",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test:staff": "playwright test --config=playwright.staff.config.ts",
     "db:migrate": "npm run setup:staff -- migrate",
     "db:backup": "node --env-file-if-exists=.env tooling/database.mjs backup",
-    "db:restore-check": "node --env-file-if-exists=.env tooling/database.mjs restore-check"
+    "db:restore-check": "node --env-file-if-exists=.env tooling/database.mjs restore-check",
+    "release:local": "node tooling/release-local.mjs up",
+    "release:stop": "node tooling/release-local.mjs stop",
+    "release:status": "node tooling/release-local.mjs status",
+    "release:verify": "node tooling/release-verify.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { after, before, beforeEach, test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { buildApp } from './app.ts';
-import { hashPassword } from './auth.ts';
+import { digest, hashPassword } from './auth.ts';
 import { migrate } from './db.ts';
 import { provisionStaff } from './setup.ts';
 import type { StaffRole } from '../shared/registration.ts';
@@ -342,7 +342,7 @@ test('003 rejects missing/null visit identities and null visit audit revisions o
   assert.equal((await pool.query('SELECT * FROM audit_events WHERE visit_id=$1', [v.id])).rowCount, 1);
 });
 
-test('002 and 003 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
+test('migrations 002 through 006 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
   const oldSchema = `outpatient_migration_${randomUUID().replaceAll('-', '')}`;
   await database.query(`CREATE SCHEMA ${oldSchema}`);
   const old = new pg.Pool({ connectionString, options: `-c search_path=${oldSchema}` });
@@ -366,7 +366,8 @@ test('002 and 003 preserve populated registration/visit data and legacy audit me
       VALUES ($1,$2,$3,$4,'visit.checkIn',$5,1,'Legacy check-in')`, [legacyEventId, staff.hospitalId, staff.id, patientId, legacyVisitId]);
     const oldEvents = (await old.query('SELECT id,actor_id,action,visit_id,visit_revision,detail FROM audit_events ORDER BY id')).rows;
     await migrate(old); await migrate(old);
-    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }]);
+    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }]);
+    assert.equal((await old.query("SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() AND indexname IN ('configuration_department_search','configuration_service_search')")).rowCount, 0);
     assert.equal((await old.query('SELECT id FROM patients')).rows[0].id, patientId);
     assert.deepEqual((await old.query('SELECT data FROM outpatient_visits WHERE id=$1', [legacyVisitId])).rows[0].data, legacyVisit);
     assert.deepEqual((await old.query('SELECT id,actor_id,action,visit_id,visit_revision,detail FROM audit_events ORDER BY id')).rows, oldEvents);
@@ -375,4 +376,87 @@ test('002 and 003 preserve populated registration/visit data and legacy audit me
     for (const role of ['clinician','lab','pharmacist','cashier'] as const) await provisionStaff(old, { hospitalCode: 'legacy', hospitalName: 'Legacy Synthetic', username: role, displayName: role, role, password });
     assert.equal((await old.query('SELECT * FROM staff_users')).rowCount, 5);
   } finally { await old.end(); await database.query(`DROP SCHEMA ${oldSchema} CASCADE`); }
+});
+
+async function raceActor(role: 'receptionist' | 'clinician'): Promise<Auth> {
+  const id = randomUUID(); const token = randomBytes(32).toString('base64url'); const csrf = randomBytes(32).toString('base64url');
+  await pool.query('INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$3,$4,$5,$6)',
+    [id, auth.admin.hospitalId, `race-${id}`, 'Synthetic revoked staff', role, 'unused-test-hash']);
+  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')", [digest(token), id, csrf]);
+  return { id, hospitalId: auth.admin.hospitalId, cookie: `staff_session=${token}`, csrf };
+}
+async function waitForHospitalLock(blockerPid: number) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const waiting = await database.query("SELECT 1 FROM pg_stat_activity WHERE query = 'SELECT id FROM hospitals WHERE id=$1 FOR UPDATE' AND $1 = ANY(pg_blocking_pids(pid))", [blockerPid]);
+    if (waiting.rowCount) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error('Expected an outpatient write to wait on the hospital lock.');
+}
+
+test('check-in queued on hospital lock rejects revoked actor without visit, audit or receipt', async () => {
+  const p = await patient(); const user = await raceActor('receptionist'); const key = randomUUID();
+  const beforeAudit = (await pool.query('SELECT * FROM audit_events ORDER BY id')).rows;
+  const blocker = await pool.connect();
+  await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [user.hospitalId]);
+  const { rows: [{ pid }] } = await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+  const waiting = checkIn(user, p.id, key).then(response => response);
+  try {
+    await waitForHospitalLock(pid);
+    await blocker.query('UPDATE staff_users SET active=false WHERE id=$1', [user.id]);
+    await blocker.query('DELETE FROM staff_sessions WHERE user_id=$1', [user.id]);
+    await blocker.query('COMMIT');
+    const response = await waiting; assert.equal(response.statusCode, 401, response.body);
+    assert.equal((await pool.query('SELECT * FROM outpatient_visits')).rowCount, 0);
+    assert.equal((await pool.query('SELECT * FROM outpatient_requests')).rowCount, 0);
+    assert.deepEqual((await pool.query('SELECT * FROM audit_events ORDER BY id')).rows, beforeAudit);
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+});
+
+test('clinical command queued on hospital lock rejects revoked actor without visit change, audit or receipt', async () => {
+  const v = await visit(); const user = await raceActor('clinician'); const key = randomUUID();
+  const beforeVisit = (await pool.query('SELECT * FROM outpatient_visits WHERE id=$1', [v.id])).rows;
+  const beforeAudit = (await pool.query('SELECT * FROM audit_events ORDER BY id')).rows;
+  const beforeReceipts = (await pool.query('SELECT * FROM outpatient_requests ORDER BY idempotency_key')).rows;
+  const blocker = await pool.connect();
+  await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [user.hospitalId]);
+  const { rows: [{ pid }] } = await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+  const waiting = command(user, v, { type: 'note', body: 'Synthetic revoked draft must not persist' }, key).then(response => response);
+  try {
+    await waitForHospitalLock(pid);
+    await blocker.query('UPDATE staff_users SET active=false WHERE id=$1', [user.id]);
+    await blocker.query('DELETE FROM staff_sessions WHERE user_id=$1', [user.id]);
+    await blocker.query('COMMIT');
+    const response = await waiting; assert.equal(response.statusCode, 401, response.body);
+    assert.deepEqual((await pool.query('SELECT * FROM outpatient_visits WHERE id=$1', [v.id])).rows, beforeVisit);
+    assert.deepEqual((await pool.query('SELECT * FROM audit_events ORDER BY id')).rows, beforeAudit);
+    assert.deepEqual((await pool.query('SELECT * FROM outpatient_requests ORDER BY idempotency_key')).rows, beforeReceipts);
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+});
+
+test('check-in and clinical writes work with SELECT/INSERT-only patient privileges', async () => {
+  const p = await patient(); const role = `${schema}_runtime`;
+  await database.query(`CREATE ROLE ${role} NOLOGIN`);
+  const restrictedPool = new pg.Pool({ connectionString, options: `-c search_path=${schema} -c role=${role}` });
+  const restrictedApp = buildApp({ pool: restrictedPool, origin });
+  try {
+    await database.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
+    await database.query(`GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${role}`);
+    await pool.query(`GRANT INSERT ON patients,outpatient_visits,audit_events,outpatient_requests TO ${role}`);
+    await pool.query(`GRANT UPDATE ON hospitals,staff_users,outpatient_visits TO ${role}`);
+    const permissions = await restrictedPool.query("SELECT has_table_privilege(current_user,'patients','UPDATE') AS can_update, has_table_privilege(current_user,'patients','INSERT') AS can_insert");
+    assert.deepEqual(permissions.rows, [{ can_update: false, can_insert: true }]);
+    const response = await restrictedApp.inject({ method: 'POST', url: `/api/patients/${p.id}/visits`, headers: headers(auth.receptionist), payload: {} });
+    assert.equal(response.statusCode, 201, response.body);
+    const v = response.json().visit;
+    const note = await restrictedApp.inject({ method: 'POST', url: `/api/visits/${v.id}/commands`, headers: headers(auth.clinician), payload: { expectedRevision: v.revision, command: { type: 'note', body: 'Synthetic restricted runtime note' } } });
+    assert.equal(note.statusCode, 200, note.body); assert.equal(note.json().visit.revision, 2);
+    assert.equal((await pool.query('SELECT * FROM outpatient_requests')).rowCount, 2);
+    assert.equal((await pool.query("SELECT * FROM audit_events WHERE action IN ('visit.checkIn','visit.note')")).rowCount, 2);
+  } finally {
+    await restrictedApp.close(); await restrictedPool.end();
+    await database.query(`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${schema} FROM ${role}`);
+    await database.query(`REVOKE USAGE ON SCHEMA ${schema} FROM ${role}`);
+    await database.query(`DROP ROLE ${role}`);
+  }
 });

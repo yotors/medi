@@ -16,6 +16,7 @@ _bmad/config.user.toml
 
 # Vite build output
 dist/
+dist-server/
 
 # Local development account credentials
 .local/

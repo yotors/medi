@@ -4,8 +4,10 @@ import cookie from '@fastify/cookie';
 import type pg from 'pg';
 import { z } from 'zod';
 import { loginSchema, registrationSchema, type RegisteredPatient, type Session } from '../shared/registration.ts';
-import { allowLogin, digest, DUMMY_PASSWORD_HASH, randomToken, readSession, safeEqual, SESSION_COOKIE, SESSION_SECONDS, verifyPassword } from './auth.ts';
+import { allowLogin, currentActor, digest, DUMMY_PASSWORD_HASH, randomToken, readSession, safeEqual, SESSION_COOKIE, SESSION_SECONDS, verifyPassword } from './auth.ts';
+import { registerAdministrationRoutes } from './administration.ts';
 import { registerOutpatientRoutes } from './outpatient.ts';
+import { registerConfigurationRoutes } from './configuration.ts';
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -22,12 +24,12 @@ const patient = (row: Record<string, unknown>): RegisteredPatient => ({
 });
 const invalid = () => new ApiError(400, 'INVALID_REQUEST', 'Check the request fields and try again.');
 
-export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV === 'production' }: { pool: pg.Pool; origin: string; secureCookies?: boolean }) {
+export function buildApp({ pool, origin, trustProxy = false, secureCookies = process.env.NODE_ENV === 'production' }: { pool: pg.Pool; origin: string; trustProxy?: false | 1; secureCookies?: boolean }) {
   const originUrl = new URL(origin);
   if (originUrl.origin !== origin || !['http:', 'https:'].includes(originUrl.protocol)) throw new Error('APP_ORIGIN must be an exact HTTP origin.');
   if (process.env.NODE_ENV === 'production' && (!secureCookies || originUrl.protocol !== 'https:')) throw new Error('Production requires HTTPS and Secure cookies.');
   // Request logging is deliberately disabled: URLs can contain patient search terms.
-  const app = Fastify({ logger: false, bodyLimit: 4096, trustProxy: false });
+  const app = Fastify({ logger: false, bodyLimit: 4096, trustProxy: trustProxy === 1 ? (_address: string, hop: number) => hop < 1 : false });
   app.register(cookie);
   const sessions = new WeakMap<FastifyRequest, Session>();
   const cookieOptions = { path: '/api', httpOnly: true, sameSite: 'strict' as const, secure: secureCookies };
@@ -46,6 +48,7 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
       throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in to continue.');
     }
     sessions.set(request, session);
+    if (session.passwordChangeRequired && !['/api/auth/session', '/api/auth/logout', '/api/auth/password'].includes(path)) throw new ApiError(403, 'PASSWORD_CHANGE_REQUIRED', 'Change your temporary password before opening the workspace.');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       const csrf = request.headers['x-csrf-token'];
       if (typeof csrf !== 'string' || !safeEqual(csrf, session.csrfToken)) throw new ApiError(403, 'FORBIDDEN', 'This request is not allowed.');
@@ -71,7 +74,7 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
       reply.header('Retry-After', '900');
       throw new ApiError(429, 'RATE_LIMITED', 'Sign-in is temporarily unavailable. Try again later.');
     }
-    const { rows: [user] } = await pool.query(`SELECT u.id, u.password_hash, u.active FROM staff_users u
+    const { rows: [user] } = await pool.query(`SELECT u.id, u.hospital_id, u.password_hash, u.active FROM staff_users u
       JOIN hospitals h ON h.id=u.hospital_id WHERE h.code=$1 AND u.username=$2`, [hospitalCode, username]);
     const valid = await verifyPassword(password, user?.password_hash ?? DUMMY_PASSWORD_HASH);
     if (!valid || !user?.active) throw new ApiError(401, 'INVALID_CREDENTIALS', 'The sign-in details were not accepted.');
@@ -80,6 +83,9 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [user.hospital_id]);
+      const { rows: [latest] } = await client.query('SELECT password_hash,active FROM staff_users WHERE id=$1', [user.id]);
+      if (!latest?.active || latest.password_hash !== user.password_hash) throw new ApiError(401, 'INVALID_CREDENTIALS', 'The sign-in details were not accepted.');
       await client.query('DELETE FROM staff_sessions WHERE expires_at <= now()');
       const oldToken = request.cookies[SESSION_COOKIE];
       if (oldToken) await client.query('DELETE FROM staff_sessions WHERE token_hash=$1', [digest(oldToken)]);
@@ -142,6 +148,8 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
       await client.query('BEGIN');
       // A hospital row lock serializes both new keys and duplicate-name checks.
       const { rows: [hospital] } = await client.query('SELECT next_record_number FROM hospitals WHERE id=$1 FOR UPDATE', [hospitalId]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
       const { rows: [prior] } = await client.query('SELECT payload_hash,patient_id FROM registration_requests WHERE hospital_id=$1 AND idempotency_key=$2', [hospitalId, key.data]);
       if (prior) {
         if (prior.payload_hash !== hash) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'This retry key was already used for different details. Start a new registration.');
@@ -165,5 +173,7 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
     finally { client.release(); }
   });
   registerOutpatientRoutes(app, pool, sessions);
+  registerConfigurationRoutes(app, pool, sessions);
+  registerAdministrationRoutes(app, pool, sessions);
   return app;
 }

@@ -183,3 +183,57 @@ and recovery point targets still require a deployment decision and drills.
 The small-dataset content check is not a production-scale performance test.
 Implementation follows PostgreSQL 16 [pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html)
 and [pg_restore](https://www.postgresql.org/docs/16/app-pgrestore.html).
+
+
+## Hospital staff administration
+
+Hospital administrators can open **Staff administration** to find named accounts,
+create staff, change another account's role/active status, reset credentials and
+read attributable administrative history. Every mutation verifies the initiating
+administrator's current password. Separate account/IP reauthentication budgets
+limit failed and concurrent attempts; successful password checks release their
+own reservation without consuming sign-in limits. Usernames
+are unique within a hospital. Self-deactivation/demotion is forbidden; the hospital
+lock serializes overlapping access changes and preserves an active administrator.
+
+New and reset accounts receive a browser-generated 256-bit temporary password.
+Share it privately, then clear it from the page. It is never returned in account
+lists or history, logged, put in URLs, or persisted in browser storage. Passwords
+and retry fingerprints use salted scrypt. An uncertain administrator command keeps
+its exact temporary credential, command and retry key in browser memory until an
+explicit retry confirms the result. Reloading or intentionally leaving loses that
+credential; use a new credential reset if it can no longer be delivered safely.
+
+Temporary-password sessions allow only session inspection, logout and password
+replacement. All staff can change their own password (12–256 characters); success
+revokes every old session and requires a new sign-in. If that response is lost,
+retry the unchanged details or sign out and try the new password. A successfully
+revoked session cannot be reused to replay a password replacement.
+
+Account revisions reject stale submissions. Role/status changes and credential
+resets atomically update the account, append history and revoke sessions. Account
+and clinical history are retained after deactivation/reactivation. Clinical writes
+and login recheck current session/credentials after obtaining the hospital lock,
+preventing waiting operations from outliving committed privilege removal.
+
+Migration 004 adds revision/password-replacement fields plus separate constrained
+administrative events and retry receipts; applied migrations and clinical records
+are preserved. Secure CLI bootstrap remains available and never overwrites an
+existing account. Roles remain provisional. There is no public registration,
+email recovery, MFA, vendor-wide access or production identity readiness.
+
+Coverage: `server/administration.test.ts` exercises tenant/role boundaries,
+credential lifecycle, secret exclusion, stale revisions, rollback, bounded attempts
+and real database-lock races. `tests/administration.spec.ts` covers desktop/mobile
+onboarding, password replacement, access history, keyboard/axe checks, load errors,
+dirty-draft navigation, uncertain retry and session-loss secret clearing. See the
+[staff administration implementation specification](../_bmad-output/implementation-artifacts/spec-staff-administration.md)
+for the dated verification outcome.
+
+Administrative history is paginated (25 events per page) and includes stable actor
+IDs and usernames alongside display names. Revision-conflict recovery fetches the
+exact hospital-scoped account ID, independent of directory search or pagination.
+Privileged account reads share the hospital lock and recheck current authority
+before returning records. An uncertain account command retains its original
+retry key and temporary credential across throttling or reauthentication errors;
+only the administrator's verification password remains editable during recovery.

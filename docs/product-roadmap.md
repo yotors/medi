@@ -19,16 +19,16 @@ deadline, contract scope or production capacity is implied.
 | Area | Implemented now | Required next or before the relevant release |
 | --- | --- | --- |
 | Browser workspace | Responsive light/teal staff UI with keyboard and automated accessibility checks | Broader assistive-technology review, localization and role-specific workflow validation |
-| Identity and hospital boundary | Individual logins, seven preliminary roles, scoped API responses and cross-hospital tests | Staff lifecycle UI, recovery, privileged MFA, validated permissions, separate vendor support controls and production DB privileges |
-| Hospital administration | Hospital/account provisioning through a CLI | Reviewed onboarding, settings, departments/branches and configuration history without per-customer code forks |
+| Identity and hospital boundary | Individual logins, seven preliminary roles, scoped API responses and cross-hospital tests | Recovery, privileged MFA, validated permissions, separate vendor support controls and database row-policy defense in depth |
+| Hospital administration | Hospital-scoped staff directory, onboarding, roles/status, credential reset, password replacement and administrative history; secure CLI bootstrap; departments and immutable service-price versions/history | Branch structure, broader hospital settings and validated permission policy |
 | Patient registration | Directory/search, MRN, duplicate-name warning and check-in | Safe demographic corrections, identity reconciliation, provisional/urgent identity, merge governance and migration |
 | Clinical encounters | Authored notes and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing/amendments, responsible follow-up and urgent-care/downtime procedures |
 | Laboratory | Order, collection, release and clinician-review handoffs | Test catalog/units, specimen rejection/recollection, result corrections, professional validation and external reports |
 | Pharmacy | Prescription and fulfillment/cancellation handoffs | Product catalog, quantities/partial dispensing, batches/expiry, stock movements, returns and concurrent stock integrity |
-| Finance | Fixed invented prices and full demonstration settlement | Versioned service tariffs, charges/invoices, partial payments/receipts, discounts/refunds/reversals, shift reconciliation and financial controls |
+| Finance | Fixed invented prices and full demonstration settlement | Connect versioned service tariffs to charges/invoices, partial payments/receipts, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
 | Reporting/integrations | Basic visit summaries/history | Agreed operational reports and governed exports; payer, payment and statutory interfaces only against verified contracts |
-| Operations | Local Docker DB, migration/integrity tests, restore verification and passing application CI | Deployable release, least privilege, monitoring/alerts, encrypted offsite recovery, upgrades, migration rehearsal, support and measured capacity |
+| Operations | Local Docker DB and restore verification; built local HTTPS installation with restricted runtime grants and separate migration job | Production installation acceptance, monitoring/alerts, encrypted offsite recovery, upgrades, migration rehearsal, support and measured capacity |
 
 ## Delivery milestones and exit evidence
 
@@ -39,13 +39,15 @@ deadline, contract scope or production capacity is implied.
    and [passing GitHub run](https://github.com/yotors/medi/actions/runs/38390211322).
    Production requirements above are not completed by this milestone.
 
-2. **Hospital administration and access — next implementation priority.**
-   Define and implement authorized staff onboarding, deactivation/session
-   revocation, role changes and audit visibility. Preserve former staff
-   authorship; prevent privilege escalation and accidental loss of all hospital
-   administrators. Prove changed permissions on subsequent requests and isolate
-   every action by hospital. Then add versioned hospital/service configuration.
-   The first access slice needs its own implementation specification and tests.
+2. **Hospital administration and access — staff account slice implemented.**
+   Hospital-scoped onboarding, role/status updates, temporary credentials, required
+   password replacement, revocation and attributable history are implemented.
+   Revision checks, rollback and hospital-lock authorization rechecks protect
+   overlapping commands. Evidence and remaining limits are recorded in the
+   [staff administration specification](../_bmad-output/implementation-artifacts/spec-staff-administration.md).
+   Departments and versioned ETB service settings/history are also implemented;
+   catalog prices are not yet connected to demonstration visit charges. Branch
+   structure, recovery, privileged MFA and validated permissions remain outstanding.
 
 3. **Operational outpatient product — planned.**
    Complete patient/clinical corrections, lab and pharmacy requirements, and a
@@ -55,10 +57,11 @@ deadline, contract scope or production capacity is implied.
    and debt handling need independently validated policies. Departmental users
    must review the workflows before a live pilot.
 
-4. **Repeatable installation and private staging — planned; can progress alongside milestone 3.**
-   Package the application, establish separate configuration and runtime
-   privileges, rehearse migrations/rollback, and test HTTPS, monitoring and
-   recovery. Staging uses synthetic records. Founder infrastructure decisions
+4. **Repeatable installation — local rehearsal implemented; staging pending.**
+   Built web/API/database containers, separate private configuration, runtime
+   privileges, controlled migrations and HTTPS are implemented. The verifier
+   exercises synthetic workflows with restricted credentials and checks restart
+   persistence. Production rollback, monitoring and offsite recovery remain. Staging uses synthetic records. Founder infrastructure decisions
    occur at the triggers in [deployment.md](deployment.md), not upfront.
 
 5. **Accepted pilot and first commercial release — not yet reached.**

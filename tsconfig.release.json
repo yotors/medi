@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "dist-server",
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["server/index.ts", "server/setup.ts"],
+  "exclude": ["**/*.test.ts"]
+}

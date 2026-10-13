@@ -14,10 +14,10 @@ credentials and does not connect directly to PostgreSQL.
 
 The named volume `hospital-product-studio_hospital-dev-data` persists database
 files across ordinary container restarts. Ignored `.env` and `.local/` files hold
-local credentials and backup artifacts. Migrations 001–003 create the current
+local credentials and backup artifacts. Migrations 001–005 create the current
 staff, patient and outpatient data model. Hospital isolation is enforced by the
-application and relational constraints; production database privileges and
-defense in depth remain unfinished.
+application and relational constraints; the release rehearsal separates schema migration privileges from restricted
+runtime grants. Per-hospital database row policies remain unimplemented.
 
 On 2026-10-13, `docker compose ps` reported the database healthy and
 `GET http://127.0.0.1:5173/api/health` returned `{"status":"ok"}`. The completed
@@ -64,16 +64,23 @@ secrets in chat or commit them to the public repository.
 
 ## Deployment work still required
 
-The current `compose.yaml` runs a development database only. It is not a
-hospital installation bundle. The API binds to loopback; the UI uses a Vite
-development server. Setting `NODE_ENV=production` alone does not deploy Medi.
+`compose.yaml` runs the development database. The separate `compose.release.yaml`
+now packages the compiled application, HTTPS gateway and PostgreSQL, using its own
+project and volumes. It is a **local synthetic release rehearsal**. It does not
+select cloud hosting, establish a hospital installation or configure live backups.
 
-Before staging, build and verify a repeatable web/API deployment with HTTPS,
-separate environment secrets, health checks, bounded shutdown, migrations as a
-controlled release step, and an upgrade/rollback procedure. Verify secure-cookie
-and same-origin behavior behind the chosen proxy. Separate runtime database
-permissions from schema migration privileges. Publish only the intended web
-entry point; database/admin ports must not become public accidentally.
+The API runs as an unprivileged container user with a read-only filesystem and a
+restricted database role. A separate migration job owns schema changes. Runtime
+grants cannot change schema, migration records or existing audit entries. Hospital
+boundaries are still application-enforced, not PostgreSQL row-level policies.
+Only HTTPS port 8443 binds host loopback; neither API nor database publishes a
+host port. Database health and successful migrations gate API startup. The proxy
+trusts one internal hop; this setting is safe only with that network boundary.
+
+The rehearsal intentionally discards gateway logs to avoid sensitive request
+headers in diagnostics. Production requires useful redacted monitoring, alerting
+and retention before rollout. The development fixtures and their local CA must
+never become production credentials or production certificate infrastructure.
 
 Before a live pilot, complete scoped authentication/authorization review,
 redacted monitoring and tested alerts, encrypted offsite backup/restore,
@@ -111,3 +118,83 @@ docker compose stop      # Stop the database while preserving its named volume
 
 Do not remove the named volume to restart the app. Local restoration tests do
 not replace an independently stored production backup or a downtime procedure.
+
+## Built release rehearsal
+
+Prerequisites: Docker Engine with Compose, the repository's supported Node version,
+`npm ci --ignore-scripts`, and Playwright Chromium (`PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright
+npx --no-install playwright install chromium`). From the repository root:
+
+```sh
+npm run release:local     # Build, migrate and start an isolated installation
+npm run release:verify    # Create/reuse a synthetic admin; verify HTTPS/API/browser
+npm run release:status
+npm run release:stop      # Preserve configuration, certificates and database
+npm run release:local
+npm run release:verify    # Check previous records, histories and retry receipts
+```
+
+Open `https://localhost:8443/staff`. Caddy issues a certificate from its private
+local CA; no host trust store is changed. Verification checks that CA directly and
+uses a disposable browser context. For manual browsing, explicitly accept/trust
+the local rehearsal certificate only. Public staging must use a real hostname
+and certificate configuration, after its access plan is approved.
+
+The runner generates `.local/release.env` with private permissions and never
+prints its credentials. The verifier provisions only a synthetic hospital and
+administrator, storing login fields in `.local/release-verification.json` (mode
+600). Read that file privately to sign in; do not paste it into chat, CI artifacts
+or issues. Existing accounts are never overwritten. Hospital administrators can
+then provision staff through the UI. A production bootstrap/recovery ceremony
+with accountable operators remains a release gate.
+
+Verification replaces its private fixture file atomically after syncing the new
+contents. Each subsequent run compares saved row digests for the prior patient's
+visit and note, staff account/history, department and service versions, audit
+events, and idempotency receipts before creating new fixtures. These checks use
+the restricted runtime account. The gateway has its own HTTPS readiness probe;
+the verifier separately validates the local CA and built page contents.
+
+The Docker project is `medi-release-local`; volumes are
+`medi-release-local_release-database`, `medi-release-local_release-certificates`
+and `medi-release-local_release-web-config`. They are separate from development.
+Do not delete them for a restart, regenerate the credential file against an
+existing database, or use `down -v` to upgrade. If the private configuration is
+lost, restore it from its protected backup before restarting.
+
+The runtime images contain compiled code/static assets and production packages.
+Build context exclusions prevent `.env`, `.local`, keys, agent tooling and
+workstation dependencies from entering the build; test source is used for the
+build's type checks but is absent from runtime images. Base image digests are
+pinned and need a deliberate security-update process.
+
+## Upgrade and rollback procedure
+
+For a rehearsal update, preserve `.local/release.env`, record the current Git
+revision and image IDs, and verify a restorable backup before upgrading any
+valuable dataset. `npm run release:local` rebuilds code, applies additive pending
+migrations through the schema-owner job, then recreates healthy services. Run
+`npm run release:verify` after every update. Verification briefly stops and
+restarts only the rehearsal database to check readiness and recovery; run it
+while no one is using this synthetic installation. Do not run the development backup
+helper against this separate release database: it intentionally refuses other
+databases.
+
+Reverting application code does **not** revert a migrated database. Roll back
+application images only when compatibility with the new schema has been tested;
+otherwise restore a verified full database/configuration backup into an isolated
+replacement and verify it before switching traffic. Never erase a failed database
+as a recovery shortcut. Automated release backup/restore, immutable published
+image tags, upgrade compatibility rehearsal and an operator-run rollback drill
+remain necessary before an installation can hold real patient records.
+
+Implementation references: [Compose startup dependencies](https://docs.docker.com/compose/how-tos/startup-order/),
+[Caddy local HTTPS](https://caddyserver.com/docs/automatic-https),
+[Fastify proxy trust](https://fastify.dev/docs/latest/Reference/Server/), and
+[PostgreSQL privileges](https://www.postgresql.org/docs/16/sql-grant.html).
+
+Build note: npm treats platform compiler packages as optional. The image build
+checks TypeScript and Vite immediately after the locked installation, so an
+incomplete download fails its install layer instead of being cached as usable.
+See [npm dependency semantics](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/)
+and [locked installation behavior](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
