@@ -2,20 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { HeartPulse, LogOut, Plus, Search, ShieldCheck, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { PatientPage, Registration, Session } from '../../shared/registration';
 import './staff.css';
+import { ApiError, request } from './api';
+import VisitWorkspace from './VisitWorkspace';
+import type { RegisteredPatient } from '../../shared/registration';
 
-class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
-}
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let response: Response;
-  try { response = await fetch(path, { signal: AbortSignal.timeout(15000), ...options, credentials: 'same-origin', cache: 'no-store', headers: { ...options.headers, ...(options.body ? { 'Content-Type': 'application/json' } : {}) } }); }
-  catch { throw new ApiError(0, 'NETWORK', 'The server could not be reached. Check the connection and retry.'); }
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, error.code ?? 'REQUEST_FAILED', error.message ?? 'The request could not be completed. Please retry.');
-  }
-  return response.status === 204 ? undefined as T : response.json();
-}
 const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 };
 export default function StaffApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -32,8 +22,12 @@ export default function StaffApp() {
   const [pending, setPending] = useState<{ key: string; body: Registration } | null>(null);
   const channel = useRef<BroadcastChannel | null>(null); const heading = useRef<HTMLHeadingElement>(null);
   const generation = useRef(0);
+  const [visitsOpen, setVisitsOpen] = useState(false);
+  const [checkInPatient, setCheckInPatient] = useState<RegisteredPatient | null>(null);
+  const [visitPending, setVisitPending] = useState(false);
+  const [visitDirty, setVisitDirty] = useState(false); const departureApproved = useRef(false);
   function clearIdentity(message = '') {
-    generation.current++; setInitializing(false); setSessionError(''); setSession(null); setRecords(emptyPage); setPassword(''); setName(''); setAge(''); setContact(''); setPending(null); setRegistering(false); setDuplicate(false); setConfirmed(false); setSearch(''); setQuery(''); setPage(1); setError(''); setNotice(message); setBusy(false);
+    generation.current++; setVisitsOpen(false); setCheckInPatient(null); setVisitPending(false); setVisitDirty(false); departureApproved.current = false; setInitializing(false); setSessionError(''); setSession(null); setRecords(emptyPage); setPassword(''); setName(''); setAge(''); setContact(''); setPending(null); setRegistering(false); setDuplicate(false); setConfirmed(false); setSearch(''); setQuery(''); setPage(1); setError(''); setNotice(message); setBusy(false);
   }
   function handleError(e: unknown) {
     if (e instanceof ApiError && e.status === 401) { clearIdentity('Your session ended. Sign in to continue.'); channel.current?.postMessage('expired'); }
@@ -67,11 +61,12 @@ export default function StaffApp() {
   }, [session, query, page, refresh]);
   useEffect(() => { if (session) heading.current?.focus(); }, [registering, session]);
   useEffect(() => {
-    if (!pending) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    if (!pending && !visitPending && !visitDirty) return;
+    departureApproved.current = false;
+    const warn = (event: BeforeUnloadEvent) => { if (departureApproved.current) return; event.preventDefault(); event.returnValue = ''; };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [pending]);
+  }, [pending, visitPending, visitDirty]);
   useEffect(() => {
     if (!session) return;
     const current = generation.current;
@@ -93,8 +88,10 @@ export default function StaffApp() {
     window.addEventListener('focus', focus); document.addEventListener('visibilitychange', visibility);
     return () => { clearTimeout(expiry); clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visibility); };
   }, [session]);
+  function mayDiscardVisit() { return !visitDirty || window.confirm('Discard unsaved visit drafts and leave this visit?'); }
   function guardNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (pending) { event.preventDefault(); setError('Finish retrying the pending registration before leaving this workspace.'); }
+    if (pending || visitPending) { event.preventDefault(); setError(pending ? 'Finish retrying the pending registration before leaving this workspace.' : 'Finish retrying the pending visit save before leaving this workspace.'); return; }
+    if (!mayDiscardVisit()) event.preventDefault(); else departureApproved.current = true;
   }
 
   async function login(e: FormEvent) {
@@ -108,7 +105,7 @@ export default function StaffApp() {
   }
   async function logout() {
     const csrf = session?.csrfToken ?? logoutToken;
-    if (!csrf || busy || pending) return;
+    if (!csrf || busy || pending || visitPending || !mayDiscardVisit()) return;
     setBusy(true); setError('');
     let confirmedLogout = false;
     try {
@@ -138,7 +135,7 @@ export default function StaffApp() {
     } finally { if (current === generation.current) setBusy(false); }
   }
   function submitSearch(e: FormEvent) { e.preventDefault(); setQuery(search.trim()); setPage(1); setRefresh(n => n + 1); }
-  const readOnly = session?.user.role === 'auditor';
+  const readOnly = session?.user.role !== 'admin' && session?.user.role !== 'receptionist';
   return <div className="staff-shell">
     <a className="skip-link" href="#staff-main">Skip to workspace</a>
     <header className="staff-header"><a className="staff-brand" href="/staff" onClick={guardNavigation}><HeartPulse size={26} /><span>Hospital workspace</span></a><a href="/" onClick={guardNavigation}>View outpatient walkthrough</a></header>
@@ -153,7 +150,10 @@ export default function StaffApp() {
           <label htmlFor="staff-password">Password</label><input id="staff-password" type="password" required maxLength={256} value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" disabled={busy} />
           <button className="primary" disabled={busy || Boolean(logoutToken)}>{busy ? 'Signing in…' : 'Sign in'}</button></form><p className="staff-help">Need access? Ask the person who manages your hospital’s staff accounts.</p>
       </section> : <>
-        <div className="staff-identity"><div><strong>{session.user.hospital.name}</strong><span>{session.user.displayName} · {readOnly ? 'Read-only access' : session.user.role === 'admin' ? 'Administrator' : 'Reception'}</span></div><button onClick={() => void logout()} disabled={busy || Boolean(pending)}><LogOut size={16} />Sign out</button></div>
+        <div className="staff-identity"><div><strong>{session.user.hospital.name}</strong><span>{session.user.displayName} · {session.user.role === 'auditor' ? 'Read-only access' : session.user.role}</span></div><button onClick={() => void logout()} disabled={busy || Boolean(pending) || visitPending}><LogOut size={16} />Sign out</button></div>
+        <nav className="staff-navigation" aria-label="Staff workspace"><button aria-pressed={!visitsOpen} disabled={Boolean(pending) || visitPending} onClick={() => { if (visitsOpen && !mayDiscardVisit()) return; setVisitDirty(false); setVisitsOpen(false); setCheckInPatient(null); setError(''); }}>Patient directory</button><button aria-pressed={visitsOpen} disabled={Boolean(pending) || visitPending} onClick={() => { setVisitsOpen(true); setRegistering(false); setError(''); }}>Outpatient visits</button></nav>
+        {visitsOpen && error && <p role="alert" className="notice error">{error}</p>}
+        {visitsOpen ? <VisitWorkspace key={session.csrfToken} session={session} checkInPatient={checkInPatient} onPending={setVisitPending} onDirty={setVisitDirty} onSessionError={handleError} /> : <>
         <div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{registering ? 'Register patient' : 'Patient directory'}</h1><p>{registering ? 'Start with the details needed to identify the patient.' : 'Find registered patients in your hospital.'}</p></div>{!registering && !readOnly && <button className="primary" onClick={() => { setRegistering(true); setError(''); setNotice(''); }}><Plus size={18} />Register patient</button>}</div>
         {notice && <p role="status" className="notice success">{notice}</p>}{error && <p role="alert" className="notice error">{error}</p>}
         {registering ? <section className="panel registration"><form onSubmit={register}>
@@ -165,11 +165,12 @@ export default function StaffApp() {
         </form></section> : <section className="panel staff-directory">
           <form className="staff-search" onSubmit={submitSearch}><div><label htmlFor="staff-search">Search name or record number</label><input id="staff-search" type="search" value={search} onChange={e => setSearch(e.target.value)} maxLength={100} /></div><button disabled={loading}><Search size={16} />Search</button>{query && <button type="button" disabled={loading} onClick={() => { setSearch(''); setQuery(''); setPage(1); }}>Clear</button>}</form>
           {loading ? <p role="status" className="empty">Loading patients…</p> : error ? <div className="empty"><p>Patient records could not be loaded.</p><button onClick={() => setRefresh(n => n + 1)}>Retry loading</button></div> : records.patients.length ? <>
-            <div role="region" aria-label="Registered patients" tabIndex={0} className="table-region"><table><thead><tr><th>Patient</th><th>Record number</th><th>Age</th><th>Contact</th></tr></thead><tbody>{records.patients.map(patient => <tr key={patient.id}><td><strong>{patient.name}</strong></td><td className="numeric">{patient.recordNumber}</td><td>{patient.age ?? 'Not provided'}</td><td>{patient.contact || 'Not provided'}</td></tr>)}</tbody></table></div>
+            <div role="region" aria-label="Registered patients" tabIndex={0} className="table-region"><table><thead><tr><th>Patient</th><th>Record number</th><th>Age</th><th>Contact</th>{!readOnly && <th>Visit</th>}</tr></thead><tbody>{records.patients.map(patient => <tr key={patient.id}><td><strong>{patient.name}</strong></td><td className="numeric">{patient.recordNumber}</td><td>{patient.age ?? 'Not provided'}</td><td>{patient.contact || 'Not provided'}</td>{!readOnly && <td><button onClick={() => { setCheckInPatient(patient); setVisitsOpen(true); setError(''); }}>Check in<span className="sr-only"> {patient.name}</span></button></td>}</tr>)}</tbody></table></div>
             <div className="staff-pagination"><p role="status">{records.total} {records.total === 1 ? 'patient' : 'patients'} · Page {records.page} of {Math.max(1, Math.ceil(records.total / records.pageSize))}</p><div className="button-row"><button disabled={page === 1 || loading} onClick={() => setPage(p => p - 1)}>Previous</button><button disabled={records.page * records.pageSize >= records.total || loading} onClick={() => setPage(p => p + 1)}>Next</button></div></div>
           </> : <div className="empty"><Search size={28} /><h2>{query ? 'No matching patients' : 'No patients registered yet'}</h2><p>{query ? 'Try a different name or record number.' : readOnly ? 'Registered patients will appear here.' : 'Register the first fictional patient to begin.'}</p></div>}
         </section>}
+        </>}
       </>}
-    </main><footer className="staff-footer">Staff registration is under development. Clinical workflows remain in the separate outpatient walkthrough.</footer>
+    </main><footer className="staff-footer">Synthetic outpatient workspace · Demonstration prices only. No real payments or medication inventory.</footer>
   </div>;
 }

@@ -3,7 +3,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadEnvFile } from 'node:process';
 import { mkdir } from 'node:fs/promises';
-import { createPool, migrate } from '../server/db';
+import { createPool } from '../server/db';
+import { prepareBrowserFixture } from './browser-fixture';
 import { provisionStaff } from '../server/setup';
 try { loadEnvFile('.env'); } catch { /* CI may supply environment directly. */ }
 const pool = createPool();
@@ -13,7 +14,7 @@ const password = randomBytes(24).toString('hex');
 let receptionistId = '';
 
 test.beforeAll(async () => {
-  await migrate(pool);
+  await prepareBrowserFixture(pool);
   receptionistId = (await provisionStaff(pool, { hospitalCode, hospitalName: 'Browser Fiction Medical Center', username: 'reception', displayName: 'Fictional Reception', role: 'receptionist', password })).id;
   await provisionStaff(pool, { hospitalCode, hospitalName: 'Browser Fiction Medical Center', username: 'auditor', displayName: 'Fictional Auditor', role: 'auditor', password });
   await provisionStaff(pool, { hospitalCode: `${hospitalCode}-other`, hospitalName: 'Other Fictional Hospital', username: 'reception', displayName: 'Other Reception', role: 'receptionist', password });
@@ -145,6 +146,7 @@ test('directory pagination changes rows and search resets to first page', async 
   }
   await page.reload();
   await expect(page.getByRole('cell', { name: `Pagination Fiction 25 ${suffix}`, exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Page 2' })).toBeVisible();
   await expect(page.getByRole('cell', { name: `Pagination Fiction 25 ${suffix}`, exact: true })).toHaveCount(0);

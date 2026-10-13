@@ -5,8 +5,9 @@ import type pg from 'pg';
 import { z } from 'zod';
 import { loginSchema, registrationSchema, type RegisteredPatient, type Session } from '../shared/registration.ts';
 import { allowLogin, digest, DUMMY_PASSWORD_HASH, randomToken, readSession, safeEqual, SESSION_COOKIE, SESSION_SECONDS, verifyPassword } from './auth.ts';
+import { registerOutpatientRoutes } from './outpatient.ts';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
 const uuid = z.uuid();
@@ -163,5 +164,6 @@ export function buildApp({ pool, origin, secureCookies = process.env.NODE_ENV ==
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
   });
+  registerOutpatientRoutes(app, pool, sessions);
   return app;
 }

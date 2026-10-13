@@ -2,8 +2,9 @@
 
 This workspace is for a reusable hospital management product, initially serving
 small private hospitals and medical centers in Ethiopia. Production deployment, clinical backend design, budget, clinical scope, and capacity
-targets remain undecided. The separate `/staff` registration slice uses Fastify and
-PostgreSQL with sessions, hospital-scoped access and transactional registration.
+targets remain undecided. The separate `/staff` outpatient workspace uses Fastify and
+PostgreSQL with sessions, hospital-scoped access, role-projected visit sections,
+transactional registration and durable outpatient commands.
 See docs/staff-workspace.md; use fictional data only. The local synthetic outpatient prototype uses
 React/TypeScript/Vite with Radix Dialog; see docs/prototype.md. The user
 wants a comparison of hosted, hospital-local, and hybrid deployment. Existing
@@ -59,10 +60,11 @@ production services or handling live patient data.
   concurrency, auditability, and backup restoration where applicable.
 - Once application code exists, add its lint, type, unit/integration, browser,
   accessibility, and security gates to CI. CI includes prototype and staff application checks plus tooling/security scans.
-  It has not run remotely and does not establish production readiness.
+  GitHub Actions runs in yotors/medi; CI does not establish production readiness.
 - Before launch, instrument relevant traces, metrics, and logs with redaction;
   choose an OpenTelemetry backend and validate alerts, rollback, and restore.
 - Branch protection, production deployment, and realistic capacity validation
-  remain unconfigured until a repository, product, and infrastructure exist.
+  remain unconfigured. Local logical backup restoration is tested in a disposable
+  database; production disaster recovery remains to be designed.
 
 See `README.md` for commands and `docs/readiness.md` for outstanding decisions.

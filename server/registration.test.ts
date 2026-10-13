@@ -42,7 +42,7 @@ before(async () => {
   }
 });
 beforeEach(async () => {
-  await pool.query('TRUNCATE audit_events,registration_requests,patients,staff_sessions,login_buckets');
+  await pool.query('TRUNCATE outpatient_requests,outpatient_visits,audit_events,registration_requests,patients,staff_sessions,login_buckets');
   await pool.query('UPDATE hospitals SET next_record_number=1');
   await pool.query('UPDATE staff_users SET active=true');
 });

@@ -6,11 +6,11 @@ not production assurance. See `prototype.md` for verified commands and evidence.
 ## Current scope distinction
 
 This document describes the original `/` outpatient walkthrough. A subsequent
-`/staff` slice now provides authenticated patient registration/search using
-PostgreSQL, server sessions, hospital predicates and registration permissions.
+`/staff` workspace now provides authenticated registration and outpatient visits
+using PostgreSQL, server sessions, hospital boundaries and role-projected APIs.
 See [staff-workspace.md](staff-workspace.md) for its implementation and limits.
 The walkthrough's clinical records remain browser-only; no import or shared data
-path connects the two. Production architecture and clinical backend remain open.
+path connects the two. Production architecture and clinical validation remain open.
 
 ## What this slice should prove
 

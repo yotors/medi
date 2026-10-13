@@ -1,4 +1,4 @@
-name: Prototype quality checks
+name: Medi quality checks
 on:
   push:
   pull_request:
@@ -29,6 +29,7 @@ jobs:
       - run: npm run typecheck:server
       - run: npm run test:server
       - run: npm run test:staff
+      - run: npm run db:restore-check
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

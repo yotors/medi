@@ -109,7 +109,10 @@ without scrolling to the trailing Open action. The visit drawer is at most 800px
 wide and fills the mobile viewport. Registration is a dedicated inline workspace. The separate authenticated `/staff`
 route reuses this palette and typography with a full-width header, a 530px sign-in
 area and a 1200px directory area. It uses inline registration and bounded
-horizontal table scrolling on mobile.
+horizontal table scrolling on mobile. Its outpatient visit uses an inline summary,
+completion blockers, and role-specific section buttons above the detail forms.
+Visit navigation and form controls stay disabled while a write is unresolved;
+retries and revision conflicts have explicit recovery messages.
 
 ## Elevation & Depth
 
@@ -141,5 +144,5 @@ confirmation. Operational summaries derive from actual demo state.
 - Do keep actions labelled and patient names visibly actionable.
 - Do preserve the light background, teal accents and clear patient lists.
 - Do show pending work and recovery instructions in plain language.
-- Don't imply that the local prototype authenticates users or processes real payments.
+- Distinguish the unauthenticated `/` walkthrough from the authenticated `/staff` workspace; neither processes real payments.
 - Don't use decorative charts, fictional avatars or color-only statuses.

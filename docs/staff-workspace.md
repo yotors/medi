@@ -1,7 +1,7 @@
-# Staff registration workspace
+# Staff outpatient workspace
 
-The `/staff` route adds a PostgreSQL-backed patient directory with authenticated
-staff access. The original `/` outpatient walkthrough remains a separate browser
+The `/staff` route provides an authenticated PostgreSQL patient directory and
+connected outpatient workflow. The original `/` outpatient walkthrough remains a separate browser
 simulation; no records are imported between them. Use fictional details only.
 
 ## Run locally
@@ -40,9 +40,7 @@ restart the app.
 The provisioning CLI requires explicit hospital/account fields and a private,
 ignored password-file path. It generates a random password when that file does
 not exist. For another hospital use another hospital code. Accounts cannot select
-another hospital after authentication. Roles are a preliminary registration policy:
-receptionist and admin can read/register patients; auditor can only read.
-Clinical roles and staff-management UI are not implemented.
+another hospital after authentication. Roles use the preliminary permissions below. Staff-management UI is not implemented.
 
 A saved registration receives a hospital-scoped `MRN-` number. Name is required;
 age and contact are optional. Duplicate normalized names require confirmation
@@ -55,8 +53,8 @@ attributable audit event in one transaction. An identical idempotency key/body
 returns the original patient; changed details with that key fail. An uncertain
 browser response preserves the draft and key in memory and offers retry. Reload
 loses unsaved drafts and the pending key; check the directory before registering
-again. This first slice does not support edits, merges, deletion, check-in or
-clinical records in the server workspace.
+again. Patient edits, merges and deletion are not supported. Check-in and outpatient
+records are persisted separately from the original browser walkthrough.
 
 ## Security implementation and limits
 
@@ -65,9 +63,9 @@ clinical records in the server workspace.
 | Authentication | Salted, versioned scrypt hashes; generic login errors; persistent bounded login attempts | MFA, recovery, lifecycle policy and staff onboarding review |
 | Session handling | Random opaque cookie; hashed token in DB; HttpOnly/SameSite Strict; 8h fixed expiry; revoked logout; inactive-user checks | Idle/session policy validation and managed transport |
 | Request integrity | Exact Origin on mutations and session CSRF header; strict validation/body limit | Broader ASVS review and external assessment |
-| Hospital boundary | Session-derived hospital predicates; no client-selected hospital; composite foreign keys | Production DB privileges, defense-in-depth/RLS evaluation, clinical role matrix |
-| Integrity and audit | Transactional registration/audit/idempotency; author account IDs | Tamper-resistant audit storage, access/security events and retention |
-| Data persistence | PostgreSQL schema migration and local named volume | Tested backup restoration, migration release strategy and disaster recovery |
+| Hospital boundary | Session-derived hospital predicates; no client-selected hospital; composite foreign keys | Production DB privileges, defense-in-depth/RLS evaluation, validated clinical role matrix |
+| Integrity and audit | Transactional registration and visit commands/audit/idempotency; author and exact visit-subject IDs | Tamper-resistant audit storage, access/security events and retention |
+| Data persistence | PostgreSQL migrations, local volume, isolated backup restoration with counts/content digests | Off-site encrypted backups, migration release strategy and disaster recovery |
 | Sensitive output | No-store API responses; no request logging; no patient/session data in localStorage | Redacted operational telemetry, alerts and incident process |
 
 These are initial control areas for the required OWASP ASVS assessment, not a
@@ -99,13 +97,17 @@ npm run security:dependencies
 
 Server tests create and remove a uniquely named schema in the dedicated database;
 they do not truncate the local workspace. Browser tests provision uniquely named
-fictional hospitals in the local database. Their screenshots/reports live in
+fictional hospitals in the local database. Each sequential browser-file fixture
+resets only the development loopback IP login bucket; this is guarded to the
+dedicated local database and forbidden in production. It prevents accumulated
+synthetic logins across suites from exhausting a shared IP budget. Account
+limits stay intact; server integration tests verify the actual rate-limit rules. Their screenshots/reports live in
 `artifacts/staff-ui` and `artifacts/staff-report`. Browser traces are disabled for
 staff tests so credential submissions are not recorded in trace archives.
 
 The GitHub workflow now prepares its own local database and runs these checks;
-no remote CI run has occurred. Final measured results and review dispositions
-are recorded in the [implementation spec](../_bmad-output/implementation-artifacts/spec-staff-registration.md).
+it also runs the isolated restore check. Measured results and review dispositions
+are recorded in the [outpatient implementation spec](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md).
 
 The browser uses the server expiry timestamp to clear idle views. It also
 revalidates sessions on focus/visibility changes and every 60 seconds while visible.
@@ -114,3 +116,70 @@ network outages can delay that detection. Logout clears all open same-origin
 staff tabs even if its response is lost, then offers confirmation retry. Pending
 registration blocks in-app exits and prompts before page navigation; deliberately
 leaving can still discard the in-memory retry key.
+
+## Connected outpatient workflow
+
+From the directory, check in a patient, then open **Visits**. The visit panel
+provides only the sections permitted for the signed-in role. Server responses
+also omit restricted sections; permissions are enforced at every command.
+
+| Role | Visit actions | Detailed sections |
+| --- | --- | --- |
+| Receptionist | Check in | Summary only |
+| Clinician | Notes, request/review/cancel tests, prescriptions, close | Consultation, diagnostics, pharmacy |
+| Lab | Collect specimen, release result | Diagnostics |
+| Pharmacist | Fulfill/cancel prescription | Pharmacy |
+| Cashier | Record full demonstration settlement | Billing |
+| Auditor | Read only | History |
+| Admin | Full synthetic walkthrough | All |
+
+All roles can read the patient directory and visit summaries, including balances
+and closure blockers. That is a provisional policy requiring hospital validation.
+Only reception/admin can register patients. Admin clinical permissions exist for
+synthetic demonstrations; production policy needs clinical/security approval.
+
+An active visit requires a note, reviewed or cancelled tests, no pending
+prescriptions and no outstanding balance before closure. Released results and
+closed visits cannot be rewritten. Prices are invented demo tariffs in ETB;
+settlement records a demonstration event, not a bank payment. There is no
+medication catalog, dosing support, pharmacy inventory or insurance processing.
+
+Updates use an expected revision and a UUID retry key. Concurrent changes return
+a conflict instead of overwriting another user's work. Lost responses retain the
+original request/key for an explicit retry. Pending writes block in-app navigation;
+stale conflicts refresh the visit and preserve the typed draft. A separate refresh
+action loads department updates without losing drafts. Unsaved drafts require
+explicit discard before leaving; result drafts made uneditable by a colleague
+remain visible for copying or deliberate discard. Drafts and retry
+keys live only in memory and are cleared at sign-out/session changes. Explicitly
+leaving or closing the browser can lose them; inspect the visit before re-entering.
+
+Local demo accounts are in hospital `demo`: `reception`, `admin`, `clinician`,
+`lab`, `pharmacist`, `cashier`, `auditor`. Each generated password is stored only
+in `.local/<username>-password.txt` on the original workstation. These accounts
+and files are not shipped by cloning the repository. Provision a new account
+using the command above with its corresponding role/name/password path.
+
+## Local backup and restoration check
+
+```sh
+npm run db:backup
+npm run db:restore-check
+```
+
+The tools accept only the dedicated loopback `hospital_dev` database. Backups
+include account/session and synthetic patient data and remain in private,
+Git-ignored `.local/backups/` files. Do not upload this folder with CI artifacts.
+The restore check takes a fresh consistent snapshot, restores into a randomly
+named disposable database, compares each public table's count and content digest plus columns, constraints,
+indexes, triggers, functions, sequences and views,
+and removes that temporary database. It never restores over the source database.
+An existing `public` schema is cleaned only inside that disposable database.
+
+This verifies local logical restoration, not production disaster recovery. Database ownership
+and grants are deliberately excluded from this development restore comparison.
+Off-site storage, encryption/key management, retention, scheduling, recovery time
+and recovery point targets still require a deployment decision and drills.
+The small-dataset content check is not a production-scale performance test.
+Implementation follows PostgreSQL 16 [pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html)
+and [pg_restore](https://www.postgresql.org/docs/16/app-pgrestore.html).

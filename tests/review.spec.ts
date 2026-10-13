@@ -33,11 +33,13 @@ test('department membership follows completion and missing triggers return focus
   await page.getByRole('button', { name: 'Open visit for Hana Fiction' }).click();
   await expect(dialog.getByRole('heading', { name: 'Prescription fulfillment' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Mark fulfilled' }).click();
+  await expect(dialog.getByText('fulfilled', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape'); await expect(page.locator('#main')).toBeFocused();
   await expect(page.getByRole('row').filter({ hasText: 'Hana Fiction' })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Billing', exact: true }).click();
   await page.getByRole('button', { name: 'Open visit for Liya Demo' }).click();
   await dialog.getByRole('button', { name: 'Record demo settlement' }).click();
+  await expect(dialog.getByRole('button', { name: 'Balance settled' })).toBeDisabled();
   await page.keyboard.press('Escape'); await expect(page.locator('#main')).toBeFocused();
   await expect(page.getByRole('row').filter({ hasText: 'Liya Demo' })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Diagnostics', exact: true }).click();

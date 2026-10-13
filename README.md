@@ -8,10 +8,11 @@ are discovery drafts. A local synthetic-data outpatient walkthrough implements
 registration, check-in, consultation, diagnostics, pharmacy handoffs, billing and
 visit closure. There is no production deployment.
 
-## Staff registration workspace
+## Staff outpatient workspace
 
-The new `/staff` workspace has staff sign-in, hospital-scoped patient registration,
-search and PostgreSQL persistence. It is local synthetic development, not ready
+The `/staff` workspace has staff sign-in, hospital-scoped registration/search,
+visit check-in, consultation, laboratory results, pharmacy handoffs, demonstration
+settlement and closed visit history, persisted in PostgreSQL. It is local synthetic development, not ready
 for live hospital records. Follow [staff-workspace.md](docs/staff-workspace.md)
 for database startup, migration, account provisioning and the two server commands.
 On this workstation it is available at `http://127.0.0.1:5173/staff`.
@@ -51,15 +52,16 @@ This folder is the source repository for [yotors/medi](https://github.com/yotors
 
 - `src/`: original walkthrough, authenticated staff UI, domain rules and unit tests.
 - `server/`: staff API, authentication, PostgreSQL migrations and integration tests.
-- `shared/`: registration request validation and shared API types.
+- `shared/`: request validation, role permissions and shared API types.
 - `tests/`: browser workflow tests and the existing tooling fixture.
 - `docs/`: product boundaries, verification evidence and deployment decisions.
 - `_bmad-output/`: research, brief and implementation specification.
-- `.github/workflows/`: checks prepared for the future GitHub repository.
+- `.github/workflows/`: GitHub Actions application and security checks.
 - `tooling/`: browser, accessibility and security check runners.
 
 The staff API is a separate local process backed by PostgreSQL. Production hosting,
-clinical workflows, recovery and operating procedures remain undecided. The original
+clinical validation and operating procedures remain undecided. Local backup and
+restoration checks are available; production recovery remains to be designed. The original
 outpatient walkthrough still uses browser storage.
 
 ## Start working
@@ -96,7 +98,7 @@ and customize its design tokens, layout, and interactions.
 | Security tools | Semgrep, Trivy, ZAP container commands, images pinned by digest |
 | Load testing | k6 container and a small smoke workload |
 | Python workflow runtime | Project-local uv 0.13.0 |
-| CI | GitHub Actions tooling, dependency audit, Semgrep and Trivy checks; activates after push to GitHub |
+| CI | GitHub Actions tooling, dependency audit, Semgrep and Trivy checks on pushes and pull requests |
 
 Versions are locked in `package-lock.json`, `tooling/requirements.txt`, and
 `tooling/images.json`. Container digests target Linux amd64, this machine's
@@ -174,8 +176,7 @@ settings, and approval policies are inherited from the existing Codex environmen
 ## Before release
 
 See [readiness.md](docs/readiness.md). Application unit, type, build, browser and
-accessibility checks are configured alongside the preserved tooling and security gates. Configure required branch checks after creating the remote
-repository. Choose and instrument an OpenTelemetry backend with real services;
+accessibility checks are configured alongside the preserved tooling and security gates. Required branch protection remains unconfigured. Choose and instrument an OpenTelemetry backend with real services;
 no observability stack or production infrastructure has been invented here.
 
 Official references: [BMad installation](https://docs.bmad-method.org/start/install-bmad/),

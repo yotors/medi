@@ -15,7 +15,7 @@ const staffSchema = z.strictObject({
   hospitalName: z.string().trim().min(1).max(100).refine(noNul),
   username: z.string().trim().toLowerCase().min(1).max(100).refine(noNul),
   displayName: z.string().trim().min(1).max(100).refine(noNul),
-  role: z.enum(['admin', 'receptionist', 'auditor']),
+  role: z.enum(['admin', 'receptionist', 'auditor', 'clinician', 'lab', 'pharmacist', 'cashier']),
   password: z.string().min(12).max(256).refine(noNul),
 });
 export const decodePasswordFile = (contents: string) => contents.replace(/\r?\n$/, '');

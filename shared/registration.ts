@@ -11,7 +11,7 @@ export const loginSchema = z.strictObject({
   password: z.string().min(1).max(256),
 });
 export type Registration = z.infer<typeof registrationSchema>;
-export type StaffRole = 'admin' | 'receptionist' | 'auditor';
+export type StaffRole = 'admin' | 'receptionist' | 'auditor' | 'clinician' | 'lab' | 'pharmacist' | 'cashier';
 export type StaffUser = { id: string; displayName: string; role: StaffRole; hospital: { id: string; name: string; code: string } };
 export type Session = { user: StaffUser; csrfToken: string; expiresAt: string };
 export type RegisteredPatient = { id: string; recordNumber: string; name: string; age?: number; contact: string; createdAt: string };

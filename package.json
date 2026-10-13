@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Locally persisted synthetic outpatient workflow prototype and verification tools.",
+  "description": "Medi hospital workspace with authenticated, hospital-scoped outpatient workflows.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -24,10 +24,12 @@
     "db:local": "node tooling/local-db.mjs",
     "dev:api": "node --env-file-if-exists=.env --import tsx server/index.ts",
     "setup:staff": "node --env-file-if-exists=.env --import tsx server/setup.ts",
-    "test:server": "node --env-file-if-exists=.env --import tsx --test server/registration.test.ts",
+    "test:server": "node --env-file-if-exists=.env --import tsx --test server/registration.test.ts server/outpatient.test.ts",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test:staff": "playwright test --config=playwright.staff.config.ts",
-    "db:migrate": "npm run setup:staff -- migrate"
+    "db:migrate": "npm run setup:staff -- migrate",
+    "db:backup": "node --env-file-if-exists=.env tooling/database.mjs backup",
+    "db:restore-check": "node --env-file-if-exists=.env tooling/database.mjs restore-check"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
