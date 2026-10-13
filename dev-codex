@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+studio_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$studio_root/.venv/bin:$studio_root/node_modules/.bin:$PATH"
+export UV_CACHE_DIR="$studio_root/.cache/uv"
+export IMPECCABLE_HOME="$studio_root/.cache/impeccable"
+export PLAYWRIGHT_BROWSERS_PATH="$studio_root/.cache/ms-playwright"
+exec codex -C "$studio_root" "$@"

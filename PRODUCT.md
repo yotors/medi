@@ -1,0 +1,33 @@
+# Product
+
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+web
+
+## Stack
+Implementation delegated by the user's instruction to start building. Prototype choice: React, TypeScript and Vite; Radix primitives for accessible dialogs. A separate staff registration slice uses Fastify/TypeScript and PostgreSQL, with server-enforced hospital boundaries and staff sessions. Production hosting and clinical backend architecture remain undecided. This choice is reversible and is not a production architecture approval.
+
+## Users
+Small private hospitals and medical centers in Ethiopia. Proposed first users: receptionists, nurses/clinicians, diagnostic staff, pharmacists and cashiers. Actual staff have not validated the workflow.
+
+## Product Purpose
+Coordinate a patient's outpatient visit across registration, clinical work, diagnostics and payment. Build a reusable product for independent hospitals.
+
+## Operating Context
+Published Ethiopian workflow research and a supplied student design inform candidate requirements. Diagnostic return loops, pending departmental work and interruptions matter. Use fictional patient records only during development.
+
+## Capabilities and Constraints
+The `/` route is a browser-persisted demonstration of the outpatient journey. The separate `/staff` route provides authenticated, hospital-scoped patient registration/search in PostgreSQL. No live patient data, authenticated clinical use, real payment processing or production deployment. These registration checks do not establish production-wide tenant security. No diagnostic recommendations. Product name, hosting, local languages and commercial terms remain open.
+
+## Evidence on Hand
+_bmad-output/planning-artifacts/research/domain-ethiopian-hospital-workflows-and-require-2026-10-12/ contains research,24 proposed requirements and the student-design assessment.
+
+## Product Principles
+- Keep unfinished handoffs visible.
+- Preserve authorship and chronology.
+- Distinguish patient, encounter, order and payment.
+- Make demo limitations explicit.
+
+## Accessibility & Inclusion
+Keyboard-operable controls, readable contrast, responsive desktop/mobile layouts, reduced-motion support. No patient email account required for registration.

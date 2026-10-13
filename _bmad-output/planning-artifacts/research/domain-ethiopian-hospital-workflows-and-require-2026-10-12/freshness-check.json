@@ -1,0 +1,80 @@
+{
+  "today": "2026-10-12",
+  "claims": [
+    {
+      "ref": 1,
+      "class": "staff-experience",
+      "pub_date": "2025-11-03",
+      "claim": "Scientific Reports private EMR adopter survey: billing use exceeds clinical documentation/order use; 2023 data, no national prevalence.",
+      "recheck": "2027-05-03",
+      "stale": false
+    },
+    {
+      "ref": 2,
+      "class": "historical-workflow",
+      "pub_date": "2024-03-07",
+      "claim": "PLOS ONE public Jimma study describes branching outpatient routes; fieldwork 2018, not current private workflow.",
+      "recheck": "2027-03-07",
+      "stale": false
+    },
+    {
+      "ref": 3,
+      "class": "historical-workflow",
+      "pub_date": "2018-09-17",
+      "claim": "Medwin one-hospital observation describes lab prepayment confirmation; ownership unspecified.",
+      "recheck": "2021-09-17",
+      "stale": true
+    },
+    {
+      "ref": 4,
+      "class": "staff-experience",
+      "pub_date": "2024-12-10",
+      "claim": "SAGE Bahmni interviews report lab record gaps, undelivered pharmacy orders and late lab requests; 2023 sample.",
+      "recheck": "2026-06-10",
+      "stale": true
+    },
+    {
+      "ref": 5,
+      "class": "staff-experience",
+      "pub_date": "2025-09-20",
+      "claim": "AOSIS mixed-ownership interviews report paper fallback and electronic re-entry; directly checked but not independently replicated.",
+      "recheck": "2027-03-20",
+      "stale": false
+    },
+    {
+      "ref": 6,
+      "class": "staff-experience",
+      "pub_date": "2025-08-06",
+      "claim": "PLOS Yekatit12 mixed study reports phased deployment, training gaps and manual reporting; public facility, 2023 data.",
+      "recheck": "2027-02-06",
+      "stale": false
+    },
+    {
+      "ref": 7,
+      "class": "historical-guidance",
+      "pub_date": "2017-08",
+      "claim": "MOH pharmacy chapter separates dispensing stages and financial records; current applicability unverified.",
+      "recheck": "2020-08-01",
+      "stale": true
+    },
+    {
+      "ref": 8,
+      "class": "historical-workflow",
+      "pub_date": "2015-11-10",
+      "claim": "Bahmni JSS field notes describe Indian workflow loops; historical comparator only.",
+      "recheck": "2018-11-10",
+      "stale": true
+    },
+    {
+      "ref": 10,
+      "class": "standard-listing",
+      "pub_date": "2022-02",
+      "claim": "JSI listing includes private facilities/vendors; full EHR standard and current conformance requirements not retrieved.",
+      "recheck": "2022-02-01",
+      "stale": true
+    }
+  ],
+  "stale_count": 5,
+  "earliest_recheck": "2018-11-10",
+  "no_window_classes": []
+}

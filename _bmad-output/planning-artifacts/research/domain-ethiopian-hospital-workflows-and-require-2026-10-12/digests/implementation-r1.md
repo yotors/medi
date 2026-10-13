@@ -1,0 +1,37 @@
+# Ethiopian EMR implementation evidence: requirements digest
+
+Decision context: reusable software for small private hospitals/medical centers. These five original studies support requirements hypotheses, not national prevalence, a buying decision, or proof of product–market fit. Accessed dates below refer to this research run. Nine web calls; five studies substantively read. No outreach or project-file evidence used.
+
+## I1 — Private-facility installation does not imply complete clinical use
+
+- **Claim:** Among 351 respondents at four private hospitals in Bahir Dar, scheduling (80.6%) and billing (76.9%) were reported more frequently than clinical history/examination documentation (39%) or laboratory ordering (38.7%). The reported 45.3% overall utilization means using at least six of twelve functions; it does **not** mean only 45.3% ever touched the system. Clinics were excluded. These are questionnaires, not usage logs.
+- **Source:** [Wondwossen et al., Assessing electronic medical record usage](https://www.nature.com/articles/s41598-025-22186-w); publisher: Springer Nature, *Scientific Reports*; pub_date: 2025-11-03; study period: 2023-02-13–2023-03-20; accessed: 2026-10-12; confidence: moderate, limited to sampled facilities; class: numerical cross-sectional survey.
+- **Requirements implication (inference):** Define adoption by completed role-specific workflows. Pilot the clinical encounter through order and result alongside payment; track missing documentation and unfinished handoffs. Avoid treating billing activity as clinical adoption. Paper dependence described by authors requires a migration/reconciliation plan.
+
+## I2 — Missing laboratory details and external results force parallel records
+
+- **Claim:** Twenty-five interviews at Tirunesh Beijing General Hospital and Kazanchis, Saris and Ferensay health centers identified missing laboratory units/reference ranges, inadequate result correction, absent radiology comment fields and inability to upload outside investigations. Radiologists wrote comments on paper. Respondents also described prescriptions/lab orders failing to reach destination departments and copying EMR data into tally sheets before entering DHIS2. This is not a private-hospital sample or a timed delivery audit.
+- **Source:** [Bekele et al., Barriers and facilitators of EMR adoption](https://journals.sagepub.com/doi/10.1177/20552076241301946); publisher: SAGE, *DIGITAL HEALTH*; pub_date: 2024-12-10; study period: 2023-06-05–2023-06-13; accessed: 2026-10-12; confidence: moderate; class: qualitative interviews.
+- **Requirements implication (inference):** Configurable test catalog, units, reference ranges, narrative interpretations, outside-result attachments with provenance, and corrected results retaining author/time/reason. Give prescriber, pharmacy and laboratory visible order receipt/status. Validate reporting exports against the facility’s actual monthly process before claiming DHIS2 integration.
+
+## I3 — Downtime recovery includes human reconciliation and support coverage
+
+- **Claim:** Eight interviewees across five urban Bahir Dar facilities—three private and two government—reported delayed interdepartmental messages, power-related restarts and paper use followed by EMR re-entry. One described medication delivery taking over twenty minutes; another described day-long unavailability when the sole administrator was absent. These are individual accounts, not measured outage rates, and facility codes do not permit attributing every failure to private ownership.
+- **Source:** [Tsehay and Matlhaba, Barriers to implementation in Northwest Ethiopia](https://www.scielo.org.za/scielo.php?pid=S2071-97362025000100102&script=sci_arttext); publisher: AOSIS, *Health SA Gesondheid*; pub_date: 2025-09-20; study period: not clearly specified in inspected text; ethics approval 2023-11-23 is **not** the collection date; accessed: 2026-10-12; confidence: moderate-low, small purposive sample and methodological inconsistencies; class: qualitative interviews.
+- **Requirements implication (inference):** Rehearse outage/restart workflows, record paper-origin transactions and reconciliation ownership, prevent duplicate orders during replay, and provide support escalation with a backup person. Test local-network failure and power restoration separately from internet availability.
+
+## I4 — Deployment is an organizational service, with reporting still unfinished
+
+- **Claim:** At government Yekatit 12 Hospital Medical College, 389 survey respondents and ten informants described an operational EMR with continuing gaps. Forty-five percent reported no prior EMR training. Management described a departmental committee and 24-hour IT assistance. Deployment progressed from reception/triage/billing to clinical departments, then dashboards/reporting/integration; some departments still reported manually. Incomplete entries by other providers were an obstacle. Perceived benefits are not measured clinical outcome improvements.
+- **Source:** [Mamae and Mamo, Implementation challenges at Yekatit 12](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0329896); publisher: PLOS, *PLOS One*; pub_date: 2025-08-06; study period: February–June 2023; accessed: 2026-10-12; confidence: moderate; class: mixed numerical survey/interviews, single large public hospital.
+- **Requirements implication (inference):** Package deployment with departmental owners, training refreshers, completeness review and support responsibilities. Phasing is plausible, but each released workflow needs explicit completion criteria; large-hospital staffing arrangements may be unaffordable for small private facilities.
+
+## I5 — Older private-hospital evidence reinforces training and workstation access
+
+- **Claim:** A survey of 403 professionals in eleven Addis Ababa private hospitals found 53.1% satisfied and only 39.45% reporting adequate computer access. Training, computer access and perceived information/service/system quality were associated with satisfaction. Cross-sectional associations cannot establish that training causes adoption or estimate a return on investment.
+- **Source:** [Dubale et al., User satisfaction with EMR](https://onlinelibrary.wiley.com/doi/10.1155/2023/4148211); publisher: Hindawi/Wiley, *BioMed Research International*; pub_date: 2023-04-17; study period: March–April **2021**; accessed: 2026-10-12; confidence: moderate, older self-report; class: numerical cross-sectional survey.
+- **Requirements implication (inference):** Budget devices and support with software. Assess each role’s computer skills and access during onboarding; measure successful task completion, not training attendance alone.
+
+## Remaining validation gaps
+
+No study here establishes small-private-facility purchasing authority, willingness to pay, current infrastructure costs, required response times, dispensing/stock reconciliation rules, external-lab contracts, or exact reporting obligations. Record quality is mostly perceived, not independently audited. No vendor/program claim is used as effectiveness evidence. Before fixing product scope, validate synthetic walkthroughs of prescription receipt/dispensing, specimen/result correction, downtime re-entry, duplicate patient handling and monthly reporting with prospective facilities. Research supports these validation priorities; it cannot substitute for access to actual users and workflows.

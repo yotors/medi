@@ -1,0 +1,21 @@
+# Semantic spot-check
+
+Reviewed: 2026-10-12. Scope: `research.md` only, checked against original sources [1], [4], and [7] in three web calls. No other local digests or requirements files reviewed. No broad research performed.
+
+**Result: pass with minor precision corrections.** The checked claims match their originals; no invented workflow finding or material reversal was found. This is a bounded source check, not independent replication of study findings or validation of the whole report.
+
+## Source checks
+
+- **[1] Private sample and dates — pass.** The [Scientific Reports article](https://www.nature.com/articles/s41598-025-22186-w), publication header, Methods/Study design, Results/Utilization, and Limitations confirm publication on 3 November 2025, fieldwork 13 February–20 March 2023, four private Bahir Dar hospitals, 351 respondents, and exclusion of private clinics. Billing use (76.9%) exceeds clinical documentation (39%) and laboratory ordering (38.7%). The methods used a self-administered questionnaire. The study selected hospitals that had already initiated EMR use. Tables carry May 2023 labels despite the explicit methods collection dates; the report reasonably follows the methods, but should retain exact dates and avoid implying fresh 2025 collection.
+- **[4] Operational gaps — pass.** The [SAGE article](https://journals.sagepub.com/doi/10.1177/20552076241301946), Methods and technological-barriers sections, confirms 25 interviews across one hospital and three health centers, collected 5–13 June 2023. Participants described missing units/reference ranges, inability to revise results, inability to upload outside radiology/ultrasound results, and copying EMR information through tally sheets into DHIS2. A physician reported medication orders not reaching pharmacy and laboratory requests arriving late. These are participant reports, not measured incident rates. The sampled facilities used Bahmni; the findings should not be presented as demonstrated defects in every EMR or facility.
+- **[7] Normative versus observed practice — pass.** The [MOH pharmacy chapter](https://www.ghsupplychain.org/sites/default/files/2018-11/Pharmacy%20Services%20-%20Hospitals%20Management%20Initiative.pdf), dated August 2017, describes six dispensing stages on printed p.13 and transaction traceability/payment arrangements on printed pp.18–21. It supports the distinctions in the report. Its wording prescribes intended practice; it does not establish implementation or compliance at private hospitals in 2026. The report explicitly maintains this distinction and does not treat it as current legal proof.
+
+## Precise corrections recommended
+
+1. In the first finding, replace “A 2025 survey of 351 professionals at four private Bahir Dar hospitals” with “A study published in 2025, surveying 351 professionals in February–March 2023 at four private Bahir Dar hospitals that had initiated EMR use”. Add “existing EMR adopters” to source [1]'s limitation cell. This makes its selection boundary explicit.
+2. In the orders/results finding, replace “orders failing to reach departments” with “medication orders not reaching pharmacy and laboratory requests reaching the laboratory late”. This preserves the source's distinction between missing delivery and delay. Add “using Bahmni” after the sampled facility description or in source [4]'s limitation cell.
+3. The opening “Registration, consultation and a final bill alone are an incomplete model” is too categorical for an as-yet unvalidated product boundary. Replace with “For the proposed outpatient prototype, registration, consultation and a final bill alone would omit the diagnostic and pharmacy handoffs described in these sources.” This remains a justified design inference without making it a universal requirement for every medical center.
+
+## Scope conclusions
+
+No unsupported national prevalence claim was found in the checked findings. The proposed diagram, urgent route, handoff scope, deployment neutrality and provisional requirements are appropriately labeled as design choices. Keep those labels in downstream PRD work. The report's claim that eleven original studies were reviewed, other source claims, and the existing verification digest were outside this spot-check and are not certified by this result.

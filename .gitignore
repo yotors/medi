@@ -1,0 +1,29 @@
+node_modules/
+.venv/
+.cache/
+.impeccable/
+artifacts/*
+!artifacts/.gitkeep
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+__pycache__/
+_bmad/config.user.toml
+
+# Vite build output
+dist/
+
+# Local development account credentials
+.local/
+
+# Workstation-installed agent tooling and generated configuration
+.agents/
+.codex/
+_bmad/
+
+# Local workflow memory
+**/.memlog.md
