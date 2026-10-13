@@ -8,6 +8,13 @@ are discovery drafts. A local synthetic-data outpatient walkthrough implements
 registration, check-in, consultation, diagnostics, pharmacy handoffs, billing and
 visit closure. There is no production deployment.
 
+This is the first implemented milestone of the full commercial product, not a
+finished hospital system. See the [product roadmap](docs/product-roadmap.md) for
+implemented versus missing capabilities and [database/deployment plan](docs/deployment.md)
+for the existing local setup and when hosting decisions will need founder input.
+The [whole-product requirements draft](./_bmad-output/planning-artifacts/prd/prd-medi-2026-10-13/prd.md)
+records proposed requirements and the clinical/commercial decisions still open.
+
 ## Staff outpatient workspace
 
 The `/staff` workspace has staff sign-in, hospital-scoped registration/search,

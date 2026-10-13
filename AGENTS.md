@@ -1,7 +1,16 @@
 # Product Studio
 
 This workspace is for a reusable hospital management product, initially serving
-small private hospitals and medical centers in Ethiopia. Production deployment, clinical backend design, budget, clinical scope, and capacity
+small private hospitals and medical centers in Ethiopia. The user explicitly
+emphasized a real commercial product on 2026-10-13: completion of an outpatient
+slice is not completion of the hospital product. Maintain the full product
+roadmap and clearly distinguish implementation from clinical/production readiness.
+Local Docker database work is authorized; Supabase is optional, not mandated.
+The existing PostgreSQL Docker setup remains in use. Tell the user when an
+actual deployment decision needs hosting, budget, a domain or production services;
+prepare the concrete plan first and do not require cloud setup for local work.
+See docs/product-roadmap.md and docs/deployment.md.
+Production deployment, clinical backend design, budget, clinical scope, and capacity
 targets remain undecided. The separate `/staff` outpatient workspace uses Fastify and
 PostgreSQL with sessions, hospital-scoped access, role-projected visit sections,
 transactional registration and durable outpatient commands.

@@ -12,7 +12,13 @@ Implementation delegated by the user's instruction to start building. Prototype 
 Small private hospitals and medical centers in Ethiopia. Proposed first users: receptionists, nurses/clinicians, diagnostic staff, pharmacists and cashiers. Actual staff have not validated the workflow.
 
 ## Product Purpose
-Coordinate a patient's outpatient visit across registration, clinical work, diagnostics and payment. Build a reusable product for independent hospitals.
+Build a commercial hospital management product for independent hospitals, with
+shared product code and controlled hospital configuration. The first implemented
+milestone coordinates an outpatient visit across registration, clinical work,
+diagnostics and payment. Hospital administration, complete departmental
+operations and production delivery remain part of the wider product work;
+see docs/product-roadmap.md. Do not equate this initial slice with the completed
+product.
 
 ## Operating Context
 Published Ethiopian workflow research and a supplied student design inform candidate requirements. Diagnostic return loops, pending departmental work and interruptions matter. Use fictional patient records only during development.
