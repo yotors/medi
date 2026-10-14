@@ -127,3 +127,9 @@ Run frontend/server typechecks and build; affected API cases and staff/outpatien
 ### Final local review and release evidence
 
 Both independent follow-up reviewers found no remaining implementation or verification findings. Root inspected the production changes and affected tests. The rebuilt packaged HTTPS release verifier passed after iteration 1, including persistence, private searches, runtime grants, session denial and outage recovery. Staged Semgrep source scan passed: 150 targets, zero findings. Full regression CI is queued with the subsequent engineering delivery; it is not claimed passed for this revision. No accepted review finding deferred.
+
+### CI browser fixture correction
+
+Commit `9d7d051` passed source-security and local-release CI jobs, but the staff suite exposed shared fixture account throttling after the additional search scenario. The ninth scenario could exceed the ten-login budget. Each independent browser case now clears only the three random fixture-account bucket hashes; production throttling is unchanged, and its API limit/restart test remains. An independent review found no issue in this correction.
+
+The complete staff suite passed **18/18 desktop/mobile cases** in 1.9 minutes after the correction. Earlier local mobile attempts had `net::ERR_NETWORK_CHANGED` during module loading while Docker recovery work changed networks; the private trace records this transport failure. The final run did not overlap network-changing drills and needed no retries or timeout relaxation. Remote full-suite status will be recorded for the subsequent recovery delivery commit.

@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { loadEnvFile } from 'node:process';
 import { mkdir } from 'node:fs/promises';
 import { createPool } from '../server/db';
+import { digest } from '../server/auth';
 import { prepareBrowserFixture } from './browser-fixture';
 import { provisionStaff } from '../server/setup';
 try { loadEnvFile('.env'); } catch { /* CI may supply environment directly. */ }
@@ -20,6 +21,12 @@ test.beforeAll(async () => {
   await provisionStaff(pool, { hospitalCode: `${hospitalCode}-other`, hospitalName: 'Other Fictional Hospital', username: 'reception', displayName: 'Other Reception', role: 'receptionist', password });
 });
 test.beforeEach(async ({ page }) => {
+  // Each independent scenario gets its own fixture account budget. Production
+  // throttling remains enforced and is tested in the isolated API suite.
+  await pool.query('DELETE FROM login_buckets WHERE bucket_hash=ANY($1::text[])', [[
+    digest(`account:${hospitalCode}:reception`), digest(`account:${hospitalCode}:auditor`),
+    digest(`account:${hospitalCode}-other:reception`),
+  ]]);
   page.on('request', request => {
     const url = new URL(request.url());
     if (['/api/patients', '/api/visits', '/api/patients/search', '/api/visits/search'].includes(url.pathname)) expect(url.searchParams.has('q')).toBe(false);
