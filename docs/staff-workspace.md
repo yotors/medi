@@ -126,8 +126,8 @@ also omit restricted sections; permissions are enforced at every command.
 | Role | Visit actions | Detailed sections |
 | --- | --- | --- |
 | Receptionist | Check in | Summary only |
-| Clinician | Notes, request/review/cancel tests, prescriptions, close | Consultation, diagnostics, pharmacy |
-| Lab | Collect specimen, release result | Diagnostics |
+| Clinician | Notes/amendments, request/review/cancel tests, corrected-result review/takeover, prescriptions, close | Consultation, diagnostics, pharmacy |
+| Lab | Collect specimen, release/correct result and assign reviewer | Diagnostics |
 | Pharmacist | Fulfill/cancel prescription | Pharmacy |
 | Cashier | Issue catalog invoices, record partial payments | Billing |
 | Auditor | Read only | Billing, history |
@@ -139,11 +139,58 @@ Only reception/admin can register patients. Admin clinical permissions exist for
 synthetic demonstrations; production policy needs clinical/security approval.
 
 New visits require a note, reviewed or cancelled tests and no pending prescriptions
-before clinical closure. Clinical records become read-only; billing remains
-collectible. “Not yet billed” is distinct from “Settled.” Historical demonstration
+before clinical closure, including acknowledgement of any corrected results.
+Original clinical records remain immutable; attributable corrections and billing
+remain available after closure. “Not yet billed” is distinct from “Settled.” Historical demonstration
 visits retain their original invented charges, settlement and closure behavior;
 they cannot receive catalog invoices. The browser-only `/` walkthrough is unchanged.
 There is no medication catalog, dosing support, pharmacy inventory or insurance processing.
+
+### Clinical amendments and corrected-result review
+
+In Consultation, clinician/admin staff can append an amended note with a required
+reason. Diagnostics lets lab/admin staff append corrected result text and assign
+an active clinician/admin reviewer. Original text remains visible and unchanged;
+ordered amendment history retains text, reasons, actor snapshots and timestamps.
+Each changed original is marked and links directly to its latest amendment.
+Original author attribution identifies the actor ID and username; its displayed
+account name is explicitly current because historical names were not captured.
+Reviewer choices include username and role to distinguish identical names.
+These actions work on active and closed visits without changing visit revision.
+
+Every result correction creates a fresh review obligation. Only its assigned
+reviewer can acknowledge the exact latest correction. Another clinician/admin
+can explicitly take responsibility with a reason. Disabled, role-changed or
+password-reset owners remain visible as unavailable; takeover keeps the work
+recoverable. A new correction after an earlier acknowledgement requires review
+again. Reviewing a correction does not replace the original release-review step.
+
+The visit filter **Corrections awaiting review · all visits** includes closed
+visits and prioritizes the latest outstanding correction time. Clinician/admin
+staff can narrow it to **Assigned to me**; clinical roles see owner and correction
+time without exposing narratives in queue rows. Counts and warnings remain visible until acknowledgement. Active closure
+is blocked by outstanding correction review; a closed encounter stays closed
+while its follow-up remains outstanding. Reviewer assignment is an explicit
+operator decision, not an inferred clinical escalation policy.
+
+Visit reads and writes retrieve the latest amendment and exact current review
+state independently of history pages. Subject history and auditor metadata history
+use explicit 25-event pages with previous/next controls; earlier entries remain
+accessible. A later correction clears an outdated save/review success notice.
+
+Migration008 adds append-only clinical amendments, events and exact-retry receipts,
+with hospital/subject boundaries, current authority checks and immutable SQL
+history guards. Narratives remain restricted to the relevant clinical roles;
+auditor history contains action metadata only. Lost responses retain the same
+request/key. Stale corrections preserve drafts and require explicit review of the
+latest version before another save. Reloading or closing the browser can still
+lose in-memory drafts. See the [clinical correction specification](../_bmad-output/implementation-artifacts/spec-clinical-corrections.md).
+
+This implements free-text correction mechanics with fictional data. Signed
+clinical templates, result units/reference ranges, laboratory verification,
+critical-finding escalation and the production permission policy still require
+professional validation. No original authorship is invented where historical
+subject metadata is unavailable.
 
 ### Catalog invoices and payment records
 

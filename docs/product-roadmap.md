@@ -22,8 +22,8 @@ deadline, contract scope or production capacity is implied.
 | Identity and hospital boundary | Individual logins, seven preliminary roles, scoped API responses and cross-hospital tests | Recovery, privileged MFA, validated permissions, separate vendor support controls and database row-policy defense in depth |
 | Hospital administration | Hospital-scoped staff directory, onboarding, roles/status, credential reset, password replacement and administrative history; secure CLI bootstrap; departments and immutable service-price versions/history | Branch structure, broader hospital settings and validated permission policy |
 | Patient registration | Directory/search, MRN, duplicate-name warning and check-in | Safe demographic corrections, identity reconciliation, provisional/urgent identity, merge governance and migration |
-| Clinical encounters | Authored notes and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing/amendments, responsible follow-up and urgent-care/downtime procedures |
-| Laboratory | Order, collection, release and clinician-review handoffs | Test catalog/units, specimen rejection/recollection, result corrections, professional validation and external reports |
+| Clinical encounters | Authored notes, append-only note amendments and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing, broader responsible follow-up and urgent-care/downtime procedures |
+| Laboratory | Order, collection, release and clinician-review handoffs; immutable result corrections with assigned review/takeover, including closed visits | Test catalog/units, specimen rejection/recollection, critical-finding escalation, professional validation and external reports |
 | Pharmacy | Prescription and fulfillment/cancellation handoffs | Product catalog, quantities/partial dispensing, batches/expiry, stock movements, returns and concurrent stock integrity |
 | Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
@@ -51,8 +51,9 @@ deadline, contract scope or production capacity is implied.
    structure, recovery, privileged MFA and validated permissions remain outstanding.
 
 3. **Operational outpatient product — in progress.**
-   Complete patient/clinical corrections, lab and pharmacy requirements, and a
-   broader financial controls. Catalog invoices and partial payment records are
+   Complete patient corrections, broader lab and pharmacy requirements, and
+   financial controls. Note amendments and corrected-result review are implemented;
+   their clinical workflow validation remains open. Catalog invoices and partial payment records are
    implemented; see the [billing specification](../_bmad-output/implementation-artifacts/spec-outpatient-billing.md). Test realistic multi-role
    exceptions: result correction, partial dispensing, duplicate payment retry,
    refund, concurrent last-stock dispense and interrupted work. Clinical closure

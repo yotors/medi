@@ -1,0 +1,20 @@
+.clinical-corrections { margin-top: 32px; padding-top: 24px; border-top: 1px solid #dce5e4; }
+.clinical-corrections > p { max-width: 72ch; }
+.clinical-subject { padding: 20px 0; border-bottom: 1px solid #dce5e4; }
+.clinical-subject h3, .clinical-draft h3 { font-size: 17px; margin: 0 0 12px; }
+.clinical-subject h4 { margin: 20px 0 8px; }
+.clinical-subject p { max-width: 72ch; overflow-wrap: anywhere; }
+.clinical-current { font-size: 16px; }
+.clinical-review { margin-top: 16px; }
+.clinical-review p { margin: 8px 0; }
+.clinical-pending { color: #875b0d; }
+.clinical-history { margin: 16px 0; }
+.clinical-history summary { color: #12695d; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
+.clinical-history .timeline { margin-top: 12px; }
+.clinical-draft { margin-top: 24px; padding: 20px; background: #f4f7f7; border: 1px solid #dce5e4; border-radius: 12px; }
+.clinical-draft textarea { min-height: 110px; }
+.clinical-draft .button-row { margin-top: 16px; }
+.clinical-corrections small { color: #52686d; }
+@media (max-width: 650px) { .clinical-draft { padding: 16px; } .clinical-subject .section-heading { align-items: start; } }
+
+.clinical-identity { font-size: 13px; overflow-wrap: anywhere; }

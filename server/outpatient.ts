@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { balance, blockers, DomainError, execute, type State, type Visit } from '../src/domain.ts';
 import { commandAction, commandRequestSchema, roleActions, roleSections, type VisitCommand, type VisitSummary, type VisitView } from '../shared/outpatient.ts';
 import type { RegisteredPatient, Session, StaffRole } from '../shared/registration.ts';
+import { assignedClinicalVisitPredicate, pendingClinicalVisitTime, pendingClinicalVisitPredicate, readClinicalCounts, readClinicalDetail, readClinicalAssignments } from './clinical.ts';
 import { readBillingSummaries, readBillingSummary } from './billing.ts';
 import { ApiError } from './app.ts';
 import { currentActor, digest } from './auth.ts';
@@ -13,7 +14,8 @@ const uuid = z.uuid();
 const empty = z.strictObject({});
 const querySchema = z.strictObject({
   q: z.string().max(100).refine(value => !value.includes('\0')).default(''),
-  status: z.enum(['active', 'closed', 'all']).default('active'),
+  status: z.enum(['active', 'closed', 'all', 'corrections']).default('active'),
+  assigned: z.enum(['all','me']).default('all'),
   page: z.coerce.number().int().min(1).max(10000).default(1),
 });
 type Row = { id: string; revision: number; data: Visit; patient: Record<string, unknown> };
@@ -33,9 +35,16 @@ function summary(row: Row): VisitSummary {
   const pendingPrescriptions = v.prescriptions.filter(p => p.status === 'pending').length;
   return { id: v.id, financialMode: v.financialMode === 'catalog' ? 'catalog' : 'legacy_demo', patient: patient(row.patient), status: v.status, revision: row.revision,
     openedAt: v.openedAt, ...(v.closedAt ? { closedAt: v.closedAt } : {}), balance: balance(v), blockers: blockers(v),
-    pendingInvestigations, pendingPrescriptions,
+    pendingInvestigations, pendingPrescriptions, pendingClinicalReviews: 0,
     stage: v.status === 'closed' ? 'Closed' : !v.notes.length ? 'Consultation' : pendingInvestigations ? 'Diagnostics'
       : pendingPrescriptions ? 'Pharmacy' : balance(v) > 0 ? 'Billing' : 'Ready to close' };
+}
+function applyClinicalSummary(view: VisitSummary, count: number) {
+  view.pendingClinicalReviews = count;
+  if (count > 0) {
+    view.stage = view.status === 'closed' ? 'Closed · review needed' : 'Corrected result review';
+    if (view.status === 'active') view.blockers.push('Review all corrected results.');
+  }
 }
 async function project(client: pg.PoolClient, row: Row, role: StaffRole, hospitalId: string): Promise<VisitView> {
   const sections = roleSections[role];
@@ -44,6 +53,9 @@ async function project(client: pg.PoolClient, row: Row, role: StaffRole, hospita
     view.billing = await readBillingSummary(client, hospitalId, row.id);
     view.balance = view.billing.balanceMinor;
   }
+  const pendingCorrections = (await readClinicalCounts(client, hospitalId, [row.id])).get(row.id) ?? 0;
+  applyClinicalSummary(view, pendingCorrections);
+  if (['admin', 'clinician', 'lab'].includes(role)) view.clinical = await readClinicalDetail(client, hospitalId, row.id, role);
   if (sections.includes('Consultation')) view.notes = row.data.notes;
   if (sections.includes('Diagnostics')) view.orders = row.data.orders;
   if (sections.includes('Pharmacy')) view.prescriptions = row.data.prescriptions;
@@ -93,9 +105,10 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
   app.get('/api/visits', async request => {
     const parsed = querySchema.safeParse(request.query);
     if (!parsed.success) throw invalid();
-    const { q, status, page } = parsed.data;
+    const { q, status, page, assigned } = parsed.data;
     const session = sessions.get(request)!;
     const hospitalId = session.user.hospital.id;
+    if (assigned === 'me' && !['admin','clinician'].includes(session.user.role)) throw new ApiError(403, 'FORBIDDEN', 'This account cannot filter assigned clinical reviews.');
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -104,16 +117,21 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR SHARE', [session.user.hospital.id]);
       const actor = await currentActor(client, session);
       if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
-      const predicate = `v.hospital_id=$1 AND ($2='all' OR v.status=$2)
+      const predicate = `v.hospital_id=$1 AND ($2='all' OR v.status=$2 OR ($2='corrections' AND ${pendingClinicalVisitPredicate}))
+        AND ($5='all' OR ${assignedClinicalVisitPredicate})
         AND (p.name ILIKE $3 OR p.record_number ILIKE $3 OR p.contact ILIKE $3 OR p.normalized_name LIKE $4)`;
-      const args = [hospitalId, status, literal(q), literal(q.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())];
+      const args = [hospitalId, status, literal(q), literal(q.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()), assigned, session.user.id];
       const { rows: [count] } = await client.query(`SELECT count(*)::integer AS total FROM outpatient_visits v
         JOIN patients p ON p.id=v.patient_id AND p.hospital_id=v.hospital_id WHERE ${predicate}`, args);
-      const { rows } = await client.query<Row>(`${selectVisit} WHERE ${predicate} ORDER BY v.opened_at DESC,v.id DESC LIMIT 25 OFFSET $5`, [...args, (page - 1) * 25]);
+      const { rows } = await client.query<Row>(`${selectVisit} WHERE ${predicate} ORDER BY CASE WHEN $2='corrections' THEN ${pendingClinicalVisitTime} END DESC NULLS LAST,v.opened_at DESC,v.id DESC LIMIT 25 OFFSET $7`, [...args, (page - 1) * 25]);
       const billing = await readBillingSummaries(client, hospitalId, rows.filter(row => row.data.financialMode === 'catalog').map(row => row.id));
+      const clinicalCounts = await readClinicalCounts(client, hospitalId, rows.map(row => row.id));
+      const assignments = ['admin','clinician','lab'].includes(session.user.role) ? await readClinicalAssignments(client, hospitalId, rows.map(row => row.id)) : new Map();
       const visits: VisitSummary[] = [];
       for (const row of rows) {
         const view = summary(row);
+        applyClinicalSummary(view, clinicalCounts.get(row.id) ?? 0);
+        if (['admin','clinician','lab'].includes(session.user.role)) view.clinicalAssignments = assignments.get(row.id) ?? [];
         if (view.financialMode === 'catalog') { view.billing = billing.get(row.id)!; view.balance = view.billing.balanceMinor; }
         visits.push(view);
       }
@@ -219,6 +237,7 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
         await client.query('COMMIT'); return { visit };
       }
       if (row.revision !== expectedRevision) throw new ApiError(409, 'STALE_REVISION', 'This visit changed. Reload the latest visit before saving your draft again.');
+      if (command.type === 'close' && ((await readClinicalCounts(client, hospitalId, [row.id])).get(row.id) ?? 0) > 0) throw new ApiError(409, 'CORRECTION_REVIEW_PENDING', 'Review all corrected results before closing this visit.');
       const state = transition({ version: 1, revision: row.revision, patients: [patient(row.patient)], visits: [row.data], events: [] }, { ...command, visitId: row.id });
       const data = state.visits[0];
       await client.query('UPDATE outpatient_visits SET revision=$3,status=$4,data=$5 WHERE hospital_id=$1 AND id=$2', [hospitalId, row.id, state.revision, data.status, JSON.stringify(data)]);

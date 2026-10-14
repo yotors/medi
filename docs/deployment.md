@@ -1,6 +1,6 @@
 # Database and deployment plan
 
-Updated: 2026-10-13. This records the current development environment and the
+Updated: 2026-10-14. This records the current development environment and the
 decisions needed before deployment. It does not describe an existing production
 installation.
 
@@ -14,8 +14,8 @@ credentials and does not connect directly to PostgreSQL.
 
 The named volume `hospital-product-studio_hospital-dev-data` persists database
 files across ordinary container restarts. Ignored `.env` and `.local/` files hold
-local credentials and backup artifacts. Migrations 001–005 create the current
-staff, patient and outpatient data model. Hospital isolation is enforced by the
+local credentials and backup artifacts. Migrations 001–008 create the staff, patient, outpatient, configuration, billing
+and append-only clinical correction data model. Hospital isolation is enforced by the
 application and relational constraints; the release rehearsal separates schema migration privileges from restricted
 runtime grants. Per-hospital database row policies remain unimplemented.
 
@@ -24,6 +24,9 @@ On 2026-10-13, `docker compose ps` reported the database healthy and
 [application CI run](https://github.com/yotors/medi/actions/runs/38390211322)
 includes server/browser tests and a disposable-database restore check. This
 evidence applies to the development implementation, not a production deployment.
+
+The [pilot acceptance workbook](hospital-pilot-acceptance.md) records concrete
+walkthroughs, installation choices and evidence owners before a live pilot.
 
 No database account, cloud subscription or hosting purchase is needed from the
 founder now. Continue using synthetic records while building the product.

@@ -91,12 +91,12 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await page.getByRole('heading', { name, exact: true }).focus();
   await page.screenshot({ path: `artifacts/outpatient-ui/${info.project.name}-visit.png`, fullPage: true });
   await activate(page.getByRole('button', { name: 'Close visit', exact: true }));
-  await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
+  await expect(page.getByText('Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.')).toBeVisible();
   await page.reload();
   await activate(page.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Outpatient visits', exact: true }));
   await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
   await activate(page.getByRole('button', { name, exact: true }));
-  await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
+  await expect(page.getByText('Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save note', exact: true })).toHaveCount(0);
   await section(page, 'History');
   await expect(page.getByText('Closed visit.', { exact: true })).toBeVisible();
@@ -182,7 +182,7 @@ test('department handoffs complete a visit with permitted API sections and priva
       await page.getByRole('button', { name, exact: true }).click(); await section(page, 'Diagnostics');
       await page.getByRole('button', { name: 'Mark reviewed', exact: true }).click();
       await page.getByRole('button', { name: 'Close visit', exact: true }).click();
-      await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
+      await expect(page.getByText('Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.')).toBeVisible();
     }
     await page.getByRole('button', { name: 'Sign out', exact: true }).click(); await signIn(page, role);
     const body = await (await page.request.get(`/api/visits/${visit.id}`)).json();

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ClinicalAssignment, ClinicalDetail } from './clinical.ts';
 import type { BillingSummary } from './billing.ts';
 import type { Visit } from '../src/domain.ts';
 import type { RegisteredPatient, StaffRole } from './registration.ts';
@@ -34,10 +35,12 @@ export function commandAction(command: VisitCommand): VisitAction {
 export type VisitSummary = {
   id: string; patient: RegisteredPatient; status: 'active' | 'closed'; stage: string;
   financialMode: 'catalog' | 'legacy_demo'; billing?: BillingSummary;
+  pendingClinicalReviews: number; clinicalAssignments?: ClinicalAssignment[];
   revision: number; openedAt: string; closedAt?: string; balance: number;
   blockers: string[]; pendingInvestigations: number; pendingPrescriptions: number;
 };
 export type VisitView = VisitSummary & {
+  clinical?: ClinicalDetail;
   sections: readonly VisitSection[]; allowedActions: readonly VisitAction[];
   notes?: Visit['notes']; orders?: Visit['orders']; prescriptions?: Visit['prescriptions'];
   charges?: Visit['charges']; payments?: Visit['payments'];

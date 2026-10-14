@@ -7,6 +7,7 @@ import { loginSchema, registrationSchema, type RegisteredPatient, type Session }
 import { allowLogin, currentActor, digest, DUMMY_PASSWORD_HASH, randomToken, readSession, safeEqual, SESSION_COOKIE, SESSION_SECONDS, verifyPassword } from './auth.ts';
 import { registerAdministrationRoutes } from './administration.ts';
 import { registerOutpatientRoutes } from './outpatient.ts';
+import { registerClinicalRoutes } from './clinical.ts';
 import { registerBillingRoutes } from './billing.ts';
 import { registerConfigurationRoutes } from './configuration.ts';
 
@@ -176,6 +177,7 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   registerOutpatientRoutes(app, pool, sessions);
   registerConfigurationRoutes(app, pool, sessions);
   registerBillingRoutes(app, pool, sessions);
+  registerClinicalRoutes(app, pool, sessions);
   registerAdministrationRoutes(app, pool, sessions);
   return app;
 }

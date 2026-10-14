@@ -77,7 +77,7 @@ test('catalog invoice, partial cash and transfer receipts remain collectible aft
   await payment(page, '50.00'); await expect(page.getByRole('status').filter({ hasText: 'Payment recorded. Receipt' })).toBeVisible();
   let detail = await invoice(page, visit.id); expect(detail.invoice.balanceMinor).toBe(7500); expect(detail.events.filter(event => event.payment)).toHaveLength(1);
   await page.getByRole('button', { name: 'Close visit', exact: true }).click();
-  await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
+  await expect(page.getByText('Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.')).toBeVisible();
   await page.getByLabel('Payment method', { exact: true }).selectOption('manual_transfer');
   await page.getByLabel('Amount received (ETB)', { exact: true }).fill('75.00');
   await page.getByLabel('I confirm this money was received and the details are correct.').check();

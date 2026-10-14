@@ -59,7 +59,7 @@ function persistenceSnapshot(hospitalCode, records) {
       const queries=[
         ['patients','id=$2',1],
         ['outpatient_visits','id=$3',1],
-        ['audit_events','visit_id=$3',2],
+        ['audit_events','visit_id=$3',records.clinical ? 7 : 2],
         ['staff_users','id=$4',1],
         ['staff_administration_events','account_id=$4',2],
         ['hospital_departments','id=$5',1],
@@ -67,7 +67,7 @@ function persistenceSnapshot(hospitalCode, records) {
         ['hospital_service_versions','service_id=$6',2],
         ['hospital_configuration_events','department_id=$5 OR service_id=$6',4],
         ['registration_requests','patient_id=$2',1],
-        ['outpatient_requests','visit_id=$3',2],
+        ['outpatient_requests','visit_id=$3',records.clinical ? 7 : 2],
         ['staff_administration_requests','account_id=$4',1],
         ['hospital_configuration_requests',"result->'entry'->>'id' IN ($5::text,$6::text)",4]
       ];
@@ -78,6 +78,11 @@ function persistenceSnapshot(hospitalCode, records) {
         ['billing_receipts','payment_id IN (SELECT id FROM billing_payments WHERE invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3))',2],
         ['billing_events','invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3)',3],
         ['billing_requests','visit_id=$3',3]
+      );
+      if(records.clinical) queries.push(
+        ['clinical_amendments','visit_id=$3',2],
+        ['clinical_events','visit_id=$3',3],
+        ['clinical_requests','visit_id=$3',3]
       );
       const snapshots=[];
       for(const [table,where,count] of queries) {
@@ -232,6 +237,38 @@ try {
   const financialDetail = await request(`/api/billing/invoices/${issued.invoiceId}`, { headers });
   check(financialDetail.status === 200 && JSON.parse(financialDetail.text).invoice.balanceMinor === 0 && JSON.parse(financialDetail.text).events.length === 3, 'Restricted runtime billing history or balance failed.');
 
+  // Exercise corrections after closure using the restricted runtime account.
+  let clinicalVisit = JSON.parse((await request(`/api/visits/${visit.id}`, { headers })).text).visit;
+  const visitCommand = async command => {
+    const response = await request(`/api/visits/${visit.id}/commands`, { method: 'POST', headers: { ...headers, 'idempotency-key': randomUUID() }, body: { expectedRevision: clinicalVisit.revision, command } });
+    check(response.status === 200, 'Restricted runtime clinical fixture transition failed.');
+    clinicalVisit = JSON.parse(response.text).visit;
+  };
+  await visitCommand({ type: 'order', test: 'Blood count' });
+  const orderId = clinicalVisit.orders.at(-1).id;
+  await visitCommand({ type: 'advanceOrder', orderId, next: 'collected' });
+  await visitCommand({ type: 'advanceOrder', orderId, next: 'released', result: 'Synthetic original result.' });
+  await visitCommand({ type: 'advanceOrder', orderId, next: 'reviewed' });
+  await visitCommand({ type: 'close' });
+  const closedRevision = clinicalVisit.revision;
+  const clinical = async command => {
+    const commandHeaders = { ...headers, 'idempotency-key': randomUUID() };
+    const response = await request(`/api/visits/${visit.id}/clinical/commands`, { method: 'POST', headers: commandHeaders, body: command });
+    check(response.status === 200, 'Restricted runtime clinical correction failed.');
+    const replay = await request(`/api/visits/${visit.id}/clinical/commands`, { method: 'POST', headers: commandHeaders, body: command });
+    check(replay.status === 200 && isDeepStrictEqual(JSON.parse(replay.text), JSON.parse(response.text)), 'Clinical correction replay changed its receipt.');
+    return JSON.parse(response.text);
+  };
+  await clinical({ type: 'note.amend', subjectId: clinicalVisit.notes[0].id, expectedVersion: 0, body: 'Synthetic amended note.', reason: 'Synthetic release correction.' });
+  const correction = await clinical({ type: 'result.correct', subjectId: orderId, expectedVersion: 0, body: 'Synthetic corrected result.', reason: 'Synthetic release correction.', ownerId: JSON.parse(login.text).user.id });
+  const beforeReview = await request(`/api/visits/${visit.id}/clinical`, { headers });
+  check(beforeReview.status === 200 && JSON.parse(beforeReview.text).pendingReviews === 1, 'Closed result correction did not require fresh review.');
+  await clinical({ type: 'result.review', subjectId: orderId, expectedVersion: correction.version, amendmentId: correction.eventId });
+  const afterReview = await request(`/api/visits/${visit.id}/clinical`, { headers });
+  check(afterReview.status === 200 && JSON.parse(afterReview.text).pendingReviews === 0, 'Corrected result review remained unresolved.');
+  const preserved = JSON.parse((await request(`/api/visits/${visit.id}`, { headers })).text).visit;
+  check(preserved.status === 'closed' && preserved.revision === closedRevision && preserved.notes[0].body === 'Synthetic release verification note.' && preserved.orders.at(-1).result === 'Synthetic original result.', 'Correction changed the closed original record.');
+
   const packaging = `import {existsSync,readdirSync} from 'node:fs';
     const forbidden=['/app/.env','/app/.local','/app/.agents','/app/.codex','/app/tests','/app/artifacts','/app/node_modules/tsx','/app/node_modules/@playwright/test'];
     const walk=p=>readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p+'/'+e.name):[p+'/'+e.name]);
@@ -242,7 +279,7 @@ try {
     try {
       const r=(await client.query("SELECT current_user AS name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user")).rows[0];
       if(r.name!=='medi_runtime'||r.rolsuper||r.rolcreatedb||r.rolcreaterole) throw Error();
-      for(const sql of ["CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
+      for(const sql of ["CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","UPDATE clinical_amendments SET body=body WHERE false","DELETE FROM clinical_amendments WHERE false","UPDATE clinical_events SET actor_name=actor_name WHERE false","DELETE FROM clinical_events WHERE false","UPDATE clinical_requests SET result=result WHERE false","DELETE FROM clinical_requests WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
         await client.query('BEGIN'); let denied=false;
         try { await client.query(sql); } catch(e) { denied=e.code==='42501'; }
         finally { await client.query('ROLLBACK'); }
@@ -280,13 +317,14 @@ try {
     check((await request('/api/health')).status !== 200, 'Readiness incorrectly passed with the database stopped.');
   } finally { docker(['up', '-d', '--wait', '--wait-timeout', '60', 'database']); }
   check((await request('/api/health')).status === 200, 'API did not recover after the database returned.');
-  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true };
+  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true };
   fixture.recordDigests = persistenceSnapshot(fixture.hospitalCode, fixture.records);
   saveFixture(path, fixture);
   console.log('PASS: isolated project/configuration recovery guards, image contents and database-outage readiness/recovery.');
   console.log('PASS: built HTTPS UI, protected session, Origin/CSRF, persisted registration/retry, restricted runtime SQL, logout.');
   console.log('PASS: restricted-runtime check-in/clinical note, staff onboarding/password replacement, configuration versions/history and retries.');
   console.log('PASS: catalog invoice, partial cash/manual-transfer payments, stable replay receipts, immutable ledger grants and restart digests.');
+  console.log('PASS: closed-record note/result corrections, fresh review, stable retries, original preservation and clinical-history grants/digests.');
   console.log('PASS: built browser sign-in, session restoration on refresh, and sign-out with no runtime errors.');
   console.log('Private synthetic administrator details: .local/release-verification.json. Prior saved records are checked on each subsequent run.');
 } catch (error) {

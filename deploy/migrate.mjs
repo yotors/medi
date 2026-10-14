@@ -44,6 +44,9 @@ try {
       billing_events: 'SELECT, INSERT',
       billing_requests: 'SELECT, INSERT',
       billing_counters: 'SELECT, INSERT, UPDATE',
+      clinical_amendments: 'SELECT, INSERT',
+      clinical_events: 'SELECT, INSERT',
+      clinical_requests: 'SELECT, INSERT',
     };
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
     for (const { tablename } of tables) {

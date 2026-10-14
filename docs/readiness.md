@@ -20,7 +20,9 @@ replacement, departments and versioned ETB services are also implemented. A
 separate built HTTPS Docker installation uses restricted runtime database
 permissions and an explicit migration job. New visits also have catalog invoices,
 partial payment records and immutable receipt history; clinical closure leaves
-billing independently collectible. See its [implementation and limits](staff-workspace.md). The original
+billing independently collectible. Append-only note amendments and result
+corrections now retain originals and create explicitly owned review work,
+including after closure. See its [implementation and limits](staff-workspace.md). The original
 `/` walkthrough remains a separate browser-only demonstration.
 
 See [prototype boundaries](prototype-boundaries.md) for the separation between
@@ -96,5 +98,14 @@ patches, whose affected API15/15 and browser12/12 suites then passed. The
 additive006 migration preserved existing records, and the final built release
 passed again before and after restart. All accepted review findings are resolved.
 GitHub evidence is pending the milestone push.
-These checks do not complete the financial ledger, laboratory corrections,
-pharmacy inventory, inpatient workflows or production release gates.
+Those administration-era checks predate the subsequent billing and clinical
+correction slices. Neither completes broader financial controls, laboratory
+validation, pharmacy inventory, inpatient workflows or production release gates.
+
+## Clinical correction verification — 2026-10-14
+
+The [clinical correction specification](../_bmad-output/implementation-artifacts/spec-clinical-corrections.md)
+tracks API/browser and release evidence for immutable amendments, assigned review,
+explicit takeover, concurrent correction/closure, exact retries and role/tenant
+projections. These are synthetic engineering checks; professional approval of
+clinical templates, result verification and escalation remains outstanding.
