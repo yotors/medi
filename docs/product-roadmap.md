@@ -24,7 +24,7 @@ deadline, contract scope or production capacity is implied.
 | Patient registration | Directory/search, MRN, duplicate-name warning and check-in | Safe demographic corrections, identity reconciliation, provisional/urgent identity, merge governance and migration |
 | Clinical encounters | Authored notes, append-only note amendments and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing, broader responsible follow-up and urgent-care/downtime procedures |
 | Laboratory | Order, collection, release and clinician-review handoffs; immutable result corrections with assigned review/takeover, including closed visits | Test catalog/units, specimen rejection/recollection, critical-finding escalation, professional validation and external reports |
-| Pharmacy | Prescription and fulfillment/cancellation handoffs | Product catalog, quantities/partial dispensing, batches/expiry, stock movements, returns and concurrent stock integrity |
+| Pharmacy | Hospital products/batches, receipt and adjustment ledger, explicit clinician quantity authorization, partial/full supply and remainder cancellation; expiry/quarantine and concurrent stock guards | Validated formulary/clinical policy, procurement, controlled items, patient returns, pack conversion, multiple stores and valuation |
 | Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
 | Reporting/integrations | Basic visit summaries/history | Agreed operational reports and governed exports; payer, payment and statutory interfaces only against verified contracts |
@@ -53,7 +53,7 @@ deadline, contract scope or production capacity is implied.
 3. **Operational outpatient product — in progress.**
    Complete patient corrections, broader lab and pharmacy requirements, and
    financial controls. Note amendments and corrected-result review are implemented;
-   their clinical workflow validation remains open. Catalog invoices and partial payment records are
+   their clinical workflow validation remains open. Pharmacy stock, batch eligibility and partial supply are implemented; see the [inventory specification](../_bmad-output/implementation-artifacts/spec-pharmacy-inventory.md). Catalog invoices and partial payment records are
    implemented; see the [billing specification](../_bmad-output/implementation-artifacts/spec-outpatient-billing.md). Test realistic multi-role
    exceptions: result correction, partial dispensing, duplicate payment retry,
    refund, concurrent last-stock dispense and interrupted work. Clinical closure

@@ -14,8 +14,8 @@ credentials and does not connect directly to PostgreSQL.
 
 The named volume `hospital-product-studio_hospital-dev-data` persists database
 files across ordinary container restarts. Ignored `.env` and `.local/` files hold
-local credentials and backup artifacts. Migrations 001–008 create the staff, patient, outpatient, configuration, billing
-and append-only clinical correction data model. Hospital isolation is enforced by the
+local credentials and backup artifacts. Migrations 001–010 create the staff, patient, outpatient, configuration, billing,
+clinical correction and pharmacy inventory data model. Hospital isolation is enforced by the
 application and relational constraints; the release rehearsal separates schema migration privileges from restricted
 runtime grants. Per-hospital database row policies remain unimplemented.
 
@@ -27,6 +27,8 @@ evidence applies to the development implementation, not a production deployment.
 
 The [pilot acceptance workbook](hospital-pilot-acceptance.md) records concrete
 walkthroughs, installation choices and evidence owners before a live pilot.
+The [security evidence index](security-evidence.md) maps selected ASVS requirements
+to implementation evidence and unresolved gaps; the full assessment is open.
 
 No database account, cloud subscription or hosting purchase is needed from the
 founder now. Continue using synthetic records while building the product.
@@ -154,7 +156,8 @@ with accountable operators remains a release gate.
 Verification replaces its private fixture file atomically after syncing the new
 contents. Each subsequent run compares saved row digests for the prior patient's
 visit and note, staff account/history, department and service versions, audit
-events, and idempotency receipts before creating new fixtures. These checks use
+events, clinical corrections/reviews, pharmacy stock/dispensing, and idempotency
+receipts before creating new fixtures. These checks use
 the restricted runtime account. The gateway has its own HTTPS readiness probe;
 the verifier separately validates the local CA and built page contents.
 

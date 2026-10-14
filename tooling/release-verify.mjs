@@ -55,11 +55,11 @@ function persistenceSnapshot(hospitalCode, records) {
     try {
       const hospital=(await pool.query('SELECT id FROM hospitals WHERE code=$1',[hospitalCode])).rows[0];
       if(!hospital) throw Error();
-      const values=[hospital.id,records.patientId,records.visitId,records.accountId,records.departmentId,records.serviceId];
+      const values=[hospital.id,records.patientId,records.visitId,records.accountId,records.departmentId,records.serviceId,records.inventoryProductId??null];
       const queries=[
         ['patients','id=$2',1],
         ['outpatient_visits','id=$3',1],
-        ['audit_events','visit_id=$3',records.clinical ? 7 : 2],
+        ['audit_events','visit_id=$3',records.inventoryProductId ? 11 : records.clinical ? 7 : 2],
         ['staff_users','id=$4',1],
         ['staff_administration_events','account_id=$4',2],
         ['hospital_departments','id=$5',1],
@@ -67,7 +67,7 @@ function persistenceSnapshot(hospitalCode, records) {
         ['hospital_service_versions','service_id=$6',2],
         ['hospital_configuration_events','department_id=$5 OR service_id=$6',4],
         ['registration_requests','patient_id=$2',1],
-        ['outpatient_requests','visit_id=$3',records.clinical ? 7 : 2],
+        ['outpatient_requests','visit_id=$3',records.inventoryProductId ? 8 : records.clinical ? 7 : 2],
         ['staff_administration_requests','account_id=$4',1],
         ['hospital_configuration_requests',"result->'entry'->>'id' IN ($5::text,$6::text)",4]
       ];
@@ -84,10 +84,19 @@ function persistenceSnapshot(hospitalCode, records) {
         ['clinical_events','visit_id=$3',3],
         ['clinical_requests','visit_id=$3',3]
       );
+      if(records.inventoryProductId) queries.push(
+        ['inventory_products','id=$7',1],
+        ['inventory_batches','product_id=$7',1],
+        ['inventory_movements','batch_id IN (SELECT id FROM inventory_batches WHERE hospital_id=$1 AND product_id=$7)',3],
+        ['inventory_authorizations','visit_id=$3 AND product_id=$7',1],
+        ['inventory_dispenses','authorization_id IN (SELECT id FROM inventory_authorizations WHERE hospital_id=$1 AND visit_id=$3 AND product_id=$7)',2],
+        ['inventory_events','product_id=$7',6],
+        ['inventory_requests',"result->>'productId'=$7::text",6]
+      );
       const snapshots=[];
       for(const [table,where,count] of queries) {
         // Cast every parameter in the CTE, even if this row set uses only some.
-        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service) SELECT to_jsonb(r)::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
+        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service,$7::uuid product) SELECT to_jsonb(r)::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
         const rows=(await pool.query(sql,values)).rows;
         if(rows.length!==count) throw Error();
         snapshots.push(createHash('sha256').update(JSON.stringify(rows)).digest('hex'));
@@ -244,6 +253,41 @@ try {
     check(response.status === 200, 'Restricted runtime clinical fixture transition failed.');
     clinicalVisit = JSON.parse(response.text).visit;
   };
+  const inventory = async (command, visitScoped = false) => {
+    const commandHeaders = { ...headers, 'idempotency-key': randomUUID() };
+    const path = visitScoped ? `/api/visits/${visit.id}/inventory/commands` : '/api/inventory/commands';
+    const response = await request(path, { method: 'POST', headers: commandHeaders, body: command });
+    check(response.status === 200, 'Restricted runtime inventory command failed.');
+    const replay = await request(path, { method: 'POST', headers: commandHeaders, body: command });
+    check(replay.status === 200 && isDeepStrictEqual(JSON.parse(replay.text), JSON.parse(response.text)), 'Inventory replay changed its receipt.');
+    if (visitScoped) {
+      const refreshed = await request(`/api/visits/${visit.id}`, { headers });
+      check(refreshed.status === 200, 'Inventory visit refresh failed.');
+      clinicalVisit = JSON.parse(refreshed.text).visit;
+    }
+    return JSON.parse(response.text);
+  };
+  const product = await inventory({ type: 'product.create', code: `P${suffix.toUpperCase()}`, name: 'Release Synthetic Product', unit: 'unit' });
+  const batch = await inventory({ type: 'batch.create', productId: product.productId, lot: `LOT-${suffix}`, expiry: '2199-12-31' });
+  await inventory({ type: 'stock.receive', batchId: batch.batchId, expectedRevision: 1, quantity: 10, reference: 'SYNTHETIC-RELEASE-RECEIPT' });
+  const readBatch = async () => {
+    const response = await request(`/api/inventory/products/${product.productId}/batches`, { headers });
+    check(response.status === 200, 'Restricted runtime batch read failed.');
+    const entry = JSON.parse(response.text).entries.find(item => item.id === batch.batchId);
+    check(entry, 'Release inventory batch is missing.');
+    return entry;
+  };
+  await visitCommand({ type: 'prescribe', instruction: 'Synthetic inventory verification only; not a clinical instruction.' });
+  const prescriptionId = clinicalVisit.prescriptions.at(-1).id;
+  await inventory({ type: 'authorize', prescriptionId, expectedVisitRevision: clinicalVisit.revision, productId: product.productId, quantity: 4 }, true);
+  const bypass = await request(`/api/visits/${visit.id}/commands`, { method: 'POST', headers: { ...headers, 'idempotency-key': randomUUID() }, body: { expectedRevision: clinicalVisit.revision, command: { type: 'fulfill', prescriptionId, next: 'fulfilled' } } });
+  check(bypass.status === 409 && JSON.parse(bypass.text).code === 'STOCK_ACCOUNTED', 'Legacy fulfillment bypassed stock accounting.');
+  await inventory({ type: 'dispense', prescriptionId, expectedVisitRevision: clinicalVisit.revision, batchId: batch.batchId, expectedBatchRevision: (await readBatch()).revision, quantity: 1 }, true);
+  check(clinicalVisit.prescriptions.find(item => item.id === prescriptionId).status === 'pending' && (await readBatch()).balance === 9, 'Partial supply did not preserve pending work and stock balance.');
+  await inventory({ type: 'dispense', prescriptionId, expectedVisitRevision: clinicalVisit.revision, batchId: batch.batchId, expectedBatchRevision: (await readBatch()).revision, quantity: 3 }, true);
+  check(clinicalVisit.prescriptions.find(item => item.id === prescriptionId).status === 'fulfilled' && (await readBatch()).balance === 6, 'Completed supply did not reconcile prescription and stock.');
+  const authorization = clinicalVisit.pharmacy.find(item => item.prescriptionId === prescriptionId);
+  check(authorization.quantity === 4 && authorization.supplied === 4 && authorization.remaining === 0 && !authorization.cancelled, 'Supply authorization does not reconcile.');
   await visitCommand({ type: 'order', test: 'Blood count' });
   const orderId = clinicalVisit.orders.at(-1).id;
   await visitCommand({ type: 'advanceOrder', orderId, next: 'collected' });
@@ -279,7 +323,8 @@ try {
     try {
       const r=(await client.query("SELECT current_user AS name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user")).rows[0];
       if(r.name!=='medi_runtime'||r.rolsuper||r.rolcreatedb||r.rolcreaterole) throw Error();
-      for(const sql of ["CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","UPDATE clinical_amendments SET body=body WHERE false","DELETE FROM clinical_amendments WHERE false","UPDATE clinical_events SET actor_name=actor_name WHERE false","DELETE FROM clinical_events WHERE false","UPDATE clinical_requests SET result=result WHERE false","DELETE FROM clinical_requests WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
+      const inventoryDenied=['inventory_authorizations','inventory_events','inventory_movements','inventory_dispenses','inventory_requests'].flatMap(table=>['UPDATE '+table+' SET hospital_id=hospital_id WHERE false','DELETE FROM '+table+' WHERE false']);
+      for(const sql of [...inventoryDenied,"DELETE FROM inventory_products WHERE false","DELETE FROM inventory_batches WHERE false","CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","UPDATE clinical_amendments SET body=body WHERE false","DELETE FROM clinical_amendments WHERE false","UPDATE clinical_events SET actor_name=actor_name WHERE false","DELETE FROM clinical_events WHERE false","UPDATE clinical_requests SET result=result WHERE false","DELETE FROM clinical_requests WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
         await client.query('BEGIN'); let denied=false;
         try { await client.query(sql); } catch(e) { denied=e.code==='42501'; }
         finally { await client.query('ROLLBACK'); }
@@ -317,7 +362,7 @@ try {
     check((await request('/api/health')).status !== 200, 'Readiness incorrectly passed with the database stopped.');
   } finally { docker(['up', '-d', '--wait', '--wait-timeout', '60', 'database']); }
   check((await request('/api/health')).status === 200, 'API did not recover after the database returned.');
-  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true };
+  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true, inventoryProductId: product.productId };
   fixture.recordDigests = persistenceSnapshot(fixture.hospitalCode, fixture.records);
   saveFixture(path, fixture);
   console.log('PASS: isolated project/configuration recovery guards, image contents and database-outage readiness/recovery.');
@@ -325,6 +370,7 @@ try {
   console.log('PASS: restricted-runtime check-in/clinical note, staff onboarding/password replacement, configuration versions/history and retries.');
   console.log('PASS: catalog invoice, partial cash/manual-transfer payments, stable replay receipts, immutable ledger grants and restart digests.');
   console.log('PASS: closed-record note/result corrections, fresh review, stable retries, original preservation and clinical-history grants/digests.');
+  console.log('PASS: restricted-runtime stock receipt, authorized partial/full supply, legacy bypass denial and reconciled persistent inventory.');
   console.log('PASS: built browser sign-in, session restoration on refresh, and sign-out with no runtime errors.');
   console.log('Private synthetic administrator details: .local/release-verification.json. Prior saved records are checked on each subsequent run.');
 } catch (error) {

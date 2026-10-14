@@ -351,7 +351,7 @@ test('003 rejects missing/null visit identities and null visit audit revisions o
   assert.equal((await pool.query('SELECT * FROM audit_events WHERE visit_id=$1', [v.id])).rowCount, 1);
 });
 
-test('migrations 002 through 008 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
+test('migrations 002 through 010 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
   const oldSchema = `outpatient_migration_${randomUUID().replaceAll('-', '')}`;
   await database.query(`CREATE SCHEMA ${oldSchema}`);
   const old = new pg.Pool({ connectionString, options: `-c search_path=${oldSchema}` });
@@ -375,7 +375,7 @@ test('migrations 002 through 008 preserve populated registration/visit data and 
       VALUES ($1,$2,$3,$4,'visit.checkIn',$5,1,'Legacy check-in')`, [legacyEventId, staff.hospitalId, staff.id, patientId, legacyVisitId]);
     const oldEvents = (await old.query('SELECT id,actor_id,action,visit_id,visit_revision,detail FROM audit_events ORDER BY id')).rows;
     await migrate(old); await migrate(old);
-    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }]);
+    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }]);
     assert.equal((await old.query("SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() AND indexname IN ('configuration_department_search','configuration_service_search')")).rowCount, 0);
     assert.equal((await old.query('SELECT id FROM patients')).rows[0].id, patientId);
     assert.deepEqual((await old.query('SELECT data FROM outpatient_visits WHERE id=$1', [legacyVisitId])).rows[0].data, legacyVisit);

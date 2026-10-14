@@ -7,6 +7,7 @@ import StaffAdministration from './StaffAdministration';
 import HospitalConfiguration from './HospitalConfiguration';
 import PasswordChange from './PasswordChange';
 import VisitWorkspace from './VisitWorkspace';
+import InventoryWorkspace from './InventoryWorkspace';
 import type { RegisteredPatient } from '../../shared/registration';
 
 const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 };
@@ -26,7 +27,7 @@ export default function StaffApp() {
   const channel = useRef<BroadcastChannel | null>(null); const heading = useRef<HTMLHeadingElement>(null);
   const generation = useRef(0);
   const [visitsOpen, setVisitsOpen] = useState(false);
-  const [accountSurface, setAccountSurface] = useState<'staff' | 'password' | 'configuration' | null>(null);
+  const [accountSurface, setAccountSurface] = useState<'staff' | 'password' | 'configuration' | 'inventory' | null>(null);
   const [accountDirty, setAccountDirty] = useState(false); const [accountPending, setAccountPending] = useState(false);
   const [checkInPatient, setCheckInPatient] = useState<RegisteredPatient | null>(null);
   const [visitPending, setVisitPending] = useState(false);
@@ -94,7 +95,7 @@ export default function StaffApp() {
     return () => { clearTimeout(expiry); clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visibility); };
   }, [session]);
   function mayDiscardVisit() { return (!visitDirty && !accountDirty) || window.confirm('Discard unsaved drafts and clear any temporary password before leaving?'); }
-  function navigateAccount(surface: 'staff' | 'password' | 'configuration' | null, visits = false) { if (accountSurface === surface && visitsOpen === visits) return; if (pending || visitPending || accountPending || !mayDiscardVisit()) return; setCheckInPatient(null); setAccountDirty(false); setVisitDirty(false); setAccountSurface(surface); setVisitsOpen(visits); setRegistering(false); setError(''); }
+  function navigateAccount(surface: 'staff' | 'password' | 'configuration' | 'inventory' | null, visits = false) { if (accountSurface === surface && visitsOpen === visits) return; if (pending || visitPending || accountPending || !mayDiscardVisit()) return; setCheckInPatient(null); setAccountDirty(false); setVisitDirty(false); setAccountSurface(surface); setVisitsOpen(visits); setRegistering(false); setError(''); }
   function guardNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
     if (pending || visitPending || accountPending) { event.preventDefault(); setError(pending ? 'Finish retrying the pending registration before leaving this workspace.' : 'Finish retrying the pending visit save before leaving this workspace.'); return; }
     if (!mayDiscardVisit()) event.preventDefault(); else departureApproved.current = true;
@@ -157,8 +158,8 @@ export default function StaffApp() {
           <button className="primary" disabled={busy || Boolean(logoutToken)}>{busy ? 'Signing in…' : 'Sign in'}</button></form><p className="staff-help">Need access? Ask the person who manages your hospital’s staff accounts.</p>
       </section> : <>
         <div className="staff-identity"><div><strong>{session.user.hospital.name}</strong><span>{session.user.displayName} · {session.user.role === 'auditor' ? 'Read-only access' : session.user.role}</span></div><button onClick={() => void logout()} disabled={busy || Boolean(pending) || visitPending || accountPending}><LogOut size={16} />Sign out</button></div>
-        {!session.passwordChangeRequired && <nav className="staff-navigation" aria-label="Staff workspace"><button aria-pressed={!visitsOpen && !accountSurface} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount(null)}>Patient directory</button><button aria-pressed={visitsOpen && !accountSurface} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount(null, true)}>Outpatient visits</button>{session.user.role === 'admin' && <button aria-pressed={accountSurface === 'staff'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('staff')}>Staff administration</button>}<button aria-pressed={accountSurface === 'configuration'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('configuration')}>{session.user.role === 'admin' ? 'Hospital configuration' : 'Service catalog'}</button><button aria-pressed={accountSurface === 'password'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('password')}>Change password</button></nav>}
-        {session.passwordChangeRequired || accountSurface === 'password' ? <PasswordChange key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} onChanged={message => { clearIdentity(message); channel.current?.postMessage('password'); }} /> : accountSurface === 'configuration' ? <HospitalConfiguration key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} /> : accountSurface === 'staff' ? <StaffAdministration key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} /> : <>
+        {!session.passwordChangeRequired && <nav className="staff-navigation" aria-label="Staff workspace"><button aria-pressed={!visitsOpen && !accountSurface} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount(null)}>Patient directory</button><button aria-pressed={visitsOpen && !accountSurface} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount(null, true)}>Outpatient visits</button>{session.user.role === 'admin' && <button aria-pressed={accountSurface === 'staff'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('staff')}>Staff administration</button>}<button aria-pressed={accountSurface === 'configuration'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('configuration')}>{session.user.role === 'admin' ? 'Hospital configuration' : 'Service catalog'}</button>{['admin','pharmacist','auditor'].includes(session.user.role) && <button aria-pressed={accountSurface === 'inventory'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('inventory')}>Pharmacy inventory</button>}<button aria-pressed={accountSurface === 'password'} disabled={Boolean(pending) || visitPending || accountPending} onClick={() => navigateAccount('password')}>Change password</button></nav>}
+        {session.passwordChangeRequired || accountSurface === 'password' ? <PasswordChange key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} onChanged={message => { clearIdentity(message); channel.current?.postMessage('password'); }} /> : accountSurface === 'inventory' ? <InventoryWorkspace key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} /> : accountSurface === 'configuration' ? <HospitalConfiguration key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} /> : accountSurface === 'staff' ? <StaffAdministration key={session.csrfToken} session={session} onDirty={setAccountDirty} onPending={setAccountPending} onSessionError={handleError} /> : <>
         {visitsOpen && error && <p role="alert" className="notice error">{error}</p>}
         {visitsOpen ? <VisitWorkspace key={session.csrfToken} session={session} checkInPatient={checkInPatient} onPending={setVisitPending} onDirty={setVisitDirty} onSessionError={handleError} /> : <>
         <div className="page-heading"><div><h1 ref={heading} tabIndex={-1}>{registering ? 'Register patient' : 'Patient directory'}</h1><p>{registering ? 'Start with the details needed to identify the patient.' : 'Find registered patients in your hospital.'}</p></div>{!registering && !readOnly && <button className="primary" onClick={() => { setRegistering(true); setError(''); setNotice(''); }}><Plus size={18} />Register patient</button>}</div>
@@ -179,6 +180,6 @@ export default function StaffApp() {
         </>}
         </>}
       </>}
-    </main><footer className="staff-footer">Synthetic outpatient workspace · No payment processing or medication inventory.</footer>
+    </main><footer className="staff-footer">Synthetic outpatient workspace · No payment processing, dosing advice or substitution advice.</footer>
   </div>;
 }

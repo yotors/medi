@@ -22,7 +22,7 @@ permissions and an explicit migration job. New visits also have catalog invoices
 partial payment records and immutable receipt history; clinical closure leaves
 billing independently collectible. Append-only note amendments and result
 corrections now retain originals and create explicitly owned review work,
-including after closure. See its [implementation and limits](staff-workspace.md). The original
+including after closure. Hospital product/batch stock now supports explicit clinician-authorized quantities, partial/full supply and remainder cancellation, with immutable movements and conservative expiry/quarantine guards. See its [implementation and limits](staff-workspace.md). The original
 `/` walkthrough remains a separate browser-only demonstration.
 
 See [prototype boundaries](prototype-boundaries.md) for the separation between
@@ -99,8 +99,8 @@ additive006 migration preserved existing records, and the final built release
 passed again before and after restart. All accepted review findings are resolved.
 GitHub evidence is pending the milestone push.
 Those administration-era checks predate the subsequent billing and clinical
-correction slices. Neither completes broader financial controls, laboratory
-validation, pharmacy inventory, inpatient workflows or production release gates.
+correction and inventory slices. Neither completes broader financial controls, laboratory
+validation, pharmacy policy approval, inpatient workflows or production release gates.
 
 ## Clinical correction verification — 2026-10-14
 
@@ -109,3 +109,12 @@ tracks API/browser and release evidence for immutable amendments, assigned revie
 explicit takeover, concurrent correction/closure, exact retries and role/tenant
 projections. These are synthetic engineering checks; professional approval of
 clinical templates, result verification and escalation remains outstanding.
+
+## Pharmacy inventory verification — 2026-10-14
+
+The [inventory specification](../_bmad-output/implementation-artifacts/spec-pharmacy-inventory.md)
+records engineering evidence for bounded stock, exact retries, hospital/role
+boundaries, partial/full supply, remainder cancellation and expiry-day blocking.
+After review corrections, focused API tests passed18/18, plus the final expiry-history assertion, and all20 desktop/mobile browser cases passed across bounded runs. The packaged HTTPS release also passed stock reconciliation and immutable runtime-permission checks.
+These synthetic tests do not validate clinical quantities, formulary selection,
+professional authorization policy or safe procurement/returns workflows.

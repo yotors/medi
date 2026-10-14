@@ -40,7 +40,7 @@ restart the app.
 The provisioning CLI requires explicit hospital/account fields and a private,
 ignored password-file path. It generates a random password when that file does
 not exist. For another hospital use another hospital code. Accounts cannot select
-another hospital after authentication. Roles use the preliminary permissions below. Staff-management UI is not implemented.
+another hospital after authentication. Roles use the preliminary permissions below. Hospital administrators can manage accounts in Staff administration.
 
 A saved registration receives a hospital-scoped `MRN-` number. Name is required;
 age and contact are optional. Duplicate normalized names require confirmation
@@ -128,7 +128,7 @@ also omit restricted sections; permissions are enforced at every command.
 | Receptionist | Check in | Summary only |
 | Clinician | Notes/amendments, request/review/cancel tests, corrected-result review/takeover, prescriptions, close | Consultation, diagnostics, pharmacy |
 | Lab | Collect specimen, release/correct result and assign reviewer | Diagnostics |
-| Pharmacist | Fulfill/cancel prescription | Pharmacy |
+| Pharmacist | Inventory receipts/adjustments, authorized supply and remainder cancellation | Pharmacy |
 | Cashier | Issue catalog invoices, record partial payments | Billing |
 | Auditor | Read only | Billing, history |
 | Admin | Full synthetic walkthrough | All |
@@ -144,7 +144,7 @@ Original clinical records remain immutable; attributable corrections and billing
 remain available after closure. “Not yet billed” is distinct from “Settled.” Historical demonstration
 visits retain their original invented charges, settlement and closure behavior;
 they cannot receive catalog invoices. The browser-only `/` walkthrough is unchanged.
-There is no medication catalog, dosing support, pharmacy inventory or insurance processing.
+Hospital product/batch stock and explicit quantity supply are available below. There is no dosing support or insurance processing.
 
 ### Clinical amendments and corrected-result review
 
@@ -191,6 +191,54 @@ clinical templates, result units/reference ranges, laboratory verification,
 critical-finding escalation and the production permission policy still require
 professional validation. No original authorship is invented where historical
 subject metadata is unavailable.
+
+### Pharmacy stock and quantity supply
+
+**Pharmacy inventory** lets admin/pharmacist staff create hospital-specific products
+(code, descriptive name/strength/form and base unit) and batches (lot and exact expiry
+date). These identities cannot be edited; active and quarantine status changes require
+a reason and revision check. New hospitals start with an empty catalog and each batch
+starts at zero. Receive stock with a delivery reference, or record a signed whole-unit
+adjustment with a discrepancy reason. Immutable movements determine each balance;
+negative stock is rejected. Lists and attributable history use 25-entry pages.
+Actor names are captured at the time of the action; expandable staff IDs distinguish
+duplicate names. Visit history includes the prescription number and original
+instruction; global stock history exposes stable visit/prescription IDs. Recorded
+lot expiry is shown whenever captured in an event, without inventing missing
+historical values.
+
+In a visit's Pharmacy section, clinician/admin staff explicitly authorize one product
+and whole base-unit quantity against a pending prescription. Original instructions
+remain unchanged. Pharmacist/admin staff select an eligible batch and record actual
+supply, up to both available stock and the authorized remainder. Partial supply keeps
+the prescription pending and blocks clinical closure. Full supply completes the
+prescription atomically with its movement, visit revision, audit and retry receipt.
+Linked prescriptions cannot use the unlinked completion action to bypass stock.
+An unlinked handoff is explicitly labelled as not accounting for physical inventory.
+
+Remainder cancellation requires a reason and retains all prior supplied stock as
+consumed. It does not return units. Supply is blocked for inactive products,
+quarantined batches, and batches expiring **on or before the current Addis Ababa
+date**, decided by the server. Expiry-day blocking is a conservative provisional
+boundary requiring pharmacist/hospital validation, not an approved clinical policy.
+
+Unknown save outcomes preserve the exact command and key; in-app exits are blocked
+until retry confirms the result. Stale stock/visit revisions retain drafts and require
+review of the current version and renewed confirmation. Refreshing changed stock
+clears confirmation and requires explicit adoption of the current eligible batch,
+including when the selected batch is on another page. Saved notices confirm only
+the committed write; failed refreshes show a separate recovery state. Pharmacy drafts survive visit
+tab switches. Reload/closing the browser can still lose in-memory drafts and keys;
+check history and balances before re-entering. All stock and visit commands serialize
+at the hospital boundary and recheck current authority after the lock.
+
+Auditors can read inventory/history; clinicians can choose active products and read
+their visit's authorization/history. These permissions remain provisional. No dosing,
+substitution, pack conversion, procurement/purchasing, controlled-item governance,
+patient returns/restocking, multiple stores, valuation or approved formulary is
+implemented. The synthetic mechanics require professional validation before live
+medication use. See the [inventory specification](../_bmad-output/implementation-artifacts/spec-pharmacy-inventory.md)
+for migration009, additive010 integrity hardening and engineering evidence.
 
 ### Catalog invoices and payment records
 

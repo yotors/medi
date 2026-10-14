@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { PharmacyAuthorization } from './inventory.ts';
 import type { ClinicalAssignment, ClinicalDetail } from './clinical.ts';
 import type { BillingSummary } from './billing.ts';
 import type { Visit } from '../src/domain.ts';
@@ -41,6 +42,7 @@ export type VisitSummary = {
 };
 export type VisitView = VisitSummary & {
   clinical?: ClinicalDetail;
+  pharmacy?: PharmacyAuthorization[];
   sections: readonly VisitSection[]; allowedActions: readonly VisitAction[];
   notes?: Visit['notes']; orders?: Visit['orders']; prescriptions?: Visit['prescriptions'];
   charges?: Visit['charges']; payments?: Visit['payments'];

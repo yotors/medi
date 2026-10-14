@@ -1,0 +1,32 @@
+.inventory-workspace { min-width: 0; }
+.inventory-workspace h1, .inventory-workspace p, .inventory-history p { overflow-wrap: anywhere; }
+.inventory-workspace td { white-space: normal; min-width: 140px; vertical-align: top; }
+.inventory-workspace td .button-row { min-width: 210px; }
+.inventory-guidance { max-width: 72ch; color: var(--muted); }
+.inventory-editor { margin-top: 24px; }
+.inventory-editor > h2 { margin-bottom: 16px; }
+.inventory-editor > label { margin-top: 18px; }
+.inventory-editor input:not([type=checkbox]), .inventory-editor textarea { max-width: 720px; display: block; }
+.inventory-editor .muted { font-size: 13px; margin-top: 8px; }
+.inventory-confirm { margin: 20px 0; }
+.inventory-confirm input { accent-color: var(--teal); }
+.inventory-history h3 { margin: 0 0 16px; }
+.inventory-history p { margin: 6px 0; }
+.pharmacy-prescription { padding: 24px 0; border-bottom: 1px solid var(--border); }
+.pharmacy-prescription h3 { margin: 0 0 12px; }
+.pharmacy-prescription p { max-width: 72ch; overflow-wrap: anywhere; }
+.pharmacy-quantity { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 16px 0; }
+.pharmacy-quantity > div { display: flex; gap: 8px; }
+.pharmacy-quantity dt { color: var(--muted); }
+.pharmacy-quantity dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+.pharmacy-editor { padding: 24px 0; margin-top: 24px; border-top: 1px solid var(--border); }
+.pharmacy-editor h3 { margin-bottom: 16px; }
+.pharmacy-choices { list-style: none; margin: 16px 0; padding: 0; }
+.pharmacy-choices li { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.pharmacy-choices p { margin: 8px 0; }
+.pharmacy-workspace .button-row { margin: 16px 0; }
+@media(max-width:650px) { .inventory-editor { padding: 18px; } .inventory-workspace .page-heading .button-row { margin-top: 16px; } .pharmacy-quantity { display: block; } .pharmacy-quantity > div { margin: 8px 0; } }
+
+.inventory-identity { margin: 8px 0; color: var(--muted); overflow-wrap: anywhere; }
+.inventory-identity summary { cursor: pointer; color: var(--teal); text-decoration: underline; text-underline-offset: 3px; }
+.inventory-identity summary:focus-visible { outline: 3px solid #178b7d; outline-offset: 3px; }

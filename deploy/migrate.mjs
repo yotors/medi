@@ -47,6 +47,13 @@ try {
       clinical_amendments: 'SELECT, INSERT',
       clinical_events: 'SELECT, INSERT',
       clinical_requests: 'SELECT, INSERT',
+      inventory_products: 'SELECT, INSERT, UPDATE',
+      inventory_batches: 'SELECT, INSERT, UPDATE',
+      inventory_movements: 'SELECT, INSERT',
+      inventory_authorizations: 'SELECT, INSERT',
+      inventory_dispenses: 'SELECT, INSERT',
+      inventory_events: 'SELECT, INSERT',
+      inventory_requests: 'SELECT, INSERT',
     };
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
     for (const { tablename } of tables) {

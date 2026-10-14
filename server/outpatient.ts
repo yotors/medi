@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readPharmacyAuthorizations } from './inventory.ts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z } from 'zod';
@@ -58,7 +59,7 @@ async function project(client: pg.PoolClient, row: Row, role: StaffRole, hospita
   if (['admin', 'clinician', 'lab'].includes(role)) view.clinical = await readClinicalDetail(client, hospitalId, row.id, role);
   if (sections.includes('Consultation')) view.notes = row.data.notes;
   if (sections.includes('Diagnostics')) view.orders = row.data.orders;
-  if (sections.includes('Pharmacy')) view.prescriptions = row.data.prescriptions;
+  if (sections.includes('Pharmacy')) { view.prescriptions = row.data.prescriptions; view.pharmacy = await readPharmacyAuthorizations(client, hospitalId, row.id); }
   if (sections.includes('Billing')) { view.charges = row.data.charges; view.payments = row.data.payments; }
   if (sections.includes('History')) {
     const { rows } = await client.query(`SELECT e.id,e.created_at,u.display_name,e.detail FROM audit_events e
@@ -237,6 +238,7 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
         await client.query('COMMIT'); return { visit };
       }
       if (row.revision !== expectedRevision) throw new ApiError(409, 'STALE_REVISION', 'This visit changed. Reload the latest visit before saving your draft again.');
+      if (command.type === 'fulfill' && (await client.query('SELECT 1 FROM inventory_authorizations WHERE hospital_id=$1 AND visit_id=$2 AND prescription_id=$3', [hospitalId,row.id,command.prescriptionId])).rowCount) throw new ApiError(409, 'STOCK_ACCOUNTED', 'Use stock-accounted supply or cancel the remaining authorization with a reason.');
       if (command.type === 'close' && ((await readClinicalCounts(client, hospitalId, [row.id])).get(row.id) ?? 0) > 0) throw new ApiError(409, 'CORRECTION_REVIEW_PENDING', 'Review all corrected results before closing this visit.');
       const state = transition({ version: 1, revision: row.revision, patients: [patient(row.patient)], visits: [row.data], events: [] }, { ...command, visitId: row.id });
       const data = state.visits[0];

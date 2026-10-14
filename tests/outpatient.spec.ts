@@ -80,7 +80,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await section(page, 'Pharmacy');
   await page.getByLabel('Fictional prescription instructions').fill('Synthetic medicine instructions for demonstration.');
   await activate(page.getByRole('button', { name: 'Add prescription', exact: true }));
-  await activate(page.getByRole('button', { name: 'Mark fulfilled', exact: true }));
+  await activate(page.getByRole('button', { name: 'Complete unlinked handoff 1', exact: true }));
   await expect(page.getByText('fulfilled', { exact: true })).toBeVisible();
   await section(page, 'Billing');
   await expect(page.getByRole('region', { name: 'Visit billing' }).getByText('Not yet billed', { exact: true })).toBeVisible();
@@ -208,7 +208,7 @@ test('department handoffs complete a visit with permitted API sections and priva
       await page.getByRole('button', { name: 'Release result', exact: true }).click();
       await expect(page.getByText('released', { exact: true })).toBeVisible();
     } else if (role === 'pharmacist') {
-      await page.getByRole('button', { name: 'Mark fulfilled', exact: true }).click();
+      await page.getByRole('button', { name: 'Complete unlinked handoff 1', exact: true }).click();
       await expect(page.getByText('fulfilled', { exact: true })).toBeVisible();
     } else if (role === 'cashier') {
       await expect(page.getByRole('region', { name: 'Visit billing' }).getByText('Not yet billed', { exact: true })).toBeVisible();
