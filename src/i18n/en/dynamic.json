@@ -10,7 +10,6 @@
   "amend_subject": "Amend {{label}}",
   "correct_subject": "Correct {{label}} result",
   "clinical_change": "{{label}} clinical change",
-  "subject_history": "{{label}} {{kind}}",
   "clinical_history_count": "View amendment and review history ({{count}})",
   "cashier_opening": "Cashier shift · {{amount}} ETB opening",
   "patient_return_quantity": "Patient return · {{count}} units",
@@ -31,5 +30,7 @@
   "conflict_active": "Availability: Active",
   "conflict_inactive": "Availability: Inactive",
   "conflict_price": "Price: {{amount}} ETB",
-  "conflict_department": "Department: {{name}} ({{code}})"
+  "conflict_department": "Department: {{name}} ({{code}})",
+  "note_history_label": "{{label}} amendments",
+  "result_history_label": "{{label}} corrections"
 }

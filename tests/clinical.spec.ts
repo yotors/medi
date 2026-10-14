@@ -95,7 +95,7 @@ async function section(page: Page, name: string) {
     .click();
 }
 async function amend(page: Page) {
-  await page.getByRole('button', { name: 'Amend note 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Amend Note 1', exact: true }).click();
   await page.getByLabel('Amended note text', { exact: true }).fill('Corrected fictional note.');
   await page
     .getByLabel('Reason for correction', { exact: true })
@@ -369,7 +369,7 @@ test('laboratory correction reaches assigned clinician in separate sessions with
     const lab = await labContext.newPage();
     await signIn(lab, 'lab');
     await open(lab, name, 'closed');
-    await expect(lab.getByRole('button', { name: 'Amend note 1', exact: true })).toHaveCount(0);
+    await expect(lab.getByRole('button', { name: 'Amend Note 1', exact: true })).toHaveCount(0);
     await correct(lab, 'Fictional clinician');
     await lab.getByRole('button', { name: 'Save result correction', exact: true }).click();
     await expect(

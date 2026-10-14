@@ -314,10 +314,10 @@ export default function ClinicalCorrections({
           <article
             className="clinical-subject"
             key={subject.id}
-            aria-label={t('dynamic:subject_history', {
-              label: subject.label,
-              kind: kind === 'note' ? t('common:note_amendments') : t('common:result_corrections'),
-            })}
+            aria-label={t(
+              kind === 'note' ? 'dynamic:note_history_label' : 'dynamic:result_history_label',
+              { label: subject.label },
+            )}
           >
             <div className="section-heading">
               <h3 id={`${prefix}-subject-${subject.id}`} tabIndex={-1}>

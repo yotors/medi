@@ -407,7 +407,9 @@ test('failed later-page retry preserves the target and editing dates resets to p
     } else await route.continue();
   });
   await page.getByRole('button', { name: 'Next report products', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('interrupted product page');
+  await expect(page.getByRole('alert')).toContainText(
+    'Reports are temporarily busy. Retry when the hospital workspace is available.',
+  );
   await expect(page.getByRole('heading', { name: /^Report for / })).toHaveCount(0);
   await page.getByRole('button', { name: 'Retry report', exact: true }).click();
   await expect(page.getByText(/products · Page 2/)).toBeVisible();

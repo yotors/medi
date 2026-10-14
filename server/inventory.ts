@@ -374,7 +374,8 @@ export function registerInventoryRoutes(
             'This product changed. Refresh and review its latest status.',
             'STALE_INVENTORY',
           );
-        if (p.active === command.active) throw conflict('The product already has this status.');
+        if (p.active === command.active)
+          throw conflict('The product already has this status.', 'INVENTORY_STATUS_UNCHANGED');
         result.productId = p.id;
         await client.query(
           'UPDATE inventory_products SET active=$3,revision=revision+1 WHERE hospital_id=$1 AND id=$2',
@@ -427,7 +428,7 @@ export function registerInventoryRoutes(
         result.batchId = b.id;
         if (command.type === 'batch.status') {
           if (b.quarantined === command.quarantined)
-            throw conflict('The batch already has this status.');
+            throw conflict('The batch already has this status.', 'INVENTORY_STATUS_UNCHANGED');
           await client.query(
             'UPDATE inventory_batches SET quarantined=$3,revision=revision+1 WHERE hospital_id=$1 AND id=$2',
             [hospital, b.id, command.quarantined],

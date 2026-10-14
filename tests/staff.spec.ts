@@ -113,7 +113,7 @@ test('staff sign-in, duplicate confirmation, search, reload and sign-out', async
   const name = `Fictional Patient ${suffix}`;
   await page.getByRole('button', { name: 'Register patient', exact: true }).click();
   await page.getByLabel('Full name').fill(name);
-  await page.getByLabel('Age', { exact: false }).fill('0');
+  await page.getByLabel('Age (optional)', { exact: true }).fill('0');
   await page.getByLabel('Contact', { exact: false }).fill('Fictional contact 0900000000');
   await page.getByRole('button', { name: 'Save patient', exact: true }).click();
   await expect(
@@ -233,7 +233,7 @@ test('revoked sessions clear patient data and logout clears another open tab', a
   await expect(page.getByRole('region', { name: 'Registered patients' })).toHaveCount(0);
   await signIn(page);
   const other = await context.newPage();
-  await other.goto('/staff');
+  await other.goto('/staff/patients');
   await expect(other.getByRole('heading', { name: 'Patient directory' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(other.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
@@ -327,7 +327,7 @@ test('a lost logout response clears both tabs and can confirm revocation on retr
 }) => {
   await signIn(page);
   const other = await context.newPage();
-  await other.goto('/staff');
+  await other.goto('/staff/patients');
   await expect(other.getByRole('heading', { name: 'Patient directory' })).toBeVisible();
   await page.route('**/api/auth/logout', async (route) => {
     const response = await route.fetch();

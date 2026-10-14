@@ -607,7 +607,9 @@ test('refresh invalidates selected stock until explicit adoption and does not cl
   await expect(
     page.getByRole('button', { name: 'Reload latest visit', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('alert')).toContainText('Fictional refresh unavailable');
+  await expect(page.getByRole('alert')).toContainText(
+    'The workspace is temporarily unavailable. Retry the exact same request.',
+  );
   await page.unroute(`**/api/visits/${fixture.v.id}`);
   await page.getByRole('button', { name: 'Reload latest visit', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Prescription 1' })).toContainText('Supplied2');

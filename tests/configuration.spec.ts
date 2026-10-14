@@ -519,7 +519,9 @@ test('active department pages retain selection through search, loading and retry
   } finally {
     releaseLoading();
   }
-  await expect(page.getByRole('alert')).toContainText('Department results temporarily unavailable');
+  await expect(page.getByRole('alert')).toContainText(
+    'The workspace is temporarily unavailable. Retry the exact same request.',
+  );
   await expect(picker).toHaveValue(ids[26]);
   await expect(page.getByLabel('Service name', { exact: true })).toHaveValue(
     'Fictional paginated service',

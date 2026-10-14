@@ -61,5 +61,8 @@
   "REQUEST_FAILED": "The request could not be completed. Please retry.",
   "SESSION_ENDED": "Your session ended. Sign in to continue.",
   "SESSION_CHANGED": "The staff session changed in another tab. Sign in again.",
-  "MFA_PROOF_INVALID": "The authentication proof was not accepted. Check the code or ask your account manager for help."
+  "MFA_PROOF_INVALID": "The authentication proof was not accepted. Check the code or ask your account manager for help.",
+  "INVENTORY_STATUS_UNCHANGED": "This inventory record already has this status. Refresh and review the current details.",
+  "INVENTORY_CONFLICT": "The inventory action conflicts with the current stock or status. Refresh and review the details.",
+  "TRANSITION_BLOCKED": "This transition is blocked by the current visit or investigation status. Review the visit before retrying."
 }
