@@ -1,5 +1,15 @@
 # Release status and acceptance
 
+The bilingual experience update is **6bc9548**: public product homepage, role-based
+workspace routes, English/Amharic catalogs, shared locale formatting and local QR
+MFA enrollment. Local format/type/build, catalog/source checks and targeted
+desktop/mobile regressions passed. The local HTTPS package was rebuilt. Full
+GitHub verification of this revision is **pending**; at the founder’s request,
+delivery proceeds without waiting for its outcome. No passing result is assumed
+as evidence. The prior revision’s security and packaged-release jobs passed; its
+browser failures were corrected and the affected scenarios passed locally.
+See the [language and navigation guide](ui-navigation.md).
+
 The product-completion engineering release is **80f9b60**. All three configured
 GitHub jobs passed for that exact revision: application/tooling, source security,
 and packaged installation/release operations.
