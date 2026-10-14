@@ -40,6 +40,52 @@ For each walkthrough write: **accepted / changes required / not in package**.
 A blocked scenario needs an owner, corrective action and repeat observation.
 Do not accept missing care documentation by treating it as a cosmetic defect.
 
+## Synthetic rehearsal reference
+
+Use a dedicated fictional hospital with no unrelated concurrent work. Record a
+report before and after the sequence using the same date range, including today
+in Africa/Addis_Ababa. Differences below are fixture expectations, not targets for
+hospital performance. All medicine names, instructions and quantities are test
+inputs with no clinical meaning.
+
+1. Register a fictional patient and open one visit. Save a clearly fictional note.
+2. Create an approved-for-testing ETB 130 service and issue one invoice. Record
+   ETB 50 cash and ETB 80 manual transfer. Replay a payment request through the
+   automated verifier: it must retain the same receipt and amount.
+3. Create a fictional product with base unit `unit`, one future-expiry batch, and
+   receive 10 units. Add a fictional prescription and authorize 4 units explicitly.
+   Supply 1, then 3. Confirm the first supply leaves the prescription pending and
+   the second completes it. Stock must end at 6; no inferred dose or pack conversion.
+4. Complete and review one fictional investigation. Close the visit after its
+   outstanding clinical work is resolved.
+5. Append one note amendment and one corrected result to the closed visit.
+   Confirm originals remain visible, the correction creates fresh review work,
+   and its assigned reviewer completes that review.
+6. Run the report again. Reconcile against source invoices/receipts and inventory
+   history, checking both the selected period and the current snapshot.
+
+| Measure | Expected change after all steps |
+| --- | --- |
+| Visits opened / closed | +1 / +1 |
+| Note amendments / result corrections | +1 / +1 |
+| Recorded receipts / collections | +2 / ETB 130.00: cash 50.00, manual transfer 80.00 |
+| Current outstanding invoice balance | No increase; fixture invoice is fully paid |
+| Current active visits, investigations, prescriptions and corrected-result reviews | No increase; all fixture work is complete |
+| New product period movements | Received 10, supplied 4, adjustment 0, net 6 |
+| New product current stock | Total 6, available 6; excluded categories 0 |
+
+Repeat with the relevant role accounts: clinicians receive activity/work counts,
+cashiers finance, pharmacists inventory, and admins/auditors the combined report.
+Reception and laboratory accounts have no aggregate-report access in this slice.
+An empty selected period must not conceal older outstanding work. Changing pages
+creates a fresh snapshot; changing dates or a failed request must not leave stale
+results presented as current. Record disagreements with these definitions before
+approving hospital use.
+
+The packaged release verifier automates this transaction sequence with synthetic
+records and checks previous saved records after restart. Its pass is engineering
+evidence; the observed practitioner walkthrough and approval remain separate.
+
 ## Installation decision record
 
 Choose after the hospital's connectivity and operating responsibilities are known:

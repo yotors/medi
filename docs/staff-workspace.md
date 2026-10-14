@@ -364,3 +364,49 @@ Privileged account reads share the hospital lock and recheck current authority
 before returning records. An uncertain account command retains its original
 retry key and temporary credential across throttling or reauthentication errors;
 only the administrator's verification password remains editable during recovery.
+
+### Audited operational reports
+
+**Operational reports** accepts inclusive Gregorian dates, interpreted in
+Africa/Addis_Ababa, for at most366days. Run report explicitly requests a fresh
+hospital snapshot. Dates, generation time and the access record are shown with
+the result. Changing dates or a failed request clears the prior result; retry
+requests a new audited snapshot of the failed product page. Editing dates or
+starting a fresh report returns to page1. Each product page is independently generated,
+so concurrent hospital changes can affect later pages.
+
+Admin/auditor accounts receive all sections. Clinicians receive visit operations,
+cashiers recorded payments, and pharmacists product stock. Receptionist/laboratory
+accounts cannot access this aggregate report. These preliminary permissions need
+hospital validation. Responses contain no patient identities, clinical narratives
+or payment references; unauthorized sections are omitted by the server.
+
+- **Selected period:** visits opened and closed count their own timestamps
+  independently; note amendments and result corrections count recorded changes.
+  Receipts count each recorded payment once, split into cash/manual transfer.
+  Stock movements show received and supplied units, signed net adjustments and
+  their net effect for each product.
+- **Current work:** active visits, investigations not yet reviewed/cancelled,
+  pending prescriptions (including partial supply), and the latest unreviewed
+  corrected results, including those on closed visits. These counts do not use
+  the selected period.
+- **Current finance:** positive catalog invoice balances after all recorded
+  payments, excluding void invoices. Historical demonstration payments/charges
+  are excluded. Amounts use exact minor-unit arithmetic; collections are not
+  revenue, tax reporting or bank/till reconciliation.
+- **Current stock:** whole base units per product, including products with no
+  batches. The exclusive categories are inactive product, quarantine, expired,
+  expiry today, then available, in that precedence. Category quantities sum to
+  total stock. Unlike product units are never added together. Cancelling a
+  prescription remainder does not restore previously supplied units.
+
+Migration011 adds immutable report access events containing actor identity,
+role, requested dates, authorized sections, timestamp and product page/row count.
+The report is delivered only after that audit commits. A shared10-second execution
+budget covers pool acquisition, SQL and the audit, with the existing five-second
+lock limit where stricter. Exhausted or known-abandoned reads stop further work
+and clean up their transaction; the UI can retry a busy response. No CSV or other export is
+provided. Read auditing does not replace clinical/pharmacy review, financial
+policy validation or the outstanding production security assessment. See the
+[report specification](../_bmad-output/implementation-artifacts/spec-operational-reports.md)
+for engineering verification.

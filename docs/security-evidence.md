@@ -13,12 +13,12 @@ Requirement references: [ASVS V8, pinned version](https://github.com/OWASP/ASVS/
 | --- | --- | --- |
 | 8.1.1, 8.1.2: function/data/field rules | `shared/outpatient.ts` role actions and sections; clinical spec and `server/clinical.ts` projections | Hospital approval of roles and minimum necessary patient-directory access |
 | 8.2.1, 8.3.1: trusted permission enforcement | Server routes enforce roles independently of UI; API role-denial tests | Endpoint inventory and independent assessment |
-| 8.2.2, 8.4.1: object and tenant boundaries | Hospital-scoped predicates and composite foreign keys; two-hospital API cases in registration/outpatient/administration/configuration/billing/clinical suites | Review vendor support access and chosen tenancy model; database row policies are absent |
+| 8.2.2, 8.4.1: object and tenant boundaries | Hospital-scoped predicates and composite foreign keys; two-hospital API cases in registration/outpatient/administration/configuration/billing/clinical/inventory/reports suites | Review vendor support access and chosen tenancy model; database row policies are absent |
 | 8.2.3: field permissions | Populated seven-role clinical projection test, including metadata-only auditor history | Review every patient, financial and report projection against approved policy |
 
-Clinical tests also exercise authority changes while waiting for a hospital lock
-and denied replay after revocation. These are useful additional evidence, not a
-claim that every endpoint has identical authority timing.
+Clinical, inventory and report tests also exercise authority changes while waiting
+for a hospital lock; mutation suites cover denied replay after revocation. These
+are useful additional evidence, not a claim that every endpoint has identical authority timing.
 
 ## Validation and transaction integrity
 
@@ -49,7 +49,7 @@ Requirement references: [ASVS V16, pinned version](https://github.com/OWASP/ASVS
 
 | Requirement | Current evidence | Remaining assessment |
 | --- | --- | --- |
-| 16.1.1, 16.2.1–16.2.5: inventory and metadata | Attributable domain histories in PostgreSQL; application request logging disabled; rehearsal gateway logs discarded | Stack-wide log inventory, retention, time synchronization and correlation |
+| 16.1.1, 16.2.1–16.2.5: inventory and metadata | Attributable domain histories and report-read events (actor, role, range, section/page metadata) in PostgreSQL; application request logging disabled; rehearsal gateway logs discarded | Stack-wide log inventory, retention, time synchronization and correlation |
 | 16.3.1–16.3.4: security events | Domain audit is available; login counters support throttling | Durable authentication, authorization-denial, validation-abuse and unexpected-error events are incomplete; counters are not an event trail |
 | 16.4.1–16.4.3: protected logging | Immutable database histories and restricted runtime grants tested in release verifier | Separate protected log destination, encoding review and secure transport; schema owner remains privileged |
 | 16.5.1–16.5.3: secure failure | Generic API error handler, transactional rollback tests, release database-outage recovery check | Wider dependency-failure and production recovery drills |
@@ -58,8 +58,8 @@ Requirement references: [ASVS V16, pinned version](https://github.com/OWASP/ASVS
 
 Run the repository's type, API, browser, source/dependency and release checks for
 the exact candidate commit. Record failures and exclusions alongside the result;
-do not translate a green scanner into an ASVS pass. The clinical specification
-records its final local evidence; later slices must add their own evidence.
+do not translate a green scanner into an ASVS pass. The clinical, inventory and
+operational-report specifications record dated local evidence and review outcomes for their respective scopes.
 
 The [pilot workbook](hospital-pilot-acceptance.md) assigns acceptance gates.
 Before live data, a security reviewer must finish applicability decisions,

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= fileURLToPath(new URL('./.cache/ms-playwright', import.meta.url));
 process.env.MEDI_BROWSER_TEST = '1';
 export default defineConfig({
-  testDir: './tests', testMatch: ['staff.spec.ts', 'outpatient.spec.ts', 'administration.spec.ts', 'configuration.spec.ts', 'billing.spec.ts', 'clinical.spec.ts', 'inventory.spec.ts'], workers: 1, retries: 0, forbidOnly: Boolean(process.env.CI),
+  testDir: './tests', testMatch: ['staff.spec.ts', 'outpatient.spec.ts', 'administration.spec.ts', 'configuration.spec.ts', 'billing.spec.ts', 'clinical.spec.ts', 'inventory.spec.ts', 'reports.spec.ts'], workers: 1, retries: 0, forbidOnly: Boolean(process.env.CI),
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'artifacts/staff-report' }]],
   outputDir: 'artifacts/staff-test-results', timeout: 40000,
   use: { baseURL: 'http://127.0.0.1:5173', trace: 'off', screenshot: 'only-on-failure' },

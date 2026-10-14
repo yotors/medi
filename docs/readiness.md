@@ -22,7 +22,7 @@ permissions and an explicit migration job. New visits also have catalog invoices
 partial payment records and immutable receipt history; clinical closure leaves
 billing independently collectible. Append-only note amendments and result
 corrections now retain originals and create explicitly owned review work,
-including after closure. Hospital product/batch stock now supports explicit clinician-authorized quantities, partial/full supply and remainder cancellation, with immutable movements and conservative expiry/quarantine guards. See its [implementation and limits](staff-workspace.md). The original
+including after closure. Hospital product/batch stock now supports explicit clinician-authorized quantities, partial/full supply and remainder cancellation, with immutable movements and conservative expiry/quarantine guards. Audited operational reports now separate selected-period activity from current work, balances and per-product stock. See the [implementation and limits](staff-workspace.md). The original
 `/` walkthrough remains a separate browser-only demonstration.
 
 See [prototype boundaries](prototype-boundaries.md) for the separation between
@@ -118,3 +118,33 @@ boundaries, partial/full supply, remainder cancellation and expiry-day blocking.
 After review corrections, focused API tests passed18/18, plus the final expiry-history assertion, and all20 desktop/mobile browser cases passed across bounded runs. The packaged HTTPS release also passed stock reconciliation and immutable runtime-permission checks.
 These synthetic tests do not validate clinical quantities, formulary selection,
 professional authorization policy or safe procurement/returns workflows.
+
+## Operational reporting verification — 2026-10-14
+
+The [reporting specification](../_bmad-output/implementation-artifacts/spec-operational-reports.md)
+records the implemented role projections, Addis Ababa date boundaries, immutable
+read audit and exact payment/stock aggregation. Full API regression passed132/132,
+including12 report cases with populated tenant isolation, values above32bit,
+post-lock revocation, concurrent mutations, failed audit and bounded contention.
+Report browser checks passed8/8 across desktop/mobile; frontend/server typechecks
+and the production build also passed. Independent finish review and final release
+evidence are recorded in that specification when complete.
+
+These reports describe recorded source transactions. They do not establish
+revenue recognition, tax reporting, bank/till reconciliation, validated clinical
+quality indicators or audited commercial financial statements. A hospital must
+validate definitions and source-to-report reconciliation before live use.
+
+Reporting review corrections passed21 focused API cases across bounded runs and
+14 desktop/mobile browser cases. The corrected implementation preserves a failed
+product-page retry and enforces one10-second report execution budget, including
+connection wait, SQL and audit. Tests include actual SQL timeout recovery,
+abandoned-request cleanup, nonzero investigation work, exact stock columns and
+large monetary display. Final release evidence remains in the reporting spec.
+
+Final reporting follow-up reviews found no unresolved accepted findings. The
+14-capture visual review returned ship; source scanning covered148 targets with
+zero findings. The corrected built HTTPS release passed report reconciliation,
+restricted runtime permissions, persisted-record checks and browser recovery.
+The reporting specification records scope and limitations; GitHub CI validates
+the committed revision separately.

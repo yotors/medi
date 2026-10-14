@@ -8,6 +8,7 @@ import { allowLogin, currentActor, digest, DUMMY_PASSWORD_HASH, randomToken, rea
 import { registerAdministrationRoutes } from './administration.ts';
 import { registerOutpatientRoutes } from './outpatient.ts';
 import { registerClinicalRoutes } from './clinical.ts';
+import { registerReportRoutes } from './reports.ts';
 import { registerInventoryRoutes } from './inventory.ts';
 import { registerBillingRoutes } from './billing.ts';
 import { registerConfigurationRoutes } from './configuration.ts';
@@ -180,6 +181,7 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   registerBillingRoutes(app, pool, sessions);
   registerClinicalRoutes(app, pool, sessions);
   registerInventoryRoutes(app, pool, sessions);
+  registerReportRoutes(app, pool, sessions);
   registerAdministrationRoutes(app, pool, sessions);
   return app;
 }

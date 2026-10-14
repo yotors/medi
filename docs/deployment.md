@@ -14,8 +14,8 @@ credentials and does not connect directly to PostgreSQL.
 
 The named volume `hospital-product-studio_hospital-dev-data` persists database
 files across ordinary container restarts. Ignored `.env` and `.local/` files hold
-local credentials and backup artifacts. Migrations 001–010 create the staff, patient, outpatient, configuration, billing,
-clinical correction and pharmacy inventory data model. Hospital isolation is enforced by the
+local credentials and backup artifacts. Migrations 001–011 create the staff, patient, outpatient, configuration, billing,
+clinical correction, pharmacy inventory and report-access audit data model. Hospital isolation is enforced by the
 application and relational constraints; the release rehearsal separates schema migration privileges from restricted
 runtime grants. Per-hospital database row policies remain unimplemented.
 

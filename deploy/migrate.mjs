@@ -54,6 +54,7 @@ try {
       inventory_dispenses: 'SELECT, INSERT',
       inventory_events: 'SELECT, INSERT',
       inventory_requests: 'SELECT, INSERT',
+      report_access_events: 'SELECT, INSERT',
     };
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
     for (const { tablename } of tables) {

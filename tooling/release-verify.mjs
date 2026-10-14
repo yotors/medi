@@ -55,7 +55,7 @@ function persistenceSnapshot(hospitalCode, records) {
     try {
       const hospital=(await pool.query('SELECT id FROM hospitals WHERE code=$1',[hospitalCode])).rows[0];
       if(!hospital) throw Error();
-      const values=[hospital.id,records.patientId,records.visitId,records.accountId,records.departmentId,records.serviceId,records.inventoryProductId??null];
+      const values=[hospital.id,records.patientId,records.visitId,records.accountId,records.departmentId,records.serviceId,records.inventoryProductId??null,records.reportAccessIds??[]];
       const queries=[
         ['patients','id=$2',1],
         ['outpatient_visits','id=$3',1],
@@ -93,10 +93,11 @@ function persistenceSnapshot(hospitalCode, records) {
         ['inventory_events','product_id=$7',6],
         ['inventory_requests',"result->>'productId'=$7::text",6]
       );
+      if(records.reportAccessIds) queries.push(['report_access_events','id=ANY($8::uuid[])',records.reportAccessIds.length]);
       const snapshots=[];
       for(const [table,where,count] of queries) {
         // Cast every parameter in the CTE, even if this row set uses only some.
-        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service,$7::uuid product) SELECT to_jsonb(r)::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
+        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service,$7::uuid product,$8::uuid[] report_audits) SELECT to_jsonb(r)::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
         const rows=(await pool.query(sql,values)).rows;
         if(rows.length!==count) throw Error();
         snapshots.push(createHash('sha256').update(JSON.stringify(rows)).digest('hex'));
@@ -173,6 +174,20 @@ try {
     const previousVisit = await request(`/api/visits/${fixture.records.visitId}`, { headers });
     check(previousVisit.status === 200 && JSON.parse(previousVisit.text).visit.notes.some(note => note.body === 'Synthetic release verification note.'), 'Previous clinical note is unavailable through the API.');
   }
+  // A three-day range covers the rehearsal across an Addis midnight boundary.
+  const reportRange = { from: new Date(Date.now() - 86400000).toISOString().slice(0, 10), to: new Date(Date.now() + 86400000).toISOString().slice(0, 10) };
+  const reportAccessIds = [];
+  const operationalReport = async (inventoryPage = 1) => {
+    const response = await request(`/api/reports/operational?from=${reportRange.from}&to=${reportRange.to}&inventoryPage=${inventoryPage}`, { headers });
+    check(response.status === 200, 'Restricted runtime operational report failed.');
+    const report = JSON.parse(response.text);
+    check(typeof report.auditId === 'string' && !reportAccessIds.includes(report.auditId), 'Report did not return a distinct access audit identifier.');
+    check(report.range.from === reportRange.from && report.range.to === reportRange.to && report.range.timezone === 'Africa/Addis_Ababa', 'Report changed the requested range or timezone.');
+    check(['operations', 'finance', 'inventory'].every(section => report.authorizedSections.includes(section) && report[section]), 'Administrator report omitted an authorized section.');
+    reportAccessIds.push(report.auditId);
+    return report;
+  };
+  const beforeReport = await operationalReport();
   const key = randomUUID();
   check((await request('/api/patients', { method: 'POST', headers: { ...headers, origin: 'https://untrusted.invalid', 'idempotency-key': key }, body })).status === 403, 'Foreign Origin was accepted.');
   check((await request('/api/patients', { method: 'POST', headers: { ...headers, 'x-csrf-token': 'incorrect', 'idempotency-key': key }, body })).status === 403, 'Incorrect CSRF token was accepted.');
@@ -313,6 +328,26 @@ try {
   const preserved = JSON.parse((await request(`/api/visits/${visit.id}`, { headers })).text).visit;
   check(preserved.status === 'closed' && preserved.revision === closedRevision && preserved.notes[0].body === 'Synthetic release verification note.' && preserved.orders.at(-1).result === 'Synthetic original result.', 'Correction changed the closed original record.');
 
+  const afterReport = await operationalReport();
+  for (const field of ['visitsOpened', 'visitsClosed', 'noteAmendments', 'resultCorrections']) {
+    check(afterReport.operations.period[field] - beforeReport.operations.period[field] === 1, 'Report period activity did not reconcile to the release fixture.');
+  }
+  check(isDeepStrictEqual(afterReport.operations.current, beforeReport.operations.current), 'Completed release work changed the outstanding-work report.');
+  check(afterReport.finance.period.receiptCount - beforeReport.finance.period.receiptCount === 2 && BigInt(afterReport.finance.period.collectedMinor) - BigInt(beforeReport.finance.period.collectedMinor) === 13000n, 'Report collections did not reconcile to the two release payments.');
+  for (const [method, amount] of [['cash', 5000n], ['manual_transfer', 8000n]]) {
+    check(afterReport.finance.period.byMethod[method].receiptCount - beforeReport.finance.period.byMethod[method].receiptCount === 1 && BigInt(afterReport.finance.period.byMethod[method].collectedMinor) - BigInt(beforeReport.finance.period.byMethod[method].collectedMinor) === amount, 'Report payment-method totals did not reconcile.');
+  }
+  check(isDeepStrictEqual(afterReport.finance.current, beforeReport.finance.current) && afterReport.finance.legacyExcluded === true, 'Paid release invoice changed the outstanding balance or legacy exclusion.');
+  check(afterReport.inventory.total === beforeReport.inventory.total + 1, 'Report product total did not include the new inventory product.');
+  let inventoryReport = afterReport.inventory;
+  let reportedProduct = inventoryReport.entries.find(entry => entry.productId === product.productId);
+  while (!reportedProduct && inventoryReport.page * inventoryReport.pageSize < inventoryReport.total) {
+    inventoryReport = (await operationalReport(inventoryReport.page + 1)).inventory;
+    reportedProduct = inventoryReport.entries.find(entry => entry.productId === product.productId);
+  }
+  check(reportedProduct && reportedProduct.unit === 'unit' && reportedProduct.current.total === '6' && reportedProduct.current.available === '6' && ['inactive', 'quarantined', 'expired', 'expiryToday'].every(field => reportedProduct.current[field] === '0'), 'Report stock categories did not reconcile to remaining eligible units.');
+  check(reportedProduct.period.received === '10' && reportedProduct.period.supplied === '4' && reportedProduct.period.adjustmentNet === '0' && reportedProduct.period.movementNet === '6', 'Report stock movement totals did not reconcile.');
+
   const packaging = `import {existsSync,readdirSync} from 'node:fs';
     const forbidden=['/app/.env','/app/.local','/app/.agents','/app/.codex','/app/tests','/app/artifacts','/app/node_modules/tsx','/app/node_modules/@playwright/test'];
     const walk=p=>readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p+'/'+e.name):[p+'/'+e.name]);
@@ -324,7 +359,7 @@ try {
       const r=(await client.query("SELECT current_user AS name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user")).rows[0];
       if(r.name!=='medi_runtime'||r.rolsuper||r.rolcreatedb||r.rolcreaterole) throw Error();
       const inventoryDenied=['inventory_authorizations','inventory_events','inventory_movements','inventory_dispenses','inventory_requests'].flatMap(table=>['UPDATE '+table+' SET hospital_id=hospital_id WHERE false','DELETE FROM '+table+' WHERE false']);
-      for(const sql of [...inventoryDenied,"DELETE FROM inventory_products WHERE false","DELETE FROM inventory_batches WHERE false","CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","UPDATE clinical_amendments SET body=body WHERE false","DELETE FROM clinical_amendments WHERE false","UPDATE clinical_events SET actor_name=actor_name WHERE false","DELETE FROM clinical_events WHERE false","UPDATE clinical_requests SET result=result WHERE false","DELETE FROM clinical_requests WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
+      for(const sql of [...inventoryDenied,"UPDATE report_access_events SET hospital_id=hospital_id WHERE false","DELETE FROM report_access_events WHERE false","DELETE FROM inventory_products WHERE false","DELETE FROM inventory_batches WHERE false","CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","UPDATE clinical_amendments SET body=body WHERE false","DELETE FROM clinical_amendments WHERE false","UPDATE clinical_events SET actor_name=actor_name WHERE false","DELETE FROM clinical_events WHERE false","UPDATE clinical_requests SET result=result WHERE false","DELETE FROM clinical_requests WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
         await client.query('BEGIN'); let denied=false;
         try { await client.query(sql); } catch(e) { denied=e.code==='42501'; }
         finally { await client.query('ROLLBACK'); }
@@ -352,6 +387,13 @@ try {
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
     await page.reload();
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Operational reports', exact: true }).click();
+    await page.getByRole('heading', { name: 'Operational reports', exact: true }).waitFor();
+    await page.getByLabel('From date', { exact: true }).fill(reportRange.from);
+    await page.getByLabel('Through date', { exact: true }).fill(reportRange.to);
+    await page.getByRole('button', { name: 'Run report', exact: true }).click();
+    await page.getByRole('heading', { name: `Report for ${reportRange.from} through ${reportRange.to}`, exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Product stock', exact: true }).waitFor();
     check(errors.length === 0, 'Built browser application reported a runtime error.');
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await page.getByRole('heading', { name: 'Staff sign-in', exact: true }).waitFor();
@@ -362,7 +404,7 @@ try {
     check((await request('/api/health')).status !== 200, 'Readiness incorrectly passed with the database stopped.');
   } finally { docker(['up', '-d', '--wait', '--wait-timeout', '60', 'database']); }
   check((await request('/api/health')).status === 200, 'API did not recover after the database returned.');
-  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true, inventoryProductId: product.productId };
+  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true, inventoryProductId: product.productId, reportAccessIds };
   fixture.recordDigests = persistenceSnapshot(fixture.hospitalCode, fixture.records);
   saveFixture(path, fixture);
   console.log('PASS: isolated project/configuration recovery guards, image contents and database-outage readiness/recovery.');
@@ -371,6 +413,7 @@ try {
   console.log('PASS: catalog invoice, partial cash/manual-transfer payments, stable replay receipts, immutable ledger grants and restart digests.');
   console.log('PASS: closed-record note/result corrections, fresh review, stable retries, original preservation and clinical-history grants/digests.');
   console.log('PASS: restricted-runtime stock receipt, authorized partial/full supply, legacy bypass denial and reconciled persistent inventory.');
+  console.log('PASS: audited operational reports reconcile activity, payments, current work and inventory; immutable report audits persist.');
   console.log('PASS: built browser sign-in, session restoration on refresh, and sign-out with no runtime errors.');
   console.log('Private synthetic administrator details: .local/release-verification.json. Prior saved records are checked on each subsequent run.');
 } catch (error) {

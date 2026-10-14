@@ -27,7 +27,7 @@ deadline, contract scope or production capacity is implied.
 | Pharmacy | Hospital products/batches, receipt and adjustment ledger, explicit clinician quantity authorization, partial/full supply and remainder cancellation; expiry/quarantine and concurrent stock guards | Validated formulary/clinical policy, procurement, controlled items, patient returns, pack conversion, multiple stores and valuation |
 | Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
-| Reporting/integrations | Basic visit summaries/history | Agreed operational reports and governed exports; payer, payment and statutory interfaces only against verified contracts |
+| Reporting/integrations | Audited role-scoped visit activity, current outstanding work, exact receipt totals and per-product stock/movement reports | Hospital validation of report definitions, governed exports; payer, payment and statutory interfaces only against verified contracts |
 | Operations | Local Docker DB and restore verification; built local HTTPS installation with restricted runtime grants and separate migration job | Production installation acceptance, monitoring/alerts, encrypted offsite recovery, upgrades, migration rehearsal, support and measured capacity |
 
 ## Delivery milestones and exit evidence
