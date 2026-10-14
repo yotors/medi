@@ -1,0 +1,21 @@
+{
+  "home": "Workspace home",
+  "patients": "Patient directory",
+  "visits": "Outpatient visits",
+  "staff": "Staff administration",
+  "configuration": "Hospital configuration",
+  "catalog": "Service catalog",
+  "inventory": "Pharmacy inventory",
+  "reports": "Operational reports",
+  "care": "Patient care",
+  "departments": "Department operations",
+  "hospital": "Hospital management",
+  "mfa": "Authenticator security",
+  "password": "Change password",
+  "work": "Patient work",
+  "management": "Hospital operations",
+  "account": "Your account",
+  "label": "Staff workspace",
+  "unavailable": "This page is unavailable for your role or does not exist.",
+  "recover": "Return to workspace home"
+}

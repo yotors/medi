@@ -687,3 +687,25 @@ footer {
 .timeline small {
   overflow-wrap: anywhere;
 }
+
+:lang(am) {
+  font-family: 'Noto Sans Ethiopic', 'DM Sans Variable', sans-serif;
+  letter-spacing: normal;
+}
+:lang(am) h1,
+:lang(am) h2,
+:lang(am) h3,
+:lang(am) button,
+:lang(am) input,
+:lang(am) select {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+::selection {
+  background: #c8e6dc;
+  color: #102f32;
+}
+input,
+textarea {
+  caret-color: #12695d;
+}

@@ -1,0 +1,19 @@
+{
+  "patient": "{{name}} · የመዝገብ ቁጥር {{number}}",
+  "linked": " · ከመዝገብ ቁጥር {{number}} ጋር ተገናኝቷል",
+  "historical": " · የቀድሞ ትዕዛዝ (ተዛማጅ የተዋቀረ ምርመራ ያረጋግጡ)",
+  "quarantined": " · ለይቶ ተቀምጧል",
+  "specimen": "{{person}} · {{test}} · የናሙና መለያ {{accession}} · {{status}}",
+  "return": "{{person}} · {{productName}} · ተመላሽ {{quantity}} {{unit}} · {{status}}",
+  "purchase": "{{supplierName}}፣ {{products}}፣ {{status}}፣ {{createdAt}}",
+  "shift": "ገንዘብ ተቀባይ {{ownerName}} · መክፈቻ {{opening}} · {{status}} · {{createdAt}}",
+  "orders": "{{person}}፣ {{test}}{{extra}}",
+  "batches": "{{productName}} · ዙር {{lot}} · ማብቂያ {{expiry}} · {{balance}} {{unit}}{{extra}}",
+  "dispenses": "{{person}} · {{productName}} · ዙር {{lot}} · {{quantity}} {{unit}} ሊመለስ የሚችል",
+  "invoices": "{{number}} · {{person}} · የተጣራ {{net}} · የተከፈለ {{paid}}",
+  "payments": "{{number}} · {{amount}} · {{method}} · {{remaining}} ያልተቀለበሰ",
+  "cashEntries": "{{entry}} · {{person}} · {{amount}}፣ {{direction}}",
+  "recorded_kind": "የተመዘገበ {{kind}}",
+  "received": "የተቀበለ ጥሬ ገንዘብ",
+  "paid_out": "የተከፈለ ጥሬ ገንዘብ"
+}

@@ -40,7 +40,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin') {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -83,7 +83,7 @@ async function seed(page: Page, closed = true) {
 async function open(page: Page, name: string, status: string) {
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByLabel('Visit status', { exact: true }).selectOption(status);
   await page.getByRole('button', { name, exact: true }).click();
@@ -352,7 +352,7 @@ test('laboratory correction reaches assigned clinician in separate sessions with
   });
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Patient directory', exact: true })
+    .getByRole('link', { name: 'Patient directory', exact: true })
     .click();
   const second = await seed(page);
   await post(page, `/api/visits/${second.v.id}/clinical/commands`, {
@@ -382,7 +382,7 @@ test('laboratory correction reaches assigned clinician in separate sessions with
     await signIn(clinician, 'clinician');
     await clinician
       .getByRole('navigation', { name: 'Staff workspace' })
-      .getByRole('button', { name: 'Outpatient visits', exact: true })
+      .getByRole('link', { name: 'Outpatient visits', exact: true })
       .click();
     await clinician.getByLabel('Visit status', { exact: true }).selectOption('corrections');
     await expect(clinician.getByRole('button', { name: second.name, exact: true })).toBeVisible();

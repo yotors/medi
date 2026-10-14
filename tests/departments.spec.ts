@@ -31,13 +31,13 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin') {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Department operations', exact: true }).click();
+  await page.getByRole('link', { name: 'Department operations', exact: true }).click();
 }
 async function save(page: Page) {
   await page.getByRole('button', { name: 'Save accountable record', exact: true }).click();
@@ -144,7 +144,7 @@ async function choose(page: Page, label: string, needle: string) {
 async function openVisit(page: Page, name: string) {
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByRole('button', { name, exact: true }).click();
   await page
@@ -153,7 +153,7 @@ async function openVisit(page: Page, name: string) {
     .click();
 }
 async function workflow(page: Page, category: string, action: string) {
-  await page.getByRole('button', { name: 'Department operations', exact: true }).click();
+  await page.getByRole('link', { name: 'Department operations', exact: true }).click();
   await page
     .getByRole('navigation', { name: 'Department workflows' })
     .getByRole('button', { name: category, exact: true })
@@ -198,6 +198,19 @@ test('configured custom test orders and specimen handoffs use patient and clinic
   for (const action of ['lab.collect', 'lab.receive', 'lab.result', 'lab.release']) {
     await page.getByLabel('Action', { exact: true }).selectOption(action);
     await choose(page, 'Specimen', `ACCESSION-${code}`);
+    if (action === 'lab.collect') {
+      const selected = await page.getByLabel('Specimen', { exact: true }).inputValue();
+      await page.getByLabel('Language', { exact: true }).selectOption('am');
+      const specimen = page.getByLabel('ናሙና', { exact: true });
+      await expect(specimen).toHaveValue(selected);
+      await expect(specimen.locator('option:checked')).toContainText(patientName);
+      await expect(specimen.locator('option:checked')).toContainText(name);
+      await expect(specimen.locator('option:checked')).toContainText('ተመዝግቧል');
+      await expect(specimen.locator('option:checked')).toContainText('የናሙና መለያ');
+      await page.getByLabel('ቋንቋ', { exact: true }).selectOption('en');
+      await expect(page.getByLabel('Specimen', { exact: true })).toHaveValue(selected);
+    }
+
     if (action === 'lab.result')
       await page.getByLabel('Result', { exact: true }).fill('Fictional configured result');
     await save(page);
@@ -281,6 +294,29 @@ test('invoice credit refund and cash allocation use factual patient invoice rece
       .getByRole('button', { name: 'Find choices for cash receipt or refund', exact: true })
       .click();
     await choose(page, 'Cash receipt or refund', needle);
+    const sources = await post(page, '/api/departments/sources', {
+      kind: 'cashEntries',
+      q: patientName,
+      page: 1,
+    });
+    expect(sources.entries.length).toBeGreaterThan(0);
+    expect(
+      sources.entries.every(
+        (entry: any) =>
+          entry.presentation?.kind === 'cashEntries' &&
+          entry.presentation.values.patientName === patientName,
+      ),
+    ).toBe(true);
+    const selectedCash = await page
+      .getByLabel('Cash receipt or refund', { exact: true })
+      .inputValue();
+    await page.getByLabel('Language', { exact: true }).selectOption('am');
+    const cashChoice = page.getByLabel('የጥሬ ገንዘብ ማረጋገጫ ወይም ተመላሽ', { exact: true });
+    await expect(cashChoice).toHaveValue(selectedCash);
+    await expect(cashChoice.locator('option:checked')).toContainText(patientName);
+    await expect(cashChoice.locator('option:checked')).toContainText('ጥሬ ገንዘብ');
+    await page.getByLabel('ቋንቋ', { exact: true }).selectOption('en');
+
     await expect(
       page.getByLabel(/Expected.*revision|Invoice ID|Payment ID|Cash payment ID/),
     ).toHaveCount(0);

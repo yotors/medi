@@ -1,3 +1,7 @@
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '../../shared/registration';
@@ -65,7 +69,7 @@ export default function PharmacyPanel({
     () => {
       setDraft(null);
       onDirty(false);
-      setNotice('Pharmacy change saved.');
+      setNotice(uiMessage('inventory:pharmacy_change_saved'));
       onSaved();
     },
     () => {
@@ -117,7 +121,8 @@ export default function PharmacyPanel({
       .catch((error) => {
         if (!cancelled) {
           if (error instanceof ApiError && error.status === 401) onSessionError(error);
-          else setError('Pharmacy choices could not be loaded. Retry to continue.');
+          else
+            setError(uiMessage('inventory:pharmacy_choices_could_not_be_loaded_retry_to_continue'));
         }
       })
       .finally(() => {
@@ -206,35 +211,39 @@ export default function PharmacyPanel({
     <div className="pharmacy-workspace">
       {notice && (
         <p ref={savedNotice} tabIndex={-1} role="status" className="notice success">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {mutation.error && (
         <p role="alert" className="notice error">
-          {mutation.error}
+          {interfaceMessage(mutation.error)}
         </p>
       )}
       {mutation.pending && (
         <div className="notice warning" role="status">
           <span>
             {mutation.busy
-              ? 'Saving pharmacy change…'
-              : 'Supply save not confirmed. Retry the same details before continuing.'}
+              ? t('inventory:saving_pharmacy_change')
+              : t('inventory:supply_save_not_confirmed_retry_the_same_details_before_continuing')}
           </span>
           <button disabled={mutation.busy} onClick={mutation.retry}>
-            Retry pharmacy save
+            {' '}
+            {t('inventory:retry_pharmacy_save')}{' '}
           </button>
         </div>
       )}
       {(mutation.conflict || draft?.stale) && draft && (
         <div className="notice warning">
           <span>
-            Draft preserved. Review the latest visit, remaining quantity and stock.
+            {' '}
+            {t(
+              'inventory:draft_preserved_review_the_latest_visit_remaining_quantity_and_stock',
+            )}{' '}
             {currentBatch && (
               <>
                 {' '}
-                Current lot {currentBatch.lot}: {currentBatch.balance} {draft.product?.unit} ·{' '}
-                {eligibilityLabel[currentBatch.eligibility]}.
+                {t('inventory:current_lot')} {currentBatch.lot}: {currentBatch.balance}{' '}
+                {draft.product?.unit} · {eligibilityLabel[currentBatch.eligibility]}.
               </>
             )}
           </span>
@@ -259,11 +268,14 @@ export default function PharmacyPanel({
               mutation.clear();
             }}
           >
-            Use latest pharmacy version
+            {' '}
+            {t('inventory:use_latest_pharmacy_version')}{' '}
           </button>
         </div>
       )}
-      {!visit.prescriptions?.length && <p className="empty-small">No prescriptions added.</p>}
+      {!visit.prescriptions?.length && (
+        <p className="empty-small">{t('inventory:no_prescriptions_added')}</p>
+      )}
       {visit.prescriptions?.map((prescription, index) => {
         const allocation = visit.pharmacy?.find(
           (entry) => entry.prescriptionId === prescription.id,
@@ -273,11 +285,13 @@ export default function PharmacyPanel({
           <article
             className="pharmacy-prescription"
             key={prescription.id}
-            aria-label={`Prescription ${index + 1}`}
+            aria-label={t('dynamic:prescription_number', { number: index + 1 })}
           >
             <div className="section-heading">
-              <h3>Prescription {index + 1}</h3>
-              <span className="badge neutral">{prescription.status}</span>
+              <h3>
+                {t('inventory:prescription')} {index + 1}
+              </h3>
+              <span className="badge neutral">{presentationLabel(prescription.status)}</span>
             </div>
             <p className="preserve">{prescription.instruction}</p>
             {allocation ? (
@@ -288,29 +302,35 @@ export default function PharmacyPanel({
                 </p>
                 <dl className="pharmacy-quantity">
                   <div>
-                    <dt>Authorized</dt>
+                    <dt>{t('inventory:authorized')}</dt>
                     <dd>{allocation.quantity}</dd>
                   </div>
                   <div>
-                    <dt>Supplied</dt>
+                    <dt>{t('common:supplied')}</dt>
                     <dd>{allocation.supplied}</dd>
                   </div>
                   <div>
-                    <dt>Remaining</dt>
+                    <dt>{t('inventory:remaining_2')}</dt>
                     <dd>{allocation.remaining}</dd>
                   </div>
                 </dl>
                 <small>
-                  Authorized by {allocation.actorName} · {hospitalDate(allocation.at)}
+                  {' '}
+                  {t('inventory:authorized_by')} {allocation.actorName} ·{' '}
+                  {hospitalDate(allocation.at)}
                 </small>
                 <details className="inventory-identity">
-                  <summary>Authorizing staff identity</summary>
-                  <p>Staff ID: {allocation.actorId}</p>
+                  <summary>{t('inventory:authorizing_staff_identity')}</summary>
+                  <p>
+                    {t('inventory:staff_id')} {allocation.actorId}
+                  </p>
                 </details>
                 {allocation.cancelled && (
                   <p className="notice warning">
-                    Remaining {allocation.quantity - allocation.supplied} {allocation.product.unit}{' '}
-                    cancelled. Already supplied stock was not returned.
+                    {' '}
+                    {t('inventory:remaining_2')} {allocation.quantity - allocation.supplied}{' '}
+                    {allocation.product.unit}{' '}
+                    {t('inventory:cancelled_already_supplied_stock_was_not_returned')}{' '}
                   </p>
                 )}
                 {canSupply && active && (
@@ -320,13 +340,15 @@ export default function PharmacyPanel({
                       disabled={blocked || Boolean(draft)}
                       onClick={() => start('dispense', prescription.id)}
                     >
-                      Record supply for prescription {index + 1}
+                      {' '}
+                      {t('inventory:record_supply_for_prescription')} {index + 1}
                     </button>
                     <button
                       disabled={blocked || Boolean(draft)}
                       onClick={() => start('cancel', prescription.id)}
                     >
-                      Cancel remaining prescription {index + 1}
+                      {' '}
+                      {t('inventory:cancel_remaining_prescription')} {index + 1}
                     </button>
                   </div>
                 )}
@@ -334,7 +356,8 @@ export default function PharmacyPanel({
             ) : (
               <>
                 <p className="muted">
-                  Unlinked handoff — completion here does not account for stock.
+                  {' '}
+                  {t('inventory:unlinked_handoff_completion_here_does_not_account_for_stock')}{' '}
                 </p>
                 <div className="button-row">
                   {canAuthorize && active && (
@@ -343,7 +366,8 @@ export default function PharmacyPanel({
                       disabled={blocked || Boolean(draft)}
                       onClick={() => start('authorize', prescription.id)}
                     >
-                      Authorize product for prescription {index + 1}
+                      {' '}
+                      {t('inventory:authorize_product_for_prescription')} {index + 1}
                     </button>
                   )}
                   {canSupply && active && (
@@ -358,7 +382,8 @@ export default function PharmacyPanel({
                           })
                         }
                       >
-                        Complete unlinked handoff {index + 1}
+                        {' '}
+                        {t('inventory:complete_unlinked_handoff')} {index + 1}
                       </button>
                       <button
                         disabled={blocked || Boolean(draft)}
@@ -370,7 +395,8 @@ export default function PharmacyPanel({
                           })
                         }
                       >
-                        Cancel unlinked prescription {index + 1}
+                        {' '}
+                        {t('inventory:cancel_unlinked_prescription')} {index + 1}
                       </button>
                     </>
                   )}
@@ -384,7 +410,7 @@ export default function PharmacyPanel({
         <form
           ref={form}
           className="pharmacy-editor"
-          aria-label="Pharmacy change"
+          aria-label={t('inventory:pharmacy_change')}
           onSubmit={(event) => {
             event.preventDefault();
             save();
@@ -392,22 +418,26 @@ export default function PharmacyPanel({
         >
           <h3>
             {draft.type === 'authorize'
-              ? 'Authorize product and quantity'
+              ? t('inventory:authorize_product_and_quantity')
               : draft.type === 'dispense'
-                ? 'Record actual supply'
-                : 'Cancel remaining supply'}
+                ? t('inventory:record_actual_supply')
+                : t('inventory:cancel_remaining_supply')}
           </h3>
           <p>
-            <strong>Prescription {targetIndex + 1}</strong>
+            <strong>
+              {t('inventory:prescription')} {targetIndex + 1}
+            </strong>
           </p>
           <p className="preserve">{visit.prescriptions?.[targetIndex]?.instruction}</p>
           {draft.type === 'authorize' && (
             <>
               <p>
-                Select the prescribed product and whole base-unit quantity. Instructions remain
-                unchanged; no dosing or substitution is inferred.
+                {' '}
+                {t(
+                  'inventory:select_the_prescribed_product_and_whole_base_unit_quantity_instructions_remain_unchanged_no_dos',
+                )}{' '}
               </p>
-              <label htmlFor="pharmacy-search">Search active products</label>
+              <label htmlFor="pharmacy-search">{t('inventory:search_active_products')}</label>
               <input
                 id="pharmacy-search"
                 value={search}
@@ -424,29 +454,32 @@ export default function PharmacyPanel({
                   setRefresh((value) => value + 1);
                 }}
               >
-                Find products
+                {' '}
+                {t('inventory:find_products')}{' '}
               </button>
             </>
           )}
           {draft.type !== 'authorize' && (
             <p>
-              {draft.product?.name} · Authorized {authorization?.quantity} {draft.product?.unit} ·
-              Supplied {authorization?.supplied} · Remaining {authorization?.remaining}
+              {draft.product?.name} {t('inventory:authorized_2')} {authorization?.quantity}{' '}
+              {draft.product?.unit} {t('inventory:supplied_2')} {authorization?.supplied}{' '}
+              {t('inventory:remaining_3')} {authorization?.remaining}
             </p>
           )}
           {draft.type !== 'cancel' && (
             <>
               {loading ? (
-                <p role="status">Loading pharmacy choices…</p>
+                <p role="status">{t('inventory:loading_pharmacy_choices')}</p>
               ) : error ? (
                 <div>
-                  <p role="alert">{error}</p>
+                  <p role="alert">{interfaceMessage(error)}</p>
                   <button
                     type="button"
                     disabled={blocked}
                     onClick={() => setRefresh((value) => value + 1)}
                   >
-                    Retry pharmacy choices
+                    {' '}
+                    {t('inventory:retry_pharmacy_choices')}{' '}
                   </button>
                 </div>
               ) : (
@@ -465,7 +498,8 @@ export default function PharmacyPanel({
                             disabled={blocked}
                             onClick={() => setDraft({ ...draft, product, confirmed: false })}
                           >
-                            Choose {product.code}
+                            {' '}
+                            {t('common:choose')} {product.code}
                           </button>
                         </li>
                       ))}
@@ -473,15 +507,19 @@ export default function PharmacyPanel({
                   ) : (
                     <>
                       <p className="muted">
-                        Supply uses Addis Ababa date {batches?.today}. Expiry-day stock is blocked.
+                        {' '}
+                        {t('inventory:supply_uses_addis_ababa_date')} {batches?.today}
+                        {t('inventory:expiry_day_stock_is_blocked')}{' '}
                       </p>
                       <ul className="pharmacy-choices">
                         {batches?.entries.map((batch) => (
                           <li key={batch.id}>
-                            <strong>Lot {batch.lot}</strong>
+                            <strong>
+                              {t('inventory:lot')} {batch.lot}
+                            </strong>
                             <p>
-                              {batch.balance} {draft.product?.unit} · Expiry {batch.expiry} ·{' '}
-                              {eligibilityLabel[batch.eligibility]}
+                              {batch.balance} {draft.product?.unit} {t('inventory:expiry')}{' '}
+                              {batch.expiry} · {eligibilityLabel[batch.eligibility]}
                             </p>
                             <button
                               type="button"
@@ -493,7 +531,8 @@ export default function PharmacyPanel({
                                 setDraft({ ...draft, batch, stale: false, confirmed: false })
                               }
                             >
-                              Choose lot {batch.lot}
+                              {' '}
+                              {t('inventory:choose_lot')} {batch.lot}
                             </button>
                           </li>
                         ))}
@@ -503,8 +542,12 @@ export default function PharmacyPanel({
                   {choices?.total === 0 && (
                     <p className="empty-small">
                       {draft.type === 'authorize'
-                        ? 'No active products match. Pharmacy staff can create and activate the catalog.'
-                        : 'No batches exist for this product. Pharmacy staff must add and receive stock first.'}
+                        ? t(
+                            'inventory:no_active_products_match_pharmacy_staff_can_create_and_activate_the_catalog',
+                          )
+                        : t(
+                            'inventory:no_batches_exist_for_this_product_pharmacy_staff_must_add_and_receive_stock_first',
+                          )}
                     </p>
                   )}
                   <div className="button-row">
@@ -513,40 +556,48 @@ export default function PharmacyPanel({
                       disabled={blocked || page === 1}
                       onClick={() => setPage(page - 1)}
                     >
-                      Previous pharmacy choices
+                      {' '}
+                      {t('inventory:previous_pharmacy_choices')}{' '}
                     </button>
                     <button
                       type="button"
                       disabled={blocked || !choices || page * 25 >= choices.total}
                       onClick={() => setPage(page + 1)}
                     >
-                      Next pharmacy choices
+                      {' '}
+                      {t('inventory:next_pharmacy_choices')}{' '}
                     </button>
                     <button
                       type="button"
                       disabled={blocked}
                       onClick={() => setRefresh((value) => value + 1)}
                     >
-                      Refresh pharmacy choices
+                      {' '}
+                      {t('inventory:refresh_pharmacy_choices')}{' '}
                     </button>
                   </div>
                 </>
               )}
               {draft.product && (
                 <p>
-                  Selected product: <strong>{draft.product.name}</strong> · Base unit:{' '}
-                  {draft.product.unit}
+                  {' '}
+                  {t('inventory:selected_product')} <strong>{draft.product.name}</strong>{' '}
+                  {t('inventory:base_unit_2')} {draft.product.unit}
                 </p>
               )}
               {draft.batch && (
                 <p>
-                  Selected lot: <strong>{draft.batch.lot}</strong> · Expiry {draft.batch.expiry} ·
-                  Stock {draft.batch.balance} {draft.product?.unit}
+                  {' '}
+                  {t('inventory:selected_lot')} <strong>{draft.batch.lot}</strong>{' '}
+                  {t('inventory:expiry')} {draft.batch.expiry} {t('inventory:stock_2')}{' '}
+                  {draft.batch.balance} {draft.product?.unit}
                 </p>
               )}
               <label htmlFor="pharmacy-quantity">
-                {draft.type === 'authorize' ? 'Authorized quantity' : 'Quantity supplied'} ·{' '}
-                {draft.product?.unit ?? 'base units'}
+                {draft.type === 'authorize'
+                  ? t('inventory:authorized_quantity')
+                  : t('inventory:quantity_supplied')}{' '}
+                · {draft.product?.unit ?? t('inventory:base_units')}
               </label>
               <input
                 id="pharmacy-quantity"
@@ -570,10 +621,14 @@ export default function PharmacyPanel({
           {draft.type === 'cancel' && (
             <>
               <p>
-                Only the remaining quantity will be cancelled. Already supplied stock stays
-                deducted. Patient returns and restocking are not supported.
+                {' '}
+                {t(
+                  'inventory:only_the_remaining_quantity_will_be_cancelled_already_supplied_stock_stays_deducted_patient_ret',
+                )}{' '}
               </p>
-              <label htmlFor="pharmacy-cancel-reason">Reason for cancelling remainder</label>
+              <label htmlFor="pharmacy-cancel-reason">
+                {t('inventory:reason_for_cancelling_remainder')}
+              </label>
               <textarea
                 id="pharmacy-cancel-reason"
                 required
@@ -593,8 +648,8 @@ export default function PharmacyPanel({
               checked={draft.confirmed}
               disabled={blocked}
               onChange={(event) => setDraft({ ...draft, confirmed: event.target.checked })}
-            />
-            I checked this prescription, product and quantity.
+            />{' '}
+            {t('inventory:i_checked_this_prescription_product_and_quantity')}{' '}
           </label>
           <div className="button-row">
             <button
@@ -610,7 +665,8 @@ export default function PharmacyPanel({
                 (draft.type === 'dispense' && !draft.batch)
               }
             >
-              Save pharmacy change
+              {' '}
+              {t('inventory:save_pharmacy_change')}{' '}
             </button>
             <button
               type="button"
@@ -620,7 +676,8 @@ export default function PharmacyPanel({
                 mutation.clear();
               }}
             >
-              Discard pharmacy draft
+              {' '}
+              {t('inventory:discard_pharmacy_draft')}{' '}
             </button>
           </div>
         </form>

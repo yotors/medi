@@ -31,13 +31,13 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin') {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Hospital management', exact: true }).click();
+  await page.getByRole('link', { name: 'Hospital management', exact: true }).click();
 }
 
 test('governance facilities settings download keyboard axe and responsive capture', async ({

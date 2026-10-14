@@ -1,13 +1,16 @@
+import { formatMinorCurrency, formatNumber, formatDate } from '../i18n';
+import { uiMessage } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '../../shared/registration';
 import { reportQuerySchema, type OperationalReport } from '../../shared/reports';
 import { request, ApiError } from './api';
 import './reports.css';
 export function reportMoney(minor: string) {
-  const amount = BigInt(minor),
-    absolute = amount < 0n ? -amount : amount;
-  return `${amount < 0n ? '-' : ''}${(absolute / 100n).toLocaleString('en-US')}.${(absolute % 100n).toString().padStart(2, '0')} ETB`;
+  return formatMinorCurrency(minor);
 }
+
 const today = () =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Africa/Addis_Ababa',
@@ -15,7 +18,7 @@ const today = () =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
-const quantity = (value: string) => BigInt(value).toLocaleString('en-US');
+const quantity = (value: string) => formatNumber(BigInt(value));
 export default function OperationalReports({
   session,
   onSessionError,
@@ -52,7 +55,9 @@ export default function OperationalReports({
     requestedPage.current = page;
     const parsed = reportQuerySchema.safeParse({ from, to, inventoryPage: page });
     if (!parsed.success) {
-      setError('Choose valid Gregorian dates in order, covering no more than 366 days.');
+      setError(
+        uiMessage('reports:choose_valid_gregorian_dates_in_order_covering_no_more_than_366_days'),
+      );
       return;
     }
     const current = generation.current;
@@ -71,7 +76,9 @@ export default function OperationalReports({
       if (e instanceof ApiError && e.status === 401) onSessionError(e);
       else
         setError(
-          e instanceof Error ? e.message : 'The report could not be loaded. Retry the report.',
+          e instanceof Error
+            ? e.message
+            : t('reports:the_report_could_not_be_loaded_retry_the_report'),
         );
     } finally {
       if (current === generation.current) setLoading(false);
@@ -85,21 +92,25 @@ export default function OperationalReports({
       <div className="page-heading">
         <div>
           <h1 ref={heading} tabIndex={-1}>
-            Operational reports
+            {' '}
+            {t('reports:operational_reports')}{' '}
           </h1>
-          <p>Period activity and current outstanding work for {session.user.hospital.name}.</p>
+          <p>
+            {t('reports:period_activity_and_current_outstanding_work_for')}{' '}
+            {session.user.hospital.name}.
+          </p>
         </div>
       </div>
       <form
         className="panel report-range"
-        aria-label="Report dates"
+        aria-label={t('reports:report_dates')}
         onSubmit={(event) => {
           event.preventDefault();
           void run();
         }}
       >
         <div>
-          <label htmlFor="report-from">From date</label>
+          <label htmlFor="report-from">{t('reports:from_date')}</label>
           <input
             id="report-from"
             type="date"
@@ -115,7 +126,7 @@ export default function OperationalReports({
           />
         </div>
         <div>
-          <label htmlFor="report-to">Through date</label>
+          <label htmlFor="report-to">{t('reports:through_date')}</label>
           <input
             id="report-to"
             type="date"
@@ -131,135 +142,149 @@ export default function OperationalReports({
           />
         </div>
         <button className="primary" disabled={loading}>
-          Run report
+          {' '}
+          {t('reports:run_report')}{' '}
         </button>
         <p>
-          Gregorian dates · Africa/Addis_Ababa · Both dates included, up to 366 days. Each
-          successful report read is recorded.
+          {' '}
+          {t(
+            'reports:gregorian_dates_africa_addis_ababa_both_dates_included_up_to_366_days_each_successful_report_re',
+          )}{' '}
         </p>
       </form>
       {loading && (
         <p role="status" className="notice">
-          Loading report…
+          {' '}
+          {t('reports:loading_report')}{' '}
         </p>
       )}
       {error && (
         <div className="notice error">
-          <p role="alert">{error}</p>
-          <button onClick={() => void run(requestedPage.current)}>Retry report</button>
+          <p role="alert">{interfaceMessage(error)}</p>
+          <button onClick={() => void run(requestedPage.current)}>
+            {t('reports:retry_report')}
+          </button>
         </div>
       )}
       {!report && !loading && !error && (
         <p className="empty">
-          Choose your dates and run a report. Only sections available to your role will appear.
+          {' '}
+          {t(
+            'reports:choose_your_dates_and_run_a_report_only_sections_available_to_your_role_will_appear',
+          )}{' '}
         </p>
       )}
       {report && (
-        <div className="report-results" aria-label="Report results">
+        <div className="report-results" aria-label={t('reports:report_results')}>
           <div className="report-context">
             <h2 ref={resultHeading} tabIndex={-1}>
-              Report for {report.range.from} through {report.range.to}
+              {' '}
+              {t('reports:report_for')} {report.range.from} {t('reports:through')} {report.range.to}
             </h2>
             <p>
-              Generated{' '}
-              {new Intl.DateTimeFormat('en-GB', {
-                timeZone: 'Africa/Addis_Ababa',
+              {' '}
+              {t('reports:generated')}{' '}
+              {formatDate(new Date(report.generatedAt), {
                 dateStyle: 'medium',
                 timeStyle: 'medium',
-              }).format(new Date(report.generatedAt))}{' '}
-              · Addis Ababa
+              })}{' '}
+              {t('reports:addis_ababa')}{' '}
             </p>
             <p>
-              Period activity uses the selected dates. Current outstanding work and stock reflect
-              this generation time, regardless of those dates.
+              {' '}
+              {t(
+                'reports:period_activity_uses_the_selected_dates_current_outstanding_work_and_stock_reflect_this_generat',
+              )}{' '}
             </p>
             <details>
-              <summary>Report boundary and access record</summary>
+              <summary>{t('reports:report_boundary_and_access_record')}</summary>
               <p>
-                Inclusive start: {report.range.start}
-                <br />
-                Exclusive end: {report.range.endExclusive}
-                <br />
-                Read audit ID: {report.auditId}
+                {' '}
+                {t('reports:inclusive_start')} {report.range.start}
+                <br /> {t('reports:exclusive_end')} {report.range.endExclusive}
+                <br /> {t('reports:read_audit_id')} {report.auditId}
               </p>
             </details>
           </div>
           {report.operations && (
             <section className="panel" aria-labelledby="report-operations">
-              <h2 id="report-operations">Visit operations</h2>
-              <h3>Selected period activity</h3>
+              <h2 id="report-operations">{t('reports:visit_operations')}</h2>
+              <h3>{t('reports:selected_period_activity')}</h3>
               <dl className="report-values">
                 <div>
-                  <dt>Visits opened</dt>
-                  <dd>{report.operations.period.visitsOpened.toLocaleString()}</dd>
+                  <dt>{t('reports:visits_opened')}</dt>
+                  <dd>{formatNumber(report.operations.period.visitsOpened)}</dd>
                 </div>
                 <div>
-                  <dt>Visits closed</dt>
-                  <dd>{report.operations.period.visitsClosed.toLocaleString()}</dd>
+                  <dt>{t('reports:visits_closed')}</dt>
+                  <dd>{formatNumber(report.operations.period.visitsClosed)}</dd>
                 </div>
                 <div>
-                  <dt>Note amendments</dt>
-                  <dd>{report.operations.period.noteAmendments.toLocaleString()}</dd>
+                  <dt>{t('common:note_amendments')}</dt>
+                  <dd>{formatNumber(report.operations.period.noteAmendments)}</dd>
                 </div>
                 <div>
-                  <dt>Result corrections</dt>
-                  <dd>{report.operations.period.resultCorrections.toLocaleString()}</dd>
+                  <dt>{t('common:result_corrections')}</dt>
+                  <dd>{formatNumber(report.operations.period.resultCorrections)}</dd>
                 </div>
               </dl>
               <p className="report-definition">
-                Opening and closure are counted independently by their own timestamps. Amendments
-                and corrections count recorded changes, including changes after closure.
+                {' '}
+                {t(
+                  'reports:opening_and_closure_are_counted_independently_by_their_own_timestamps_amendments_and_correction',
+                )}{' '}
               </p>
-              <h3>Current outstanding work</h3>
+              <h3>{t('reports:current_outstanding_work')}</h3>
               <dl className="report-values">
                 <div>
-                  <dt>Active visits</dt>
-                  <dd>{report.operations.current.activeVisits.toLocaleString()}</dd>
+                  <dt>{t('reports:active_visits')}</dt>
+                  <dd>{formatNumber(report.operations.current.activeVisits)}</dd>
                 </div>
                 <div>
-                  <dt>Investigations awaiting completion</dt>
-                  <dd>{report.operations.current.pendingInvestigations.toLocaleString()}</dd>
+                  <dt>{t('reports:investigations_awaiting_completion')}</dt>
+                  <dd>{formatNumber(report.operations.current.pendingInvestigations)}</dd>
                 </div>
                 <div>
-                  <dt>Pending prescriptions</dt>
-                  <dd>{report.operations.current.pendingPrescriptions.toLocaleString()}</dd>
+                  <dt>{t('reports:pending_prescriptions')}</dt>
+                  <dd>{formatNumber(report.operations.current.pendingPrescriptions)}</dd>
                 </div>
                 <div>
-                  <dt>Corrected results awaiting review</dt>
-                  <dd>
-                    {report.operations.current.pendingCorrectedResultReviews.toLocaleString()}
-                  </dd>
+                  <dt>{t('reports:corrected_results_awaiting_review')}</dt>
+                  <dd>{formatNumber(report.operations.current.pendingCorrectedResultReviews)}</dd>
                 </div>
               </dl>
               <p className="report-definition">
-                Investigations exclude reviewed or cancelled orders. Partial prescription supply
-                remains pending. Corrected-result reviews include closed visits and count the latest
-                correction awaiting review.
+                {' '}
+                {t(
+                  'reports:investigations_exclude_reviewed_or_cancelled_orders_partial_prescription_supply_remains_pending',
+                )}{' '}
               </p>
             </section>
           )}
           {report.finance && (
             <section className="panel" aria-labelledby="report-finance">
-              <h2 id="report-finance">Recorded payments</h2>
-              <h3>Selected period receipts</h3>
+              <h2 id="report-finance">{t('common:recorded_payments')}</h2>
+              <h3>{t('reports:selected_period_receipts')}</h3>
               <div
                 className="table-region"
                 role="region"
-                aria-label="Receipts by payment method"
+                aria-label={t('reports:receipts_by_payment_method')}
                 tabIndex={0}
               >
                 <table className="report-receipts">
                   <thead>
                     <tr>
-                      <th>Method</th>
-                      <th>Receipts</th>
-                      <th>Collected amount</th>
+                      <th>{t('reports:method')}</th>
+                      <th>{t('reports:receipts')}</th>
+                      <th>{t('reports:collected_amount')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(['cash', 'manual_transfer'] as const).map((method) => (
                       <tr key={method}>
-                        <th scope="row">{method === 'cash' ? 'Cash' : 'Manual transfer'}</th>
+                        <th scope="row">
+                          {method === 'cash' ? t('common:cash') : t('common:manual_transfer')}
+                        </th>
                         <td>{report.finance!.period.byMethod[method].receiptCount}</td>
                         <td>
                           {reportMoney(report.finance!.period.byMethod[method].collectedMinor)}
@@ -267,7 +292,7 @@ export default function OperationalReports({
                       </tr>
                     ))}
                     <tr>
-                      <th scope="row">Total</th>
+                      <th scope="row">{t('common:total')}</th>
                       <td>{report.finance.period.receiptCount}</td>
                       <td>{reportMoney(report.finance.period.collectedMinor)}</td>
                     </tr>
@@ -275,21 +300,22 @@ export default function OperationalReports({
                 </table>
               </div>
               <p className="report-definition">
-                Counted once per receipt by payment recording time. These are recorded collections,
-                not revenue, bank reconciliation or tax reporting. Legacy demonstration payments are
-                excluded.
+                {' '}
+                {t(
+                  'reports:counted_once_per_receipt_by_payment_recording_time_these_are_recorded_collections_not_revenue_b',
+                )}{' '}
               </p>
               <dl className="report-values">
                 <div>
-                  <dt>Refunds and reversals in selected period</dt>
+                  <dt>{t('reports:refunds_and_reversals_in_selected_period')}</dt>
                   <dd>{reportMoney(report.finance.period.refundedMinor ?? '0')}</dd>
                 </div>
                 <div>
-                  <dt>Credits and discounts in selected period</dt>
+                  <dt>{t('reports:credits_and_discounts_in_selected_period')}</dt>
                   <dd>{reportMoney(report.finance.period.creditedMinor ?? '0')}</dd>
                 </div>
                 <div>
-                  <dt>Net recorded collections</dt>
+                  <dt>{t('reports:net_recorded_collections')}</dt>
                   <dd>
                     {reportMoney(
                       report.finance.period.netCollectedMinor ??
@@ -298,57 +324,63 @@ export default function OperationalReports({
                   </dd>
                 </div>
               </dl>
-              <h3>Current invoice balances</h3>
+              <h3>{t('reports:current_invoice_balances')}</h3>
               <dl className="report-values">
                 <div>
-                  <dt>Invoices with an outstanding balance</dt>
+                  <dt>{t('reports:invoices_with_an_outstanding_balance')}</dt>
                   <dd>{report.finance.current.outstandingInvoiceCount}</dd>
                 </div>
                 <div>
-                  <dt>Outstanding amount</dt>
+                  <dt>{t('reports:outstanding_amount')}</dt>
                   <dd>{reportMoney(report.finance.current.outstandingMinor)}</dd>
                 </div>
               </dl>
               <p className="report-definition">
-                Net catalog invoices less net recorded payments, after credits and refunds,
-                excluding void invoices. This includes collectible balances after clinical closure.
+                {' '}
+                {t(
+                  'reports:net_catalog_invoices_less_net_recorded_payments_after_credits_and_refunds_excluding_void_invoic',
+                )}{' '}
               </p>
             </section>
           )}
           {report.inventory && (
             <section className="panel" aria-labelledby="report-inventory">
-              <h2 id="report-inventory">Product stock</h2>
+              <h2 id="report-inventory">{t('reports:product_stock')}</h2>
               <p className="report-definition">
-                Whole base units per product; different units are never added together. Current
-                eligibility uses Addis Ababa date {report.inventory.today}. Exclusions are separate
-                categories: inactive product first, then quarantine, expired, expiry today, or
-                available.
+                {' '}
+                {t(
+                  'reports:whole_base_units_per_product_different_units_are_never_added_together_current_eligibility_uses_',
+                )}{' '}
+                {report.inventory.today}
+                {t(
+                  'reports:exclusions_are_separate_categories_inactive_product_first_then_quarantine_expired_expiry_today_',
+                )}{' '}
               </p>
               {!report.inventory.entries.length ? (
                 <p className="empty-small">
                   {report.inventory.total === 0
-                    ? 'No inventory products configured.'
-                    : 'No products on this page. Return to the previous page.'}
+                    ? t('reports:no_inventory_products_configured')
+                    : t('reports:no_products_on_this_page_return_to_the_previous_page')}
                 </p>
               ) : (
                 <>
-                  <h3>Current stock</h3>
+                  <h3>{t('reports:current_stock_2')}</h3>
                   <div
                     className="table-region"
                     role="region"
-                    aria-label="Current product stock"
+                    aria-label={t('reports:current_product_stock')}
                     tabIndex={0}
                   >
                     <table>
                       <thead>
                         <tr>
-                          <th>Product / base unit</th>
-                          <th>Total</th>
-                          <th>Available</th>
-                          <th>Inactive</th>
-                          <th>Quarantined</th>
-                          <th>Expired</th>
-                          <th>Expires today</th>
+                          <th>{t('reports:product_base_unit')}</th>
+                          <th>{t('common:total')}</th>
+                          <th>{t('reports:available')}</th>
+                          <th>{t('common:inactive')}</th>
+                          <th>{t('common:quarantined')}</th>
+                          <th>{t('reports:expired')}</th>
+                          <th>{t('reports:expires_today')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -358,7 +390,7 @@ export default function OperationalReports({
                               {product.name}
                               <small>
                                 {product.code} · {product.unit}
-                                {!product.active ? ' · Inactive' : ''}
+                                {!product.active ? t('reports:inactive_3') : ''}
                               </small>
                             </th>
                             {(
@@ -380,26 +412,27 @@ export default function OperationalReports({
                   </div>
                   {report.inventory.entries.some((p) => p.returns) && (
                     <>
-                      <h3>Patient return reconciliation</h3>
+                      <h3>{t('reports:patient_return_reconciliation')}</h3>
                       <p className="report-definition">
-                        Returned units stay outside usable stock while quarantined. Authorized
-                        restock movements are included in received stock; they are shown here for
-                        lineage and are not added again.
+                        {' '}
+                        {t(
+                          'reports:returned_units_stay_outside_usable_stock_while_quarantined_authorized_restock_movements_are_inc',
+                        )}{' '}
                       </p>
                       <div
                         className="table-region"
                         role="region"
-                        aria-label="Patient return reconciliation"
+                        aria-label={t('reports:patient_return_reconciliation')}
                         tabIndex={0}
                       >
                         <table>
                           <thead>
                             <tr>
-                              <th>Product / base unit</th>
-                              <th>Returned total</th>
-                              <th>Quarantined returns</th>
-                              <th>Authorized restock</th>
-                              <th>Authorized disposal</th>
+                              <th>{t('reports:product_base_unit')}</th>
+                              <th>{t('reports:returned_total')}</th>
+                              <th>{t('reports:quarantined_returns')}</th>
+                              <th>{t('reports:authorized_restock')}</th>
+                              <th>{t('reports:authorized_disposal')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -423,21 +456,21 @@ export default function OperationalReports({
                       </div>
                     </>
                   )}
-                  <h3>Selected period stock movements</h3>
+                  <h3>{t('reports:selected_period_stock_movements')}</h3>
                   <div
                     className="table-region"
                     role="region"
-                    aria-label="Period stock movements"
+                    aria-label={t('reports:period_stock_movements')}
                     tabIndex={0}
                   >
                     <table>
                       <thead>
                         <tr>
-                          <th>Product / base unit</th>
-                          <th>Received</th>
-                          <th>Supplied</th>
-                          <th>Net adjustments</th>
-                          <th>Net movement</th>
+                          <th>{t('reports:product_base_unit')}</th>
+                          <th>{t('reports:received')}</th>
+                          <th>{t('common:supplied')}</th>
+                          <th>{t('reports:net_adjustments')}</th>
+                          <th>{t('reports:net_movement')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -460,33 +493,40 @@ export default function OperationalReports({
                     </table>
                   </div>
                   <p className="report-definition">
-                    Net movement = received − supplied + signed adjustments. Cancelling a
-                    prescription remainder does not return supplied stock.
+                    {' '}
+                    {t(
+                      'reports:net_movement_received_supplied_signed_adjustments_cancelling_a_prescription_remainder_does_not_',
+                    )}{' '}
                   </p>
                 </>
               )}
               <div className="staff-pagination">
                 <p>
-                  {report.inventory.total} products · Page {report.inventory.page} of{' '}
-                  {Math.max(1, Math.ceil(report.inventory.total / 25))}
+                  {report.inventory.total} {t('common:products_page')} {report.inventory.page}{' '}
+                  {t('common:of')} {Math.max(1, Math.ceil(report.inventory.total / 25))}
                 </p>
                 <div className="button-row">
                   <button
                     disabled={report.inventory.page === 1}
                     onClick={() => void run(report.inventory!.page - 1)}
                   >
-                    Previous report products
+                    {' '}
+                    {t('reports:previous_report_products')}{' '}
                   </button>
                   <button
                     disabled={report.inventory.page * 25 >= report.inventory.total}
                     onClick={() => void run(report.inventory!.page + 1)}
                   >
-                    Next report products
+                    {' '}
+                    {t('reports:next_report_products')}{' '}
                   </button>
                 </div>
               </div>
               <p className="report-definition">
-                Each page is a new audited snapshot. Stock may change between pages.
+                {' '}
+                {t(
+                  'reports:each_page_is_a_new_audited_snapshot_stock_may_change_between_pages',
+                )}{' '}
               </p>
             </section>
           )}

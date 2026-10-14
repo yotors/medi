@@ -39,7 +39,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin') {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -97,7 +97,7 @@ async function seed(page: Page) {
 async function openVisit(page: Page, v: VisitView) {
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByRole('button', { name: v.patient.name, exact: true }).click();
   await page
@@ -153,7 +153,7 @@ test('catalog and batch receive, adjustment and quarantine use explicit units wi
   page,
 }, info) => {
   await signIn(page, 'pharmacist');
-  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   const code = `U${randomUUID().slice(0, 8).toUpperCase()}`,
     name = `Fictional catalog ${code}`;
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
@@ -216,7 +216,7 @@ test('clinician authorizes quantity and pharmacy supplies partial then full acro
     await signIn(clinician, 'clinician');
     await openVisit(clinician, fixture.v);
     await expect(
-      clinician.getByRole('button', { name: 'Pharmacy inventory', exact: true }),
+      clinician.getByRole('link', { name: 'Pharmacy inventory', exact: true }),
     ).toHaveCount(0);
     await authorize(clinician, fixture.code);
     await expect(
@@ -307,7 +307,7 @@ test('inventory uncertain retry preserves product creation and blocks navigation
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   const code = `R${randomUUID().slice(0, 8).toUpperCase()}`;
   await page.getByLabel('Product code', { exact: true }).fill(code);
@@ -334,7 +334,7 @@ test('inventory uncertain retry preserves product creation and blocks navigation
   await expect(
     page.getByRole('button', { name: 'Retry inventory save', exact: true }),
   ).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await expect(page.getByLabel('Product code', { exact: true })).toHaveValue(code);
   await page.getByRole('button', { name: 'Retry inventory save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Inventory saved.' })).toBeVisible();
@@ -519,7 +519,7 @@ test('multiple prescriptions retain editor context, recorded expiry and distinct
       'Second distinct fictional instruction.',
     );
     await pharmacist.getByRole('button', { name: 'Discard pharmacy draft' }).click();
-    await pharmacist.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+    await pharmacist.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
     await pharmacist.getByLabel('Search product name or code').fill(fixture.code);
     await pharmacist.getByRole('button', { name: 'Search products', exact: true }).click();
     await pharmacist.getByRole('button', { name: fixture.name, exact: true }).click();
@@ -617,7 +617,7 @@ test('inventory stale refresh and status conflict keep the intended action and r
 }, info) => {
   await signIn(page);
   const fixture = await seed(page);
-  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByLabel('Search product name or code').fill(fixture.code);
   await page.getByRole('button', { name: 'Search products', exact: true }).click();
   await page.getByRole('button', { name: fixture.name, exact: true }).click();
@@ -744,7 +744,7 @@ test('catalog and history pagination, search reset and later-page batch supply r
       lot: `EMPTY-${index}`,
       expiry: '2000-01-01',
     });
-  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Next products', exact: true }).click();
   await expect(page.getByText(/products · Page 2/)).toBeVisible();
   await page.getByRole('button', { name: 'Previous products', exact: true }).click();

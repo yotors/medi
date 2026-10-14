@@ -31,6 +31,10 @@ typography:
     fontFamily: "DM Sans Variable, sans-serif"
     fontSize: "15px"
     lineHeight: 1.5
+  ethiopic:
+    fontFamily: "Noto Sans Ethiopic, sans-serif"
+    fontSize: "15px"
+    lineHeight: 1.5
 rounded:
   input: "7px"
   control: "8px"
@@ -106,9 +110,9 @@ A right-hand guidance panel disappears below 1250px. The rail narrows at 900px;
 below 650px navigation wraps into two rows and the main area uses 16px side space.
 Tables scroll within labelled regions. Patient-name buttons remain accessible
 without scrolling to the trailing Open action. The visit drawer is at most 800px
-wide and fills the mobile viewport. Registration is a dedicated inline workspace. The separate authenticated `/staff`
-route reuses this palette and typography with a full-width header, a 530px sign-in
-area and a 1200px directory area. It uses inline registration and bounded
+wide and fills the mobile viewport. Registration is a dedicated inline workspace. The public `/` showcase and routed `/staff` workspace reuse this palette. A grouped
+250px desktop sidebar, wrapping mobile navigation, breadcrumbs and role dashboard
+make workflows discoverable. Sign-in remains a bounded 530px surface. It uses inline registration and bounded
 horizontal table scrolling on mobile. Its outpatient visit uses an inline summary,
 completion blockers, and role-specific section buttons above the detail forms.
 Visit navigation and form controls stay disabled while a write is unresolved;
@@ -144,5 +148,19 @@ confirmation. Operational summaries derive from actual demo state.
 - Do keep actions labelled and patient names visibly actionable.
 - Do preserve the light background, teal accents and clear patient lists.
 - Do show pending work and recovery instructions in plain language.
-- Keep one authenticated hospital workspace at `/` and `/staff`; financial entries record cash/manual transfer outcomes.
+- Keep a public showcase at `/` and authenticated workspaces under `/staff`; financial entries record cash/manual transfer outcomes.
 - Don't use decorative charts, fictional avatars or color-only statuses.
+
+## Bilingual surfaces
+
+The English and Amharic language control appears on public and staff surfaces.
+Noto Sans Ethiopic is bundled locally alongside Manrope and DM Sans; Ethiopic
+headings use natural tracking and generous line height. Long labels wrap in mobile
+navigation and forms. Language changes preserve inputs and never alter the
+hospital calendar. MFA enrollment renders a local scannable QR with its manual
+key inside the same private capture region.
+
+The public story uses a fluid 36–62px display heading, 32px workflow heading,
+22–23px preview and workflow titles, and 12–14px table/metadata text. These extend
+the existing workspace hierarchy for a public reading surface; the palette and
+workspace form sizes remain consistent with the approved identity.

@@ -1,3 +1,6 @@
+import { interfaceMessage } from '../i18n';
+import { QRCodeSVG } from 'qrcode.react';
+import { t } from '../i18n';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '../../shared/registration';
 import { ApiError, request } from './api';
@@ -48,22 +51,22 @@ export default function MfaChallenge({
     };
   }, []);
   const title = codes.length
-    ? 'Save your recovery codes'
+    ? t('auth:save_your_recovery_codes')
     : secret
-      ? 'Set up your authenticator'
+      ? t('auth:set_up_your_authenticator')
       : session.authState === 'complete'
-        ? 'Authenticator security'
+        ? t('auth:authenticator_security')
         : session.authState === 'challenge'
           ? recovery
-            ? 'Recover your authenticator'
-            : 'Enter authenticator code'
-          : 'Set up staff sign-in';
+            ? t('auth:recover_your_authenticator')
+            : t('auth:enter_authenticator_code')
+          : t('auth:set_up_staff_sign_in');
   useEffect(() => {
     heading.current?.focus();
   }, [title]);
   function failure(e: unknown) {
     if (e instanceof ApiError && e.status === 401) onError(e);
-    else setError(e instanceof Error ? e.message : 'Authentication could not be completed.');
+    else setError(e instanceof Error ? e.message : t('auth:authentication_could_not_be_completed'));
   }
   useEffect(() => {
     onDirty(Boolean(password || code || grant || secret || codes.length));
@@ -115,8 +118,12 @@ export default function MfaChallenge({
         setSetupExpiresAt(null);
         setError(
           session.authState === 'complete'
-            ? 'Setup expired. Restart replacement with your password and a fresh code from your current authenticator.'
-            : 'Setup expired. Sign out and request a fresh enrollment grant, or sign in with another unused recovery code.',
+            ? t(
+                'auth:setup_expired_restart_replacement_with_your_password_and_a_fresh_code_from_your_current_authent',
+              )
+            : t(
+                'auth:setup_expired_sign_out_and_request_a_fresh_enrollment_grant_or_sign_in_with_another_unused_reco',
+              ),
         );
       }
     };
@@ -140,7 +147,7 @@ export default function MfaChallenge({
         current.user.hospital.id !== session.user.hospital.id ||
         current.sessionFamily !== session.sessionFamily
       )
-        throw new Error('This sign-in changed. Sign out and sign in again to continue.');
+        throw new Error(t('common:signin_changed'));
       const result: Result =
         current.authState === 'challenge' ? {} : await request<Result>('/api/auth/mfa/status');
       if (!alive.current || id !== generation.current) return;
@@ -157,7 +164,9 @@ export default function MfaChallenge({
     } catch {
       if (alive.current && id === generation.current)
         setError(
-          'The result could not be confirmed. Resume setup to check this sign-in before trying another proof.',
+          t(
+            'auth:the_result_could_not_be_confirmed_resume_setup_to_check_this_sign_in_before_trying_another_proo',
+          ),
         );
     } finally {
       if (alive.current && id === generation.current) setLoading(false);
@@ -194,7 +203,9 @@ export default function MfaChallenge({
         ) {
           setSecret('');
           setError(
-            'The result could not be confirmed. Sign out and sign in with your new authenticator if you confirmed replacement, then generate new recovery codes using your password and a fresh authenticator code.',
+            t(
+              'auth:the_result_could_not_be_confirmed_sign_out_and_sign_in_with_your_new_authenticator_if_you_confi',
+            ),
           );
         } else if (
           (!(e instanceof ApiError) || e.status === 0 || e.status >= 500) &&
@@ -218,22 +229,25 @@ export default function MfaChallenge({
       </h1>
       {error && (
         <p role="alert" className="notice error">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {loading ? (
-        <p role="status">Loading authenticator setup…</p>
+        <p role="status">{t('auth:loading_authenticator_setup')}</p>
       ) : resume ? (
         <button disabled={busy} onClick={() => void reconcile()}>
-          Resume authenticator setup
+          {' '}
+          {t('auth:resume_authenticator_setup')}{' '}
         </button>
       ) : loadFailed ? (
-        <button onClick={() => void hydrate()}>Retry loading setup</button>
+        <button onClick={() => void hydrate()}>{t('auth:retry_loading_setup')}</button>
       ) : codes.length ? (
         <>
           <p>
-            Keep these ten one-use codes somewhere private, separate from this device. They are
-            shown only now.
+            {' '}
+            {t(
+              'auth:keep_these_ten_one_use_codes_somewhere_private_separate_from_this_device_they_are_shown_only_no',
+            )}{' '}
           </p>
           <ul className="mfa-codes" data-private>
             {codes.map((value) => (
@@ -243,29 +257,44 @@ export default function MfaChallenge({
             ))}
           </ul>
           <p>
-            If this response is lost, sign in with your authenticator and generate new recovery
-            codes under Authenticator security.
+            {' '}
+            {t(
+              'auth:if_this_response_is_lost_sign_in_with_your_authenticator_and_generate_new_recovery_codes_under_',
+            )}{' '}
           </p>
           <button className="primary" onClick={onContinue}>
-            Continue to workspace
+            {' '}
+            {t('auth:continue_to_workspace')}{' '}
           </button>
         </>
       ) : secret ? (
         <>
           <p>
-            Add an account in your authenticator app using this setup key. Choose time-based codes,
-            six digits, and a 30-second period.
+            {' '}
+            {t(
+              'auth:add_an_account_in_your_authenticator_app_using_this_setup_key_choose_time_based_codes_six_digit',
+            )}{' '}
           </p>
           <p>
             <strong>
               {session.user.hospital.name} · {session.user.displayName}
             </strong>
           </p>
-          <p className="mfa-secret" data-private>
-            <code>{secret}</code>
-          </p>
+          <div className="mfa-qr" data-private>
+            <p>{t('mfa:scan')}</p>
+            <QRCodeSVG
+              value={`otpauth://totp/${encodeURIComponent(session.user.hospital.code + ':' + session.user.id)}?secret=${encodeURIComponent(secret)}&issuer=${encodeURIComponent(session.user.hospital.name)}&algorithm=SHA1&digits=6&period=30`}
+              size={224}
+              marginSize={4}
+              level="M"
+              title={t('mfa:qr')}
+            />
+            <p className="mfa-secret">
+              <code>{secret}</code>
+            </p>
+          </div>
           <form onSubmit={verify}>
-            <label htmlFor="mfa-code">Authenticator code</label>
+            <label htmlFor="mfa-code">{t('auth:authenticator_code')}</label>
             <input
               id="mfa-code"
               inputMode="numeric"
@@ -278,20 +307,23 @@ export default function MfaChallenge({
               disabled={busy}
             />
             <button className="primary" disabled={busy}>
-              {busy ? 'Confirming…' : 'Confirm authenticator'}
+              {busy ? t('auth:confirming') : t('auth:confirm_authenticator')}
             </button>
           </form>
           <p className="staff-help">
-            Setup lasts up to ten minutes and ends sooner if your session expires. If your session
-            expires, ask for a new enrollment grant or sign in and use an unused recovery code. If
-            confirmation was interrupted, try signing in with this authenticator.
+            {' '}
+            {t(
+              'auth:setup_lasts_up_to_ten_minutes_and_ends_sooner_if_your_session_expires_if_your_session_expires_a',
+            )}{' '}
           </p>
         </>
       ) : session.authState === 'complete' ? (
         <>
           <p>
-            Use your password and a fresh authenticator code to replace your authenticator or
-            generate a new set of recovery codes. Other sessions end when recovery codes change.
+            {' '}
+            {t(
+              'auth:use_your_password_and_a_fresh_authenticator_code_to_replace_your_authenticator_or_generate_a_ne',
+            )}{' '}
           </p>
           <form
             onSubmit={(e) => {
@@ -299,7 +331,7 @@ export default function MfaChallenge({
               void submit('regenerate', { password, code });
             }}
           >
-            <label htmlFor="mfa-password">Current password</label>
+            <label htmlFor="mfa-password">{t('auth:current_password')}</label>
             <input
               id="mfa-password"
               type="password"
@@ -310,7 +342,7 @@ export default function MfaChallenge({
               maxLength={256}
               disabled={busy}
             />
-            <label htmlFor="mfa-code">Authenticator code</label>
+            <label htmlFor="mfa-code">{t('auth:authenticator_code')}</label>
             <input
               id="mfa-code"
               inputMode="numeric"
@@ -324,21 +356,23 @@ export default function MfaChallenge({
             />
             <div className="button-row">
               <button className="primary" disabled={busy}>
-                Generate new recovery codes
+                {' '}
+                {t('auth:generate_new_recovery_codes')}{' '}
               </button>
               <button
                 type="button"
                 disabled={busy || !password || code.length !== 6}
                 onClick={() => void submit('replace', { password, code })}
               >
-                Replace authenticator
+                {' '}
+                {t('auth:replace_authenticator')}{' '}
               </button>
             </div>
             {busy && (
               <p role="status" className="staff-help">
                 {operation === 'regenerate'
-                  ? 'Generating new recovery codes…'
-                  : 'Preparing replacement authenticator…'}
+                  ? t('auth:generating_new_recovery_codes')
+                  : t('auth:preparing_replacement_authenticator')}
               </p>
             )}
           </form>
@@ -347,11 +381,15 @@ export default function MfaChallenge({
         <>
           <p>
             {recovery
-              ? 'Enter one unused recovery code. Your old authenticator will stop working and you will set up a replacement before opening records.'
-              : 'Open your authenticator app and enter its current six-digit code.'}
+              ? t(
+                  'auth:enter_one_unused_recovery_code_your_old_authenticator_will_stop_working_and_you_will_set_up_a_r',
+                )
+              : t('auth:open_your_authenticator_app_and_enter_its_current_six_digit_code')}
           </p>
           <form onSubmit={verify}>
-            <label htmlFor="mfa-code">{recovery ? 'Recovery code' : 'Authenticator code'}</label>
+            <label htmlFor="mfa-code">
+              {recovery ? t('auth:recovery_code') : t('auth:authenticator_code')}
+            </label>
             <input
               id="mfa-code"
               type={recovery ? 'password' : 'text'}
@@ -364,7 +402,11 @@ export default function MfaChallenge({
               disabled={busy}
             />
             <button className="primary" disabled={busy}>
-              {busy ? 'Checking…' : recovery ? 'Recover and replace authenticator' : 'Verify code'}
+              {busy
+                ? t('auth:checking')
+                : recovery
+                  ? t('auth:recover_and_replace_authenticator')
+                  : t('auth:verify_code')}
             </button>
           </form>
           <button
@@ -375,19 +417,23 @@ export default function MfaChallenge({
               setError('');
             }}
           >
-            {recovery ? 'Use authenticator instead' : 'Use a recovery code'}
+            {recovery ? t('auth:use_authenticator_instead') : t('auth:use_a_recovery_code')}
           </button>
         </>
       ) : (
         <>
           <p>
-            Your hospital must verify your identity separately and give you a one-use enrollment
-            grant. A password alone cannot open records.
+            {' '}
+            {t(
+              'auth:your_hospital_must_verify_your_identity_separately_and_give_you_a_one_use_enrollment_grant_a_pa',
+            )}{' '}
           </p>
           {session.authState === 'recovery_enrollment' ? (
             <p>
-              Replacement setup could not be loaded. Sign out, sign in again, and use another unused
-              recovery code, or contact your account manager.
+              {' '}
+              {t(
+                'auth:replacement_setup_could_not_be_loaded_sign_out_sign_in_again_and_use_another_unused_recovery_co',
+              )}{' '}
             </p>
           ) : (
             <form
@@ -396,7 +442,7 @@ export default function MfaChallenge({
                 void submit('start', { grant });
               }}
             >
-              <label htmlFor="mfa-grant">Enrollment grant</label>
+              <label htmlFor="mfa-grant">{t('common:enrollment_grant')}</label>
               <input
                 id="mfa-grant"
                 type="password"
@@ -408,7 +454,7 @@ export default function MfaChallenge({
                 disabled={busy}
               />
               <button className="primary" disabled={busy}>
-                {busy ? 'Preparing…' : 'Set up authenticator'}
+                {busy ? t('auth:preparing') : t('auth:set_up_authenticator')}
               </button>
             </form>
           )}

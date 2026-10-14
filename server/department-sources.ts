@@ -172,7 +172,7 @@ export async function readDepartmentSources(
       data: { amountMinor: r.amount_minor, remainingMinor: r.amount_minor - r.refunded },
     });
   } else {
-    sql = `SELECT entry.*,p.name patient_name,p.record_number,p.canonical_record_number FROM (SELECT pay.id,pay.invoice_id,pay.hospital_id,pay.amount_minor,'payment' kind,r.number label FROM billing_payments pay JOIN billing_receipts r ON (r.hospital_id,r.payment_id)=(pay.hospital_id,pay.id) WHERE pay.hospital_id=$1 AND pay.method='cash' AND NOT EXISTS(SELECT 1 FROM department_allocations a WHERE (a.hospital_id,a.payment_id)=(pay.hospital_id,pay.id)) UNION ALL SELECT f.id,f.invoice_id,f.hospital_id,f.amount_minor,'refund' kind,concat('Recorded ',f.kind) label FROM department_finance f WHERE f.hospital_id=$1 AND f.method='cash' AND f.kind IN ('refund','reversal') AND NOT EXISTS(SELECT 1 FROM department_allocations a WHERE (a.hospital_id,a.refund_id)=(f.hospital_id,f.id))) entry JOIN billing_invoices i ON (i.hospital_id,i.id)=(entry.hospital_id,entry.invoice_id) JOIN outpatient_visits v ON (v.hospital_id,v.id)=(i.hospital_id,i.visit_id) JOIN patient_directory p ON (p.hospital_id,p.id)=(v.hospital_id,v.patient_id) WHERE concat_ws(' ',entry.label,p.name,p.record_number) ILIKE $2`;
+    sql = `SELECT entry.*,p.name patient_name,p.record_number,p.canonical_record_number FROM (SELECT pay.id,pay.invoice_id,pay.hospital_id,pay.amount_minor,'payment' kind,'payment' finance_kind,r.number label FROM billing_payments pay JOIN billing_receipts r ON (r.hospital_id,r.payment_id)=(pay.hospital_id,pay.id) WHERE pay.hospital_id=$1 AND pay.method='cash' AND NOT EXISTS(SELECT 1 FROM department_allocations a WHERE (a.hospital_id,a.payment_id)=(pay.hospital_id,pay.id)) UNION ALL SELECT f.id,f.invoice_id,f.hospital_id,f.amount_minor,'refund' kind,f.kind finance_kind,concat('Recorded ',f.kind) label FROM department_finance f WHERE f.hospital_id=$1 AND f.method='cash' AND f.kind IN ('refund','reversal') AND NOT EXISTS(SELECT 1 FROM department_allocations a WHERE (a.hospital_id,a.refund_id)=(f.hospital_id,f.id))) entry JOIN billing_invoices i ON (i.hospital_id,i.id)=(entry.hospital_id,entry.invoice_id) JOIN outpatient_visits v ON (v.hospital_id,v.id)=(i.hospital_id,i.visit_id) JOIN patient_directory p ON (p.hospital_id,p.id)=(v.hospital_id,v.patient_id) WHERE concat_ws(' ',entry.label,p.name,p.record_number) ILIKE $2`;
     map = (r) => ({
       id: r.id,
       label: `${r.label} · ${person(r)} · ${money(r.amount_minor)} cash ${r.kind === 'payment' ? 'received' : 'paid out'}`,
@@ -189,5 +189,46 @@ export async function readDepartmentSources(
       [...args, (q.page - 1) * 25],
     )
   ).rows;
-  return { entries: rows.map(map), total, page: q.page, pageSize: 25 };
+  return {
+    entries: rows.map((row) => ({
+      ...map(row),
+      presentation: {
+        kind: q.kind,
+        values: {
+          patientName: row.patient_name ?? '',
+          recordNumber: row.record_number ?? '',
+          canonicalRecordNumber: row.canonical_record_number ?? '',
+          productName: row.product_name ?? row.name ?? '',
+          unit: row.product_unit ?? row.unit ?? '',
+          lot: row.lot ?? '',
+          expiry: row.expiry ?? '',
+          balance: row.balance ?? '',
+          quarantined: row.quarantined ?? false,
+          test: row.test ?? row.data?.catalog?.name ?? '',
+          catalogId: row.catalog_id ?? '',
+          accession: row.data?.accession ?? '',
+          status: row.data?.status ?? '',
+          quantity: row.data?.quantity ?? (row.quantity ?? 0) - (row.returned ?? 0),
+          supplierName: row.supplier_name ?? '',
+          products: (row.product_names ?? []).join(', '),
+          ownerName: row.owner_name ?? '',
+          openingMinor: String(row.data?.openingMinor ?? 0),
+          createdAt: row.created_at?.toISOString() ?? '',
+          number: row.number ?? row.receipt_number ?? '',
+          netMinor: String(map(row).data?.totalMinor ?? 0),
+          paidMinor: String(map(row).data?.paidMinor ?? 0),
+          amountMinor: String(row.amount_minor ?? 0),
+          remainingMinor: String(BigInt(row.amount_minor ?? 0) - BigInt(row.refunded ?? 0)),
+          method: row.method ?? '',
+          kind: row.kind ?? '',
+          financeKind: row.finance_kind ?? '',
+          entryLabel: row.kind === 'payment' ? (row.label ?? '') : '',
+          direction: row.kind === 'payment' ? 'received' : 'paid_out',
+        },
+      },
+    })),
+    total,
+    page: q.page,
+    pageSize: 25,
+  };
 }

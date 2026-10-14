@@ -1,12 +1,22 @@
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useState } from 'react';
 import type { ClinicalHistoryPage } from '../../shared/clinical';
 import { ApiError, request } from './api';
 const labels = {
-  'note.amend': 'Note amended',
-  'result.correct': 'Result corrected',
-  'result.review': 'Correction reviewed',
-  'result.takeover': 'Review responsibility changed',
+  get 'note.amend'() {
+    return t('labels:note_amended');
+  },
+  get 'result.correct'() {
+    return t('labels:result_corrected');
+  },
+  get 'result.review'() {
+    return t('labels:correction_reviewed');
+  },
+  get 'result.takeover'() {
+    return t('labels:review_responsibility_changed');
+  },
 };
 export default function ClinicalHistory({
   visitId,
@@ -46,7 +56,10 @@ export default function ClinicalHistory({
       .catch((error) => {
         if (!cancelled) {
           if (error instanceof ApiError && error.status === 401) onSessionError(error);
-          else setError(error instanceof Error ? error.message : 'History could not be loaded.');
+          else
+            setError(
+              error instanceof Error ? error.message : t('common:history_could_not_be_loaded'),
+            );
         }
       })
       .finally(() => {
@@ -60,38 +73,49 @@ export default function ClinicalHistory({
     <details className="clinical-history" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>
         {subjectId
-          ? `View amendment and review history (${version ?? 0})`
-          : 'Clinical amendment and review history'}
+          ? t('dynamic:clinical_history_count', { count: version ?? 0 })
+          : t('common:clinical_amendment_and_review_history')}
       </summary>
       {open && (
-        <div role="region" aria-label="Clinical history pages">
+        <div role="region" aria-label={t('common:clinical_history_pages')}>
           {loading ? (
-            <p role="status">Loading clinical history…</p>
+            <p role="status">{t('common:loading_clinical_history')}</p>
           ) : error ? (
-            <p role="alert">{error}</p>
+            <p role="alert">{interfaceMessage(error)}</p>
           ) : (
             data && (
               <>
                 <p>
-                  {data.total} events · Page {data.page} of{' '}
+                  {data.total} {t('common:events_page')} {data.page} {t('common:of')}{' '}
                   {Math.max(1, Math.ceil(data.total / data.pageSize))}
                 </p>
-                {!data.events.length && <p>No clinical corrections recorded.</p>}
+                {!data.events.length && <p>{t('common:no_clinical_corrections_recorded')}</p>}
                 <ol className="timeline">
                   {data.events.map((event) => (
                     <li key={event.id}>
                       <strong>{labels[event.action]}</strong>
                       <small>
-                        {event.actorName} · {hospitalDate(event.at)} · Version {event.version}
+                        {event.actorName} · {hospitalDate(event.at)} {t('common:version')}{' '}
+                        {event.version}
                       </small>
                       {event.amendment && (
                         <>
                           <p className="preserve">{event.amendment.body}</p>
-                          <p className="preserve">Reason: {event.amendment.reason}</p>
+                          <p className="preserve">
+                            {t('common:reason')} {event.amendment.reason}
+                          </p>
                         </>
                       )}
-                      {event.reason && <p className="preserve">Reason: {event.reason}</p>}
-                      {event.ownerName && <p>Review assigned to {event.ownerName}</p>}
+                      {event.reason && (
+                        <p className="preserve">
+                          {t('common:reason')} {event.reason}
+                        </p>
+                      )}
+                      {event.ownerName && (
+                        <p>
+                          {t('common:review_assigned_to')} {event.ownerName}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -103,7 +127,8 @@ export default function ClinicalHistory({
               disabled={disabled || loading || page <= 1}
               onClick={() => setPage((value) => value - 1)}
             >
-              Previous clinical history
+              {' '}
+              {t('common:previous_clinical_history')}{' '}
             </button>
             <button
               disabled={
@@ -111,10 +136,11 @@ export default function ClinicalHistory({
               }
               onClick={() => setPage((value) => value + 1)}
             >
-              Next clinical history
+              {' '}
+              {t('common:next_clinical_history')}{' '}
             </button>
             <button disabled={disabled || loading} onClick={() => setRefresh((value) => value + 1)}>
-              {error ? 'Retry clinical history' : 'Refresh clinical history'}
+              {error ? t('common:retry_clinical_history') : t('common:refresh_clinical_history')}
             </button>
           </div>
         </div>

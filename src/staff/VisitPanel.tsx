@@ -1,3 +1,6 @@
+import { interfaceMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { t } from '../i18n';
 import { request, ApiError } from './api';
 import type { DepartmentSources, DepartmentChoice } from '../../shared/departments';
 import { hospitalDate } from './date';
@@ -129,7 +132,7 @@ export default function VisitPanel({
     <>
       {dirty && (
         <div className="notice warning">
-          <span>You have unsaved visit drafts.</span>
+          <span>{t('common:you_have_unsaved_visit_drafts')}</span>
           <button
             disabled={clinicalDisabled}
             onClick={() => {
@@ -138,22 +141,25 @@ export default function VisitPanel({
               setResults({});
             }}
           >
-            Discard unsaved drafts
+            {' '}
+            {t('common:discard_unsaved_drafts')}{' '}
           </button>
         </div>
       )}
       {(preservedResults.length > 0 ||
         (note && !can('note')) ||
         (instruction && !can('prescribe'))) && (
-        <section className="panel visit-overview" aria-label="Preserved unsaved drafts">
-          <h2>Preserved unsaved drafts</h2>
+        <section className="panel visit-overview" aria-label={t('common:preserved_unsaved_drafts')}>
+          <h2>{t('common:preserved_unsaved_drafts')}</h2>
           <p>
-            The visit changed and these drafts cannot be saved here. Select the text to copy it, or
-            discard it explicitly.
+            {' '}
+            {t(
+              'common:the_visit_changed_and_these_drafts_cannot_be_saved_here_select_the_text_to_copy_it_or_discard_i',
+            )}{' '}
           </p>
           {note && !can('note') && (
             <>
-              <label htmlFor="preserved-note">Unsaved consultation note</label>
+              <label htmlFor="preserved-note">{t('common:unsaved_consultation_note')}</label>
               <textarea
                 id="preserved-note"
                 readOnly
@@ -164,7 +170,9 @@ export default function VisitPanel({
           )}
           {instruction && !can('prescribe') && (
             <>
-              <label htmlFor="preserved-prescription">Unsaved prescription instructions</label>
+              <label htmlFor="preserved-prescription">
+                {t('common:unsaved_prescription_instructions')}
+              </label>
               <textarea
                 id="preserved-prescription"
                 readOnly
@@ -176,8 +184,10 @@ export default function VisitPanel({
           {preservedResults.map(([id, value]) => (
             <div key={id}>
               <label htmlFor={`preserved-${id}`}>
-                Unsaved {visit.orders?.find((order) => order.id === id)?.test ?? 'investigation'}{' '}
-                result draft
+                {' '}
+                {t('common:unsaved')}{' '}
+                {visit.orders?.find((order) => order.id === id)?.test ?? t('common:investigation')}{' '}
+                {t('common:result_draft')}{' '}
               </label>
               <textarea
                 id={`preserved-${id}`}
@@ -186,78 +196,94 @@ export default function VisitPanel({
                 onFocus={(e) => e.currentTarget.select()}
               />
               <button disabled={clinicalDisabled} onClick={() => discardResult(id)}>
-                Discard result draft
+                {' '}
+                {t('common:discard_result_draft')}{' '}
               </button>
             </div>
           ))}
         </section>
       )}
-      <section className="panel visit-overview" aria-label="Visit summary">
+      <section className="panel visit-overview" aria-label={t('common:visit_summary')}>
         <div>
           <span className={`badge ${visit.status === 'closed' ? 'neutral' : 'teal'}`}>
-            {visit.stage}
+            {presentationLabel(visit.stage)}
           </span>
           <p>
-            Opened {date(visit.openedAt)}
-            {visit.closedAt && <> · Closed {date(visit.closedAt)}</>}
+            {' '}
+            {t('common:opened')} {date(visit.openedAt)}
+            {visit.closedAt && (
+              <>
+                {' '}
+                {t('common:closed')} {date(visit.closedAt)}
+              </>
+            )}
           </p>
         </div>
         <dl>
           <div>
-            <dt>Corrections to review</dt>
+            <dt>{t('common:corrections_to_review')}</dt>
             <dd>{visit.pendingClinicalReviews}</dd>
           </div>
           <div>
-            <dt>Investigations pending</dt>
+            <dt>{t('common:investigations_pending')}</dt>
             <dd>{visit.pendingInvestigations}</dd>
           </div>
           <div>
-            <dt>Prescriptions pending</dt>
+            <dt>{t('common:prescriptions_pending')}</dt>
             <dd>{visit.pendingPrescriptions}</dd>
           </div>
           <div>
             <dt>
-              {visit.financialMode === 'catalog' ? 'Financial status' : 'Outstanding balance'}
+              {visit.financialMode === 'catalog'
+                ? t('common:financial_status')
+                : t('common:outstanding_balance')}
             </dt>
             <dd>
               {visit.billing?.state === 'unbilled'
-                ? 'Not yet billed'
+                ? t('common:not_yet_billed')
                 : visit.billing?.state === 'settled'
-                  ? 'Settled'
+                  ? t('common:settled')
                   : money(visit.balance)}
             </dd>
           </div>
         </dl>
         {visit.pendingClinicalReviews > 0 && (
           <p className="notice warning">
-            {visit.pendingClinicalReviews} corrected result
-            {visit.pendingClinicalReviews === 1 ? ' requires' : 's require'} clinician review.{' '}
+            {visit.pendingClinicalReviews} {t('common:corrected_result')}{' '}
+            {visit.pendingClinicalReviews === 1 ? t('common:requires') : t('common:s_require')}{' '}
+            {t('common:clinician_review')}{' '}
             {visit.sections.includes('Diagnostics')
-              ? 'Open Diagnostics to review the latest correction.'
-              : 'The assigned clinician must review the latest correction.'}
+              ? t('common:open_diagnostics_to_review_the_latest_correction')
+              : t('common:the_assigned_clinician_must_review_the_latest_correction')}
           </p>
         )}
         {visit.status === 'closed' ? (
           <p className="notice success">
             {visit.financialMode === 'catalog'
-              ? 'Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.'
-              : 'This visit is closed. Original records remain unchanged; corrections remain available.'}
+              ? t(
+                  'common:clinical_visit_closed_original_clinical_records_remain_unchanged_corrections_and_billing_remain',
+                )
+              : t(
+                  'common:this_visit_is_closed_original_records_remain_unchanged_corrections_remain_available',
+                )}
           </p>
         ) : (
           <div className="closure">
             <div>
-              <h2>Visit completion</h2>
+              <h2>{t('common:visit_completion')}</h2>
               {visit.blockers.length ? (
                 <ul>
                   {visit.blockers.map((reason) => (
-                    <li key={reason}>{reason}</li>
+                    <li key={reason}>{interfaceMessage(reason)}</li>
                   ))}
                 </ul>
               ) : (
                 <p>
                   {visit.financialMode === 'catalog'
-                    ? 'Clinical work is complete. Closing the clinical visit does not settle its billing.'
-                    : 'All required work is complete. This visit can be closed.'}
+                    ? t(
+                        'common:clinical_work_is_complete_closing_the_clinical_visit_does_not_settle_its_billing',
+                      )
+                    : t('common:all_required_work_is_complete_this_visit_can_be_closed')}
                 </p>
               )}
             </div>
@@ -266,7 +292,8 @@ export default function VisitPanel({
                 disabled={clinicalDisabled || visit.blockers.length > 0}
                 onClick={() => onCommand({ type: 'close' })}
               >
-                Close visit
+                {' '}
+                {t('common:close_visit')}{' '}
               </button>
             )}
           </div>
@@ -274,7 +301,7 @@ export default function VisitPanel({
       </section>
       {visit.sections.length > 0 && (
         <section className="panel visit-detail">
-          <nav className="detail-tabs" aria-label="Visit sections">
+          <nav className="detail-tabs" aria-label={t('common:visit_sections')}>
             {visit.sections.map((item) => (
               <button
                 key={item}
@@ -282,27 +309,29 @@ export default function VisitPanel({
                 aria-pressed={section === item}
                 onClick={() => setSection(item)}
               >
-                {item}
+                {presentationLabel(item)}
               </button>
             ))}
           </nav>
           <div className="detail-content">
             {section === 'Consultation' && visit.notes && (
               <section aria-labelledby="consultation-title">
-                <h2 id="consultation-title">Consultation notes</h2>
+                <h2 id="consultation-title">{t('common:consultation_notes')}</h2>
                 {visit.notes.length ? (
                   visit.notes.map((item) => (
                     <article className="note" key={item.id}>
                       <small>{date(item.at)}</small>
                       {visit.clinical?.records.some((record) => record.subjectId === item.id) && (
                         <p className="notice warning">
-                          Original note — amended.{' '}
+                          {' '}
+                          {t('common:original_note_amended')}{' '}
                           <button
                             onClick={() =>
                               document.getElementById(`note-amendment-subject-${item.id}`)?.focus()
                             }
                           >
-                            Read latest amendment for note{' '}
+                            {' '}
+                            {t('common:read_latest_amendment_for_note')}{' '}
                             {visit.notes!.findIndex((note) => note.id === item.id) + 1}
                           </button>
                         </p>
@@ -311,7 +340,7 @@ export default function VisitPanel({
                     </article>
                   ))
                 ) : (
-                  <p className="empty-small">No consultation notes saved.</p>
+                  <p className="empty-small">{t('common:no_consultation_notes_saved')}</p>
                 )}
                 {can('note') && (
                   <form
@@ -320,7 +349,7 @@ export default function VisitPanel({
                       onCommand({ type: 'note', body: note.trim() });
                     }}
                   >
-                    <label htmlFor="visit-note">Consultation note</label>
+                    <label htmlFor="visit-note">{t('common:consultation_note')}</label>
                     <textarea
                       id="visit-note"
                       required
@@ -330,7 +359,8 @@ export default function VisitPanel({
                       onChange={(e) => setNote(e.target.value)}
                     />
                     <button className="primary" disabled={clinicalDisabled || !note.trim()}>
-                      Save note
+                      {' '}
+                      {t('common:save_note')}{' '}
                     </button>
                   </form>
                 )}
@@ -338,7 +368,7 @@ export default function VisitPanel({
             )}
             {section === 'Diagnostics' && visit.orders && (
               <section aria-labelledby="diagnostics-title">
-                <h2 id="diagnostics-title">Investigations</h2>
+                <h2 id="diagnostics-title">{t('common:investigations')}</h2>
                 {can('order') && (
                   <form
                     className="visit-order-form"
@@ -357,7 +387,9 @@ export default function VisitPanel({
                   >
                     {visit.financialMode === 'catalog' && (
                       <div>
-                        <label htmlFor="visit-test-search">Find a configured investigation</label>
+                        <label htmlFor="visit-test-search">
+                          {t('common:find_a_configured_investigation')}
+                        </label>
                         <input
                           id="visit-test-search"
                           maxLength={100}
@@ -374,12 +406,13 @@ export default function VisitPanel({
                             setTest('');
                           }}
                         >
-                          Find tests
+                          {' '}
+                          {t('common:find_tests')}{' '}
                         </button>
                       </div>
                     )}
                     <div>
-                      <label htmlFor="visit-investigation">Investigation</label>
+                      <label htmlFor="visit-investigation">{t('common:investigation')}</label>
                       <select
                         id="visit-investigation"
                         required
@@ -387,7 +420,7 @@ export default function VisitPanel({
                         disabled={clinicalDisabled || testLoading}
                         onChange={(e) => setTest(e.target.value)}
                       >
-                        <option value="">Choose an investigation</option>
+                        <option value="">{t('common:choose_an_investigation')}</option>
                         {visit.financialMode === 'catalog'
                           ? tests.map((choice) => (
                               <option key={choice.id} value={choice.id}>
@@ -398,12 +431,14 @@ export default function VisitPanel({
                               <option key={name}>{name}</option>
                             ))}
                       </select>
-                      {testLoading && <p role="status">Loading configured tests…</p>}
-                      {testError && <p role="alert">{testError}</p>}
+                      {testLoading && <p role="status">{t('common:loading_configured_tests')}</p>}
+                      {testError && <p role="alert">{interfaceMessage(testError)}</p>}
                       {visit.financialMode === 'catalog' && !testLoading && !tests.length && (
                         <p>
-                          No matching hospital tests configured. An administrator must configure the
-                          laboratory catalog before ordering.
+                          {' '}
+                          {t(
+                            'common:no_matching_hospital_tests_configured_an_administrator_must_configure_the_laboratory_catalog_be',
+                          )}{' '}
                         </p>
                       )}
                       {visit.financialMode === 'catalog' && (
@@ -416,7 +451,8 @@ export default function VisitPanel({
                               setTest('');
                             }}
                           >
-                            Previous tests
+                            {' '}
+                            {t('common:previous_tests')}{' '}
                           </button>
                           <button
                             type="button"
@@ -426,7 +462,8 @@ export default function VisitPanel({
                               setTest('');
                             }}
                           >
-                            Next tests
+                            {' '}
+                            {t('common:next_tests')}{' '}
                           </button>
                         </div>
                       )}
@@ -444,40 +481,44 @@ export default function VisitPanel({
                         )
                       }
                     >
-                      Request investigation
+                      {' '}
+                      {t('common:request_investigation')}{' '}
                     </button>
                   </form>
                 )}
                 {!visit.orders.length && (
-                  <p className="empty-small">No investigations requested.</p>
+                  <p className="empty-small">{t('common:no_investigations_requested')}</p>
                 )}
                 {visit.orders.map((order) => (
                   <article
                     className="order-card"
                     key={order.id}
-                    aria-label={`${order.test} investigation`}
+                    aria-label={t('dynamic:investigation_label', { test: order.test })}
                   >
                     <div className="section-heading">
                       <h3>{order.test}</h3>
                       <span className="badge neutral">
                         {visit.clinical?.records.some((record) => record.subjectId === order.id)
-                          ? `Original: ${order.status}`
-                          : order.status}
+                          ? t('dynamic:original_status', {
+                              status: presentationLabel(order.status),
+                            })
+                          : presentationLabel(order.status)}
                       </span>
                     </div>
                     {order.result && (
                       <div className="result">
                         <h4>
                           {visit.clinical?.records.some((record) => record.subjectId === order.id)
-                            ? 'Original released result'
-                            : 'Released result'}
+                            ? t('common:original_released_result')
+                            : t('common:released_result')}
                         </h4>
                         <p className="preserve">{order.result}</p>
                         {visit.clinical?.records.some(
                           (record) => record.subjectId === order.id,
                         ) && (
                           <p className="notice warning">
-                            This original result has been corrected.{' '}
+                            {' '}
+                            {t('common:this_original_result_has_been_corrected')}{' '}
                             <button
                               onClick={() =>
                                 document
@@ -485,7 +526,8 @@ export default function VisitPanel({
                                   ?.focus()
                               }
                             >
-                              Read latest {order.test} correction
+                              {' '}
+                              {t('common:read_latest')} {order.test} {t('common:correction')}{' '}
                             </button>
                           </p>
                         )}
@@ -493,10 +535,12 @@ export default function VisitPanel({
                     )}
                     {order.catalogId && ['requested', 'collected'].includes(order.status) && (
                       <p className="notice">
-                        Use <strong>Department operations → Laboratory specimens</strong> to
-                        register the accession, collect and receive the specimen, and release its
-                        result. The configured test and its critical-result rules follow this
-                        workflow.
+                        {' '}
+                        {t('common:use')}{' '}
+                        <strong>{t('common:department_operations_laboratory_specimens')}</strong>{' '}
+                        {t(
+                          'common:to_register_the_accession_collect_and_receive_the_specimen_and_release_its_result_the_configure',
+                        )}{' '}
                       </p>
                     )}
                     <div className="button-row">
@@ -511,7 +555,8 @@ export default function VisitPanel({
                             })
                           }
                         >
-                          Mark collected
+                          {' '}
+                          {t('common:mark_collected')}{' '}
                         </button>
                       )}
                       {can('review') && order.status === 'released' && (
@@ -521,7 +566,8 @@ export default function VisitPanel({
                             onCommand({ type: 'advanceOrder', orderId: order.id, next: 'reviewed' })
                           }
                         >
-                          Mark reviewed
+                          {' '}
+                          {t('common:mark_reviewed')}{' '}
                         </button>
                       )}
                       {can('cancelOrder') && ['requested', 'collected'].includes(order.status) && (
@@ -535,7 +581,8 @@ export default function VisitPanel({
                             })
                           }
                         >
-                          Cancel investigation
+                          {' '}
+                          {t('common:cancel_investigation')}{' '}
                         </button>
                       )}
                     </div>
@@ -551,7 +598,9 @@ export default function VisitPanel({
                           });
                         }}
                       >
-                        <label htmlFor={`result-${order.id}`}>{order.test} result</label>
+                        <label htmlFor={`result-${order.id}`}>
+                          {order.test} {t('common:result')}
+                        </label>
                         <textarea
                           id={`result-${order.id}`}
                           required
@@ -563,14 +612,17 @@ export default function VisitPanel({
                           }
                         />
                         <p className="muted visit-form-help">
-                          Released results remain unchanged. Corrections are appended with a reason
-                          and a new review.
+                          {' '}
+                          {t(
+                            'common:released_results_remain_unchanged_corrections_are_appended_with_a_reason_and_a_new_review',
+                          )}{' '}
                         </p>
                         <button
                           className="primary"
                           disabled={clinicalDisabled || !results[order.id]?.trim()}
                         >
-                          Release result
+                          {' '}
+                          {t('common:release_result')}{' '}
                         </button>
                       </form>
                     )}
@@ -580,7 +632,7 @@ export default function VisitPanel({
             )}
             {visit.prescriptions && (
               <section hidden={section !== 'Pharmacy'} aria-labelledby="pharmacy-title">
-                <h2 id="pharmacy-title">Prescriptions</h2>
+                <h2 id="pharmacy-title">{t('common:prescriptions')}</h2>
                 {can('prescribe') && (
                   <form
                     onSubmit={(e) => {
@@ -588,7 +640,9 @@ export default function VisitPanel({
                       onCommand({ type: 'prescribe', instruction: instruction.trim() });
                     }}
                   >
-                    <label htmlFor="visit-prescription">Prescription instructions</label>
+                    <label htmlFor="visit-prescription">
+                      {t('common:prescription_instructions')}
+                    </label>
                     <textarea
                       id="visit-prescription"
                       required
@@ -598,7 +652,8 @@ export default function VisitPanel({
                       onChange={(e) => setInstruction(e.target.value)}
                     />
                     <button className="primary" disabled={clinicalDisabled || !instruction.trim()}>
-                      Add prescription
+                      {' '}
+                      {t('common:add_prescription')}{' '}
                     </button>
                   </form>
                 )}
@@ -661,10 +716,12 @@ export default function VisitPanel({
               visit.charges &&
               visit.payments && (
                 <section aria-labelledby="billing-title">
-                  <h2 id="billing-title">Charges and payments</h2>
+                  <h2 id="billing-title">{t('common:charges_and_payments')}</h2>
                   <p>
-                    Invented demonstration prices. Recording settlement does not process a real
-                    payment.
+                    {' '}
+                    {t(
+                      'common:invented_demonstration_prices_recording_settlement_does_not_process_a_real_payment',
+                    )}{' '}
                   </p>
                   <div className="invoice">
                     {visit.charges.map((charge) => (
@@ -672,7 +729,11 @@ export default function VisitPanel({
                         <span>
                           {charge.label}
                           <small>
-                            {charge.reversed ? 'Reversed' : charge.paid ? 'Paid' : 'Unpaid'}
+                            {charge.reversed
+                              ? t('common:reversed')
+                              : charge.paid
+                                ? t('common:paid')
+                                : t('common:unpaid')}
                           </small>
                         </span>
                         <span className={charge.reversed ? 'struck' : ''}>
@@ -681,7 +742,7 @@ export default function VisitPanel({
                       </div>
                     ))}
                     <div className="invoice-total">
-                      <strong>Outstanding balance</strong>
+                      <strong>{t('common:outstanding_balance')}</strong>
                       <strong>{money(visit.balance)}</strong>
                     </div>
                   </div>
@@ -691,10 +752,11 @@ export default function VisitPanel({
                       disabled={clinicalDisabled || visit.balance <= 0}
                       onClick={() => onCommand({ type: 'settle' })}
                     >
-                      Record demo settlement
+                      {' '}
+                      {t('common:record_demo_settlement')}{' '}
                     </button>
                   )}
-                  <h3 className="visit-payments-title">Recorded payments</h3>
+                  <h3 className="visit-payments-title">{t('common:recorded_payments')}</h3>
                   {visit.payments.length ? (
                     <ul className="timeline">
                       {visit.payments.map((payment) => (
@@ -705,13 +767,13 @@ export default function VisitPanel({
                       ))}
                     </ul>
                   ) : (
-                    <p className="empty-small">No payments recorded.</p>
+                    <p className="empty-small">{t('common:no_payments_recorded')}</p>
                   )}
                 </section>
               )}
             {section === 'History' && visit.history && (
               <section aria-labelledby="history-title">
-                <h2 id="history-title">Visit history</h2>
+                <h2 id="history-title">{t('common:visit_history')}</h2>
                 <ul className="timeline">
                   {visit.history.map((event) => (
                     <li key={event.id}>

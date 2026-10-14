@@ -1,0 +1,13 @@
+{
+  "title": "Start your work",
+  "role": "Signed in as {{role}}",
+  "help": "Choose a task for your role. Patient records open only within your hospital.",
+  "tasks": "Your starting tasks",
+  "queue": "Current outpatient queue",
+  "queueHelp": "A current list, separate from period reports. Open the visits workspace for filters and the full queue.",
+  "empty": "No active visits on this page.",
+  "loading": "Loading current queue…",
+  "failed": "The current queue could not be loaded. Open outpatient visits to retry.",
+  "patient": "Patient",
+  "status": "Status"
+}

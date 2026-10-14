@@ -42,7 +42,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin') {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -80,7 +80,7 @@ async function seed(page: Page) {
   const { visit } = await post(page, `/api/patients/${patient.id}/visits`, {});
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByRole('button', { name, exact: true }).click();
   await page
@@ -176,7 +176,7 @@ test('catalog invoice, partial cash and transfer receipts remain collectible aft
   await page.reload();
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
   await page.getByRole('button', { name, exact: true }).click();
@@ -424,7 +424,7 @@ test('cashier cannot void and auditor can inspect receipts without financial mut
     await signIn(page, role);
     await page
       .getByRole('navigation', { name: 'Staff workspace' })
-      .getByRole('button', { name: 'Outpatient visits', exact: true })
+      .getByRole('link', { name: 'Outpatient visits', exact: true })
       .click();
     await page.getByRole('button', { name, exact: true }).click();
     await page.getByRole('button', { name: current.invoice.number, exact: true }).click();
@@ -617,7 +617,7 @@ test('cashier price refresh identifies an unavailable line and retains other upd
   await signIn(page, 'cashier');
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByRole('button', { name, exact: true }).click();
   await addService(page, service);

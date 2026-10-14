@@ -1,3 +1,6 @@
+import { uiMessage } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '../../shared/registration';
 import type {
@@ -12,11 +15,21 @@ import { useInventoryMutation } from './useInventoryMutation';
 import InventoryHistory from './InventoryHistory';
 import './inventory.css';
 export const eligibilityLabel: Record<InventoryBatch['eligibility'], string> = {
-  available: 'Available for supply',
-  expired: 'Expired',
-  expiry_today: 'Expires today — supply blocked',
-  quarantined: 'Quarantined',
-  inactive: 'Product inactive',
+  get available() {
+    return t('labels:available_for_supply');
+  },
+  get expired() {
+    return t('labels:expired');
+  },
+  get expiry_today() {
+    return t('labels:expires_today_supply_blocked');
+  },
+  get quarantined() {
+    return t('labels:quarantined');
+  },
+  get inactive() {
+    return t('labels:product_inactive');
+  },
 };
 type Draft = {
   type: InventoryCommand['type'];
@@ -69,7 +82,7 @@ export default function InventoryWorkspace({
     () => {
       setDraft(null);
       onDirty(false);
-      setNotice('Inventory saved.');
+      setNotice(uiMessage('inventory:inventory_saved'));
       setRefresh((value) => value + 1);
     },
     () => setRefresh((value) => value + 1),
@@ -118,7 +131,8 @@ export default function InventoryWorkspace({
       .catch((error) => {
         if (!cancelled) {
           if (error instanceof ApiError && error.status === 401) onSessionError(error);
-          else setError('Inventory could not be loaded. Your draft is preserved.');
+          else
+            setError(uiMessage('inventory:inventory_could_not_be_loaded_your_draft_is_preserved'));
         }
       })
       .finally(() => {
@@ -215,7 +229,8 @@ export default function InventoryWorkspace({
     mutation.save('/api/inventory/commands', command);
   }
   function leave() {
-    if (mutation.pending || (draft && !window.confirm('Discard this inventory draft?'))) return;
+    if (mutation.pending || (draft && !window.confirm(t('inventory:discard_this_inventory_draft'))))
+      return;
     setDraft(null);
     setSelected(null);
     setBatches(null);
@@ -224,30 +239,45 @@ export default function InventoryWorkspace({
     mutation.clear();
   }
   const titles: Record<Draft['type'], string> = {
-    'product.create': 'Add product',
-    'product.status': draft?.active ? 'Activate product' : 'Deactivate product',
-    'batch.create': 'Add batch',
-    'batch.status': draft?.quarantined ? 'Quarantine batch' : 'Release quarantine',
-    'stock.receive': 'Receive stock',
-    'stock.adjust': 'Adjust stock',
+    get 'product.create'() {
+      return t('labels:add_product');
+    },
+    'product.status': draft?.active
+      ? t('inventory:activate_product')
+      : t('inventory:deactivate_product'),
+    get 'batch.create'() {
+      return t('labels:add_batch');
+    },
+    'batch.status': draft?.quarantined
+      ? t('inventory:quarantine_batch')
+      : t('inventory:release_quarantine'),
+    get 'stock.receive'() {
+      return t('labels:receive_stock');
+    },
+    get 'stock.adjust'() {
+      return t('labels:adjust_stock');
+    },
   };
   return (
     <div className="inventory-workspace">
       <div className="page-heading">
         <div>
           <h1 ref={heading} tabIndex={-1}>
-            {selected ? selected.name : 'Pharmacy inventory'}
+            {selected ? selected.name : t('inventory:pharmacy_inventory')}
           </h1>
           <p>
             {selected
-              ? `${selected.code} · Base unit: ${selected.unit}`
-              : 'Maintain hospital stock, then record supply against an authorized prescription.'}
+              ? t('dynamic:product_unit', { code: selected.code, unit: selected.unit })
+              : t(
+                  'inventory:maintain_hospital_stock_then_record_supply_against_an_authorized_prescription',
+                )}
           </p>
         </div>
         <div className="button-row">
           {selected ? (
             <button disabled={Boolean(mutation.pending)} onClick={leave}>
-              Back to products
+              {' '}
+              {t('inventory:back_to_products')}{' '}
             </button>
           ) : (
             canWrite && (
@@ -256,7 +286,8 @@ export default function InventoryWorkspace({
                 disabled={blocked || Boolean(draft)}
                 onClick={() => start('product.create')}
               >
-                Add product
+                {' '}
+                {t('inventory:add_product')}{' '}
               </button>
             )
           )}
@@ -264,35 +295,41 @@ export default function InventoryWorkspace({
       </div>
       {notice && (
         <p ref={savedNotice} tabIndex={-1} role="status" className="notice success">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {mutation.error && (
         <p role="alert" className="notice error">
-          {mutation.error}
+          {interfaceMessage(mutation.error)}
         </p>
       )}
       {mutation.pending && (
         <div className="notice warning" role="status">
           <span>
             {mutation.busy
-              ? 'Saving inventory…'
-              : 'Save not confirmed. Retry the same details to find or complete the original save.'}
+              ? t('inventory:saving_inventory')
+              : t(
+                  'inventory:save_not_confirmed_retry_the_same_details_to_find_or_complete_the_original_save',
+                )}
           </span>
           <button disabled={mutation.busy} onClick={mutation.retry}>
-            Retry inventory save
+            {' '}
+            {t('inventory:retry_inventory_save')}{' '}
           </button>
         </div>
       )}
       {(mutation.conflict || draft?.stale) && draft && (
         <div className="notice warning">
           <span>
-            Draft preserved. Review current stock and status before trying again.
+            {' '}
+            {t(
+              'inventory:draft_preserved_review_current_stock_and_status_before_trying_again',
+            )}{' '}
             {currentBatch && (
               <>
                 {' '}
-                Current lot {currentBatch.lot}: {currentBatch.balance} {selected?.unit} ·{' '}
-                {eligibilityLabel[currentBatch.eligibility]}.
+                {t('inventory:current_lot')} {currentBatch.lot}: {currentBatch.balance}{' '}
+                {selected?.unit} · {eligibilityLabel[currentBatch.eligibility]}.
               </>
             )}
           </span>
@@ -309,15 +346,17 @@ export default function InventoryWorkspace({
               mutation.clear();
             }}
           >
-            Use latest inventory version
+            {' '}
+            {t('inventory:use_latest_inventory_version')}{' '}
           </button>
         </div>
       )}
       <section className="panel">
         <div className="section-heading">
-          <h2>{selected ? 'Batches and stock' : 'Product catalog'}</h2>
+          <h2>{selected ? t('inventory:batches_and_stock') : t('inventory:product_catalog')}</h2>
           <button disabled={blocked} onClick={() => setRefresh((value) => value + 1)}>
-            Refresh inventory
+            {' '}
+            {t('inventory:refresh_inventory')}{' '}
           </button>
         </div>
         {!selected && (
@@ -331,7 +370,7 @@ export default function InventoryWorkspace({
             }}
           >
             <div>
-              <label htmlFor="inventory-search">Search product name or code</label>
+              <label htmlFor="inventory-search">{t('inventory:search_product_name_or_code')}</label>
               <input
                 id="inventory-search"
                 maxLength={100}
@@ -340,27 +379,32 @@ export default function InventoryWorkspace({
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <button disabled={blocked || Boolean(draft)}>Search products</button>
+            <button disabled={blocked || Boolean(draft)}>{t('inventory:search_products')}</button>
           </form>
         )}
         {loading ? (
-          <p role="status">Loading inventory…</p>
+          <p role="status">{t('inventory:loading_inventory')}</p>
         ) : error ? (
           <div>
-            <p role="alert">{error}</p>
+            <p role="alert">{interfaceMessage(error)}</p>
             <button
               disabled={Boolean(mutation.pending)}
               onClick={() => setRefresh((value) => value + 1)}
             >
-              Retry loading inventory
+              {' '}
+              {t('inventory:retry_loading_inventory')}{' '}
             </button>
           </div>
         ) : selected && batches ? (
           <>
             <p className="inventory-guidance">
-              Stock is counted in {selected.unit}. Supply is blocked on the expiry date and
-              afterward, using Addis Ababa date {batches.today}. Quarantined and inactive stock
-              remains visible.
+              {' '}
+              {t('inventory:stock_is_counted_in')} {selected.unit}
+              {t(
+                'inventory:supply_is_blocked_on_the_expiry_date_and_afterward_using_addis_ababa_date',
+              )}{' '}
+              {batches.today}
+              {t('inventory:quarantined_and_inactive_stock_remains_visible')}{' '}
             </p>
             <div className="button-row">
               {canWrite && (
@@ -369,30 +413,41 @@ export default function InventoryWorkspace({
                     disabled={blocked || Boolean(draft) || !selected.active}
                     onClick={() => start('batch.create')}
                   >
-                    Add batch
+                    {' '}
+                    {t('inventory:add_batch')}{' '}
                   </button>
                   <button
                     disabled={blocked || Boolean(draft)}
                     onClick={() => start('product.status')}
                   >
-                    {selected.active ? 'Deactivate product' : 'Activate product'}
+                    {selected.active
+                      ? t('inventory:deactivate_product')
+                      : t('inventory:activate_product')}
                   </button>
                 </>
               )}
             </div>
             {!batches.entries.length ? (
               <p className="empty-small">
-                No batches yet. Add a lot and expiry date, then receive its opening stock.
+                {' '}
+                {t(
+                  'inventory:no_batches_yet_add_a_lot_and_expiry_date_then_receive_its_opening_stock',
+                )}{' '}
               </p>
             ) : (
-              <div className="table-region" role="region" aria-label="Product batches" tabIndex={0}>
+              <div
+                className="table-region"
+                role="region"
+                aria-label={t('inventory:product_batches')}
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
-                      <th>Lot / expiry</th>
-                      <th>Stock</th>
-                      <th>Supply status</th>
-                      {canWrite && <th>Actions</th>}
+                      <th>{t('inventory:lot_expiry')}</th>
+                      <th>{t('inventory:stock')}</th>
+                      <th>{t('inventory:supply_status')}</th>
+                      {canWrite && <th>{t('common:actions')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -413,19 +468,23 @@ export default function InventoryWorkspace({
                                 disabled={blocked || Boolean(draft)}
                                 onClick={() => start('stock.receive', batch)}
                               >
-                                Receive stock
+                                {' '}
+                                {t('inventory:receive_stock')}{' '}
                               </button>
                               <button
                                 disabled={blocked || Boolean(draft)}
                                 onClick={() => start('stock.adjust', batch)}
                               >
-                                Adjust stock
+                                {' '}
+                                {t('inventory:adjust_stock')}{' '}
                               </button>
                               <button
                                 disabled={blocked || Boolean(draft)}
                                 onClick={() => start('batch.status', batch)}
                               >
-                                {batch.quarantined ? 'Release quarantine' : 'Quarantine batch'}
+                                {batch.quarantined
+                                  ? t('inventory:release_quarantine')
+                                  : t('inventory:quarantine_batch')}
                               </button>
                             </div>
                           </td>
@@ -438,20 +497,22 @@ export default function InventoryWorkspace({
             )}
             <div className="staff-pagination">
               <p>
-                {batches.total} batches · Page {batchPage}
+                {batches.total} {t('inventory:batches_page')} {batchPage}
               </p>
               <div className="button-row">
                 <button
                   disabled={blocked || Boolean(draft) || batchPage === 1}
                   onClick={() => setBatchPage(batchPage - 1)}
                 >
-                  Previous batches
+                  {' '}
+                  {t('inventory:previous_batches')}{' '}
                 </button>
                 <button
                   disabled={blocked || Boolean(draft) || batchPage * 25 >= batches.total}
                   onClick={() => setBatchPage(batchPage + 1)}
                 >
-                  Next batches
+                  {' '}
+                  {t('inventory:next_batches')}{' '}
                 </button>
               </div>
             </div>
@@ -461,21 +522,24 @@ export default function InventoryWorkspace({
             <>
               {!products.entries.length ? (
                 <p className="empty-small">
-                  No matching products. Add your first product with its fixed dispensing unit.
+                  {' '}
+                  {t(
+                    'inventory:no_matching_products_add_your_first_product_with_its_fixed_dispensing_unit',
+                  )}{' '}
                 </p>
               ) : (
                 <div
                   className="table-region"
                   role="region"
-                  aria-label="Inventory products"
+                  aria-label={t('inventory:inventory_products')}
                   tabIndex={0}
                 >
                   <table>
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>Base unit</th>
-                        <th>Status</th>
+                        <th>{t('inventory:product')}</th>
+                        <th>{t('inventory:base_unit')}</th>
+                        <th>{t('common:status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -496,7 +560,7 @@ export default function InventoryWorkspace({
                             <small>{product.code}</small>
                           </td>
                           <td>{product.unit}</td>
-                          <td>{product.active ? 'Active' : 'Inactive'}</td>
+                          <td>{product.active ? t('common:active') : t('common:inactive')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -505,20 +569,22 @@ export default function InventoryWorkspace({
               )}
               <div className="staff-pagination">
                 <p>
-                  {products.total} products · Page {page}
+                  {products.total} {t('common:products_page')} {page}
                 </p>
                 <div className="button-row">
                   <button
                     disabled={blocked || Boolean(draft) || page === 1}
                     onClick={() => setPage(page - 1)}
                   >
-                    Previous products
+                    {' '}
+                    {t('inventory:previous_products')}{' '}
                   </button>
                   <button
                     disabled={blocked || Boolean(draft) || page * 25 >= products.total}
                     onClick={() => setPage(page + 1)}
                   >
-                    Next products
+                    {' '}
+                    {t('inventory:next_products')}{' '}
                   </button>
                 </div>
               </div>
@@ -530,7 +596,7 @@ export default function InventoryWorkspace({
         <form
           ref={form}
           className="panel inventory-editor"
-          aria-label="Inventory change"
+          aria-label={t('inventory:inventory_change')}
           onSubmit={(event) => {
             event.preventDefault();
             save();
@@ -539,13 +605,14 @@ export default function InventoryWorkspace({
           <h2>{titles[draft.type]}</h2>
           {draft.batch && (
             <p>
-              Lot {draft.batch.lot} · Expiry {draft.batch.expiry} · Current stock{' '}
-              {draft.batch.balance} {draft.product?.unit}
+              {' '}
+              {t('inventory:lot')} {draft.batch.lot} {t('inventory:expiry')} {draft.batch.expiry}{' '}
+              {t('inventory:current_stock')} {draft.batch.balance} {draft.product?.unit}
             </p>
           )}
           {draft.type === 'product.create' && (
             <>
-              <label htmlFor="product-code">Product code</label>
+              <label htmlFor="product-code">{t('inventory:product_code')}</label>
               <input
                 id="product-code"
                 required
@@ -557,7 +624,7 @@ export default function InventoryWorkspace({
                   setDraft({ ...draft, code: event.target.value, confirmed: false })
                 }
               />
-              <label htmlFor="product-name">Product name, strength and form</label>
+              <label htmlFor="product-name">{t('inventory:product_name_strength_and_form')}</label>
               <input
                 id="product-name"
                 required
@@ -568,12 +635,12 @@ export default function InventoryWorkspace({
                   setDraft({ ...draft, name: event.target.value, confirmed: false })
                 }
               />
-              <label htmlFor="product-unit">Base dispensing unit</label>
+              <label htmlFor="product-unit">{t('inventory:base_dispensing_unit')}</label>
               <input
                 id="product-unit"
                 required
                 maxLength={40}
-                placeholder="For example: tablet"
+                placeholder={t('inventory:for_example_tablet')}
                 value={draft.unit}
                 disabled={blocked}
                 onChange={(event) =>
@@ -581,14 +648,16 @@ export default function InventoryWorkspace({
                 }
               />
               <p className="muted">
-                Code, name and unit cannot be edited after creation. Quantities are whole base
-                units; no pack conversion.
+                {' '}
+                {t(
+                  'inventory:code_name_and_unit_cannot_be_edited_after_creation_quantities_are_whole_base_units_no_pack_conv',
+                )}{' '}
               </p>
             </>
           )}
           {draft.type === 'batch.create' && (
             <>
-              <label htmlFor="batch-lot">Lot number</label>
+              <label htmlFor="batch-lot">{t('inventory:lot_number')}</label>
               <input
                 id="batch-lot"
                 required
@@ -599,7 +668,7 @@ export default function InventoryWorkspace({
                   setDraft({ ...draft, lot: event.target.value, confirmed: false })
                 }
               />
-              <label htmlFor="batch-expiry">Expiry date</label>
+              <label htmlFor="batch-expiry">{t('inventory:expiry_date')}</label>
               <input
                 id="batch-expiry"
                 type="date"
@@ -613,7 +682,8 @@ export default function InventoryWorkspace({
                 }
               />
               <p className="muted">
-                Lot and expiry are immutable. New batches start with zero stock.
+                {' '}
+                {t('inventory:lot_and_expiry_are_immutable_new_batches_start_with_zero_stock')}{' '}
               </p>
             </>
           )}
@@ -621,8 +691,8 @@ export default function InventoryWorkspace({
             <>
               <label htmlFor="stock-quantity">
                 {draft.type === 'stock.adjust'
-                  ? 'Stock change (negative removes units)'
-                  : 'Quantity received'}{' '}
+                  ? t('inventory:stock_change_negative_removes_units')
+                  : t('inventory:quantity_received')}{' '}
                 · {draft.product?.unit}
               </label>
               <input
@@ -640,16 +710,19 @@ export default function InventoryWorkspace({
               />
               {draft.type === 'stock.adjust' && (
                 <p>
-                  Resulting stock: {draft.batch!.balance + Number(draft.quantity || 0)}{' '}
-                  {draft.product?.unit}. Adjustments record stock discrepancies; patient returns are
-                  not supported.
+                  {' '}
+                  {t('inventory:resulting_stock')}{' '}
+                  {draft.batch!.balance + Number(draft.quantity || 0)} {draft.product?.unit}
+                  {t(
+                    'inventory:adjustments_record_stock_discrepancies_patient_returns_are_not_supported',
+                  )}{' '}
                 </p>
               )}
             </>
           )}
           {draft.type === 'stock.receive' ? (
             <>
-              <label htmlFor="stock-reference">Receipt reference</label>
+              <label htmlFor="stock-reference">{t('inventory:receipt_reference_2')}</label>
               <input
                 id="stock-reference"
                 required
@@ -664,7 +737,9 @@ export default function InventoryWorkspace({
           ) : (
             ['stock.adjust', 'batch.status', 'product.status'].includes(draft.type) && (
               <>
-                <label htmlFor="inventory-reason">Reason for inventory change</label>
+                <label htmlFor="inventory-reason">
+                  {t('inventory:reason_for_inventory_change')}
+                </label>
                 <textarea
                   id="inventory-reason"
                   required
@@ -685,8 +760,8 @@ export default function InventoryWorkspace({
               checked={draft.confirmed}
               disabled={blocked}
               onChange={(event) => setDraft({ ...draft, confirmed: event.target.checked })}
-            />
-            I checked the product, quantities and details.
+            />{' '}
+            {t('inventory:i_checked_the_product_quantities_and_details')}{' '}
           </label>
           <div className="button-row">
             <button
@@ -695,7 +770,8 @@ export default function InventoryWorkspace({
                 blocked || mutation.conflict || draft.stale || Boolean(error) || !draft.confirmed
               }
             >
-              Save inventory change
+              {' '}
+              {t('inventory:save_inventory_change')}{' '}
             </button>
             <button
               type="button"
@@ -705,7 +781,8 @@ export default function InventoryWorkspace({
                 mutation.clear();
               }}
             >
-              Discard inventory draft
+              {' '}
+              {t('inventory:discard_inventory_draft')}{' '}
             </button>
           </div>
         </form>

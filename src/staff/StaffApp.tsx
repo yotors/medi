@@ -1,10 +1,18 @@
+import { isPlainLinkClick } from './navigation';
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t, formatNumber } from '../i18n';
+import { useTranslation } from 'react-i18next';
+import { LanguageControl } from '../i18n';
+import { destinations, routeSurface, surfacePath, type Surface } from './navigation';
+import WorkspaceHome from './WorkspaceHome';
 import { configureHospitalDates, defaultAppearance } from './date';
 import type { HospitalAppearance } from '../../shared/hospital-format';
-import { careKinds, canReadCare } from '../../shared/care';
 import { CareWorkspace } from './CareWorkspace';
 import DepartmentWorkspace from './DepartmentWorkspace';
 import HospitalWorkspace from './HospitalWorkspace';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { HeartPulse, LogOut, Plus, Search, ShieldCheck, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { PatientPage, Registration, Session } from '../../shared/registration';
 import './staff.css';
@@ -16,11 +24,24 @@ import PasswordChange from './PasswordChange';
 import VisitWorkspace from './VisitWorkspace';
 import InventoryWorkspace from './InventoryWorkspace';
 import OperationalReports from './OperationalReports';
-import { reportSections } from '../../shared/reports';
 import type { RegisteredPatient } from '../../shared/registration';
 
 const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 };
 export default function StaffApp() {
+  const { t } = useTranslation();
+  const [route, setRoute] = useState<Surface | null>(() => routeSurface(window.location.pathname));
+  const historyIndex = useRef<number>(window.history.state?.mediIndex ?? 0);
+  const mfaReturn = useRef<Surface>(routeSurface(window.location.pathname) ?? 'home');
+  const restoringHistory = useRef(false);
+  useEffect(() => {
+    window.history.replaceState(
+      { ...window.history.state, mediIndex: historyIndex.current },
+      '',
+      window.location.href,
+    );
+  }, []);
+  const initialSurface = routeSurface(window.location.pathname);
+
   const [appearance, setAppearance] = useState<HospitalAppearance>(defaultAppearance);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [session, setSession] = useState<Session | null>(null);
@@ -49,7 +70,7 @@ export default function StaffApp() {
   const channel = useRef<BroadcastChannel | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const generation = useRef(0);
-  const [visitsOpen, setVisitsOpen] = useState(false);
+  const [visitsOpen, setVisitsOpen] = useState(initialSurface === 'visits');
   const [accountSurface, setAccountSurface] = useState<
     | 'staff'
     | 'password'
@@ -61,7 +82,11 @@ export default function StaffApp() {
     | 'departments'
     | 'hospital'
     | null
-  >(null);
+  >(
+    initialSurface && !['home', 'patients', 'visits'].includes(initialSurface)
+      ? (initialSurface as Exclude<Surface, 'home' | 'patients' | 'visits'>)
+      : null,
+  );
   const [accountDirty, setAccountDirty] = useState(false);
   const [accountPending, setAccountPending] = useState(false);
   const [checkInPatient, setCheckInPatient] = useState<RegisteredPatient | null>(null);
@@ -73,10 +98,16 @@ export default function StaffApp() {
     setAppearance(defaultAppearance);
     generation.current++;
     setRecoveryCodes([]);
-    setAccountSurface(null);
+    // Preserve the requested URL through authentication and session expiry.
+    const requested = routeSurface(window.location.pathname);
+    setAccountSurface(
+      requested && !['home', 'patients', 'visits'].includes(requested)
+        ? (requested as Exclude<Surface, 'home' | 'patients' | 'visits'>)
+        : null,
+    );
     setAccountDirty(false);
     setAccountPending(false);
-    setVisitsOpen(false);
+    setVisitsOpen(routeSurface(window.location.pathname) === 'visits');
     setCheckInPatient(null);
     setVisitPending(false);
     setVisitDirty(false);
@@ -102,9 +133,9 @@ export default function StaffApp() {
   }
   function handleError(e: unknown) {
     if (e instanceof ApiError && e.status === 401) {
-      clearIdentity('Your session ended. Sign in to continue.');
+      clearIdentity(t('errors:SESSION_ENDED'));
       channel.current?.postMessage('expired');
-    } else setError(e instanceof Error ? e.message : 'Something went wrong. Please retry.');
+    } else setError(e instanceof Error ? e.message : t('common:something_went_wrong_please_retry'));
   }
   async function restore() {
     const current = generation.current;
@@ -115,7 +146,7 @@ export default function StaffApp() {
       if (current === generation.current) setSession(result);
     } catch (e) {
       if (current === generation.current && !(e instanceof ApiError && e.status === 401))
-        setSessionError(e instanceof Error ? e.message : 'The server is unavailable.');
+        setSessionError(e instanceof Error ? e.message : t('common:the_server_is_unavailable'));
     } finally {
       if (current === generation.current) setInitializing(false);
     }
@@ -150,7 +181,7 @@ export default function StaffApp() {
     const c = new BroadcastChannel('hospital-staff-session');
     channel.current = c;
     c.onmessage = () => {
-      clearIdentity('The staff session changed in another tab. Sign in again.');
+      clearIdentity(t('errors:SESSION_CHANGED'));
     };
     return () => {
       c.close();
@@ -163,7 +194,8 @@ export default function StaffApp() {
       session.authState !== 'complete' ||
       recoveryCodes.length ||
       session.passwordChangeRequired ||
-      accountSurface
+      accountSurface ||
+      route !== 'patients'
     )
       return;
     let cancelled = false;
@@ -197,12 +229,18 @@ export default function StaffApp() {
     page,
     refresh,
     accountSurface,
+    route,
   ]);
   useEffect(() => {
-    if (session) heading.current?.focus();
-  }, [registering, session]);
-  useEffect(() => {
-    if (!pending && !visitPending && !visitDirty && !accountPending && !accountDirty) return;
+    if (
+      !pending &&
+      !visitPending &&
+      !visitDirty &&
+      !accountPending &&
+      !accountDirty &&
+      !(registering && (name || age || contact))
+    )
+      return;
     departureApproved.current = false;
     const warn = (event: BeforeUnloadEvent) => {
       if (departureApproved.current) return;
@@ -211,14 +249,24 @@ export default function StaffApp() {
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [pending, visitPending, visitDirty, accountPending, accountDirty]);
+  }, [
+    pending,
+    visitPending,
+    visitDirty,
+    accountPending,
+    accountDirty,
+    registering,
+    name,
+    age,
+    contact,
+  ]);
   useEffect(() => {
     if (!session) return;
     const current = generation.current;
     let cancelled = false;
     const expire = () => {
       if (cancelled || current !== generation.current) return;
-      clearIdentity('Your session ended. Sign in to continue.');
+      clearIdentity(t('errors:SESSION_ENDED'));
       channel.current?.postMessage('expired');
     };
     const validate = async () => {
@@ -278,43 +326,90 @@ export default function StaffApp() {
     window.addEventListener('staff-session-activity', update);
     return () => window.removeEventListener('staff-session-activity', update);
   }, []);
+  useLayoutEffect(() => {
+    if (!session) return;
+    const title = document.querySelector<HTMLElement>('#staff-main h1');
+    if (title) {
+      title.tabIndex = -1;
+      title.focus();
+    }
+  }, [route, registering, session?.user.id, session?.authState, session?.passwordChangeRequired]);
   function mayDiscardVisit() {
     return (
-      (!visitDirty && !accountDirty) ||
-      window.confirm('Discard unsaved drafts and clear any temporary password before leaving?')
+      (!visitDirty && !accountDirty && !(registering && (name || age || contact))) ||
+      window.confirm(
+        t('common:discard_unsaved_drafts_and_clear_any_temporary_password_before_leaving'),
+      )
     );
   }
-  function navigateAccount(
-    surface:
-      | 'staff'
-      | 'password'
-      | 'configuration'
-      | 'inventory'
-      | 'reports'
-      | 'mfa'
-      | 'care'
-      | 'departments'
-      | 'hospital'
-      | null,
-    visits = false,
-  ) {
-    if (accountSurface === surface && visitsOpen === visits) return;
-    if (pending || visitPending || accountPending || !mayDiscardVisit()) return;
+  function goTo(id: Surface, historyMode: 'push' | 'pop' | 'replace' = 'push') {
+    if (historyMode === 'push' && id === route) return true;
+    if (historyMode === 'push' && (pending || visitPending || accountPending || !mayDiscardVisit()))
+      return false;
+    if (id === 'mfa' && route && route !== 'mfa') mfaReturn.current = route;
     setCheckInPatient(null);
     setAccountDirty(false);
     setVisitDirty(false);
-    setAccountSurface(surface);
-    setVisitsOpen(visits);
+    clearForm();
     setRegistering(false);
     setError('');
+    setRoute(id);
+    setAccountSurface(
+      !['home', 'patients', 'visits'].includes(id)
+        ? (id as Exclude<Surface, 'home' | 'patients' | 'visits'>)
+        : null,
+    );
+    setVisitsOpen(id === 'visits');
+    if (historyMode === 'push') {
+      historyIndex.current++;
+      window.history.pushState({ mediIndex: historyIndex.current }, '', surfacePath(id));
+    }
+    if (historyMode === 'replace')
+      window.history.replaceState({ mediIndex: historyIndex.current }, '', surfacePath(id));
+    return true;
   }
+  useEffect(() => {
+    const pop = (event: PopStateEvent) => {
+      if (restoringHistory.current) {
+        restoringHistory.current = false;
+        return;
+      }
+      const target = typeof event.state?.mediIndex === 'number' ? event.state.mediIndex : 0;
+      if (pending || visitPending || accountPending || !mayDiscardVisit()) {
+        restoringHistory.current = true;
+        window.history.go(historyIndex.current - target);
+        return;
+      }
+      historyIndex.current = target;
+      const desired = routeSurface(window.location.pathname);
+      if (desired) goTo(desired, 'pop');
+      else {
+        setRoute(null);
+        setAccountSurface(null);
+        setVisitsOpen(false);
+      }
+    };
+    window.addEventListener('popstate', pop);
+    return () => window.removeEventListener('popstate', pop);
+  }, [
+    pending,
+    visitPending,
+    accountPending,
+    visitDirty,
+    accountDirty,
+    registering,
+    name,
+    age,
+    contact,
+  ]);
   function guardNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (!isPlainLinkClick(event)) return;
     if (pending || visitPending || accountPending) {
       event.preventDefault();
       setError(
         pending
-          ? 'Finish retrying the pending registration before leaving this workspace.'
-          : 'Finish retrying the pending visit save before leaving this workspace.',
+          ? t('common:finish_retrying_the_pending_registration_before_leaving_this_workspace')
+          : t('common:finish_retrying_the_pending_visit_save_before_leaving_this_workspace'),
       );
       return;
     }
@@ -339,7 +434,7 @@ export default function StaffApp() {
       setPassword('');
       channel.current?.postMessage('login');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed. Please retry.');
+      setError(e instanceof Error ? e.message : t('common:sign_in_failed_please_retry'));
       setPassword('');
     } finally {
       setBusy(false);
@@ -372,8 +467,10 @@ export default function StaffApp() {
     } finally {
       clearIdentity(
         confirmedLogout
-          ? 'You have signed out.'
-          : 'The workspace has been cleared, but the server has not confirmed sign-out. Retry sign-out when the connection returns.',
+          ? t('common:you_have_signed_out')
+          : t(
+              'common:the_workspace_has_been_cleared_but_the_server_has_not_confirmed_sign_out_retry_sign_out_when_th',
+            ),
       );
       setLogoutToken(confirmedLogout ? null : { csrf, family });
       channel.current?.postMessage('logout');
@@ -418,7 +515,7 @@ export default function StaffApp() {
       setQuery('');
       setPage(1);
       setRefresh((n) => n + 1);
-      setNotice(`Patient registered. Record number ${result.patient.recordNumber}.`);
+      setNotice(uiMessage('dynamic:patient_registered', { number: result.patient.recordNumber }));
     } catch (e) {
       if (current !== generation.current) return;
       if (e instanceof ApiError && e.status > 0 && e.status < 500) setPending(null);
@@ -439,23 +536,33 @@ export default function StaffApp() {
   }
   const readOnly = session?.user.role !== 'admin' && session?.user.role !== 'receptionist';
   return (
-    <div className="staff-shell">
+    <div
+      className={
+        session?.authState === 'complete' &&
+        !session.passwordChangeRequired &&
+        !recoveryCodes.length
+          ? 'staff-shell staff-routed'
+          : 'staff-shell'
+      }
+    >
       <a className="skip-link" href="#staff-main">
-        Skip to workspace
+        {' '}
+        {t('common:skip_to_workspace')}{' '}
       </a>
       <header className="staff-header">
         <a className="staff-brand" href="/staff" onClick={guardNavigation}>
           <HeartPulse size={26} />
           <span>Medi</span>
         </a>
+        <LanguageControl />
         <a href="/" onClick={guardNavigation}>
-          Workspace home
+          {t('public:preview')}
         </a>
       </header>
-      <aside className="staff-environment" aria-label="Workspace environment">
+      <aside className="staff-environment" aria-label={t('common:workspace_environment')}>
         {import.meta.env.DEV
-          ? 'Development workspace · Use fictional patient details only.'
-          : 'Hospital workspace · Authorized staff access'}
+          ? t('common:development_workspace_use_fictional_patient_details_only')
+          : t('common:hospital_workspace_authorized_staff_access')}
       </aside>
       <main
         id="staff-main"
@@ -463,38 +570,38 @@ export default function StaffApp() {
         className={session ? 'staff-main' : 'staff-main staff-login'}
       >
         {initializing ? (
-          <p role="status">Checking your session…</p>
+          <p role="status">{t('common:checking_your_session')}</p>
         ) : sessionError ? (
           <section className="panel">
-            <h1>Workspace unavailable</h1>
-            <p role="alert">{sessionError}</p>
+            <h1>{t('common:workspace_unavailable')}</h1>
+            <p role="alert">{interfaceMessage(sessionError)}</p>
             <button onClick={() => void restore()}>
-              <RefreshCw size={16} />
-              Retry connection
+              <RefreshCw size={16} /> {t('common:retry_connection')}{' '}
             </button>
           </section>
         ) : !session ? (
           <section className="panel">
             <ShieldCheck className="staff-login-icon" size={30} />
-            <h1>Staff sign-in</h1>
-            <p className="muted">Use the staff account assigned to your hospital.</p>
+            <h1>{t('common:staff_sign_in')}</h1>
+            <p className="muted">{t('common:use_the_staff_account_assigned_to_your_hospital')}</p>
             {notice && (
               <p role="status" className="notice success">
-                {notice}
+                {interfaceMessage(notice)}
               </p>
             )}
             {error && (
               <p role="alert" className="notice error">
-                {error}
+                {interfaceMessage(error)}
               </p>
             )}
             {logoutToken && (
               <button onClick={() => void logout()} disabled={busy}>
-                Retry sign-out
+                {' '}
+                {t('common:retry_sign_out')}{' '}
               </button>
             )}
             <form onSubmit={login}>
-              <label htmlFor="hospital-code">Hospital code</label>
+              <label htmlFor="hospital-code">{t('common:hospital_code')}</label>
               <input
                 id="hospital-code"
                 required
@@ -505,7 +612,7 @@ export default function StaffApp() {
                 autoCapitalize="none"
                 disabled={busy}
               />
-              <label htmlFor="staff-username">Username</label>
+              <label htmlFor="staff-username">{t('common:username_2')}</label>
               <input
                 id="staff-username"
                 required
@@ -516,7 +623,7 @@ export default function StaffApp() {
                 autoCapitalize="none"
                 disabled={busy}
               />
-              <label htmlFor="staff-password">Password</label>
+              <label htmlFor="staff-password">{t('common:password')}</label>
               <input
                 id="staff-password"
                 type="password"
@@ -528,11 +635,14 @@ export default function StaffApp() {
                 disabled={busy}
               />
               <button className="primary" disabled={busy || Boolean(logoutToken)}>
-                {busy ? 'Signing in…' : 'Sign in'}
+                {busy ? t('common:signing_in') : t('common:sign_in')}
               </button>
             </form>
             <p className="staff-help">
-              Need access? Ask the person who manages your hospital’s staff accounts.
+              {' '}
+              {t(
+                'common:need_access_ask_the_person_who_manages_your_hospital_s_staff_accounts',
+              )}{' '}
             </p>
           </section>
         ) : (
@@ -542,112 +652,74 @@ export default function StaffApp() {
                 <strong>{session.user.hospital.name}</strong>
                 <span>
                   {session.user.displayName} ·{' '}
-                  {session.user.role === 'auditor' ? 'Read-only access' : session.user.role}
+                  {session.user.role === 'auditor'
+                    ? t('common:read_only_access')
+                    : presentationLabel(session.user.role)}
                 </span>
               </div>
               <button
                 onClick={() => void logout()}
                 disabled={busy || Boolean(pending) || visitPending || accountPending}
               >
-                <LogOut size={16} />
-                Sign out
+                <LogOut size={16} /> {t('common:sign_out')}{' '}
               </button>
             </div>
             {session.authState === 'complete' &&
               !recoveryCodes.length &&
               !session.passwordChangeRequired && (
-                <nav className="staff-navigation" aria-label="Staff workspace">
-                  <button
-                    aria-pressed={!visitsOpen && !accountSurface}
-                    disabled={Boolean(pending) || visitPending || accountPending}
-                    onClick={() => navigateAccount(null)}
-                  >
-                    Patient directory
-                  </button>
-                  <button
-                    aria-pressed={visitsOpen && !accountSurface}
-                    disabled={Boolean(pending) || visitPending || accountPending}
-                    onClick={() => navigateAccount(null, true)}
-                  >
-                    Outpatient visits
-                  </button>
-                  {session.user.role === 'admin' && (
-                    <button
-                      aria-pressed={accountSurface === 'staff'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('staff')}
-                    >
-                      Staff administration
-                    </button>
-                  )}
-                  <button
-                    aria-pressed={accountSurface === 'configuration'}
-                    disabled={Boolean(pending) || visitPending || accountPending}
-                    onClick={() => navigateAccount('configuration')}
-                  >
-                    {session.user.role === 'admin' ? 'Hospital configuration' : 'Service catalog'}
-                  </button>
-                  {['admin', 'pharmacist', 'auditor'].includes(session.user.role) && (
-                    <button
-                      aria-pressed={accountSurface === 'inventory'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('inventory')}
-                    >
-                      Pharmacy inventory
-                    </button>
-                  )}
-                  {reportSections[session.user.role].length > 0 && (
-                    <button
-                      aria-pressed={accountSurface === 'reports'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('reports')}
-                    >
-                      Operational reports
-                    </button>
-                  )}
-                  {careKinds.some((kind) => canReadCare(session.user.role, kind)) && (
-                    <button
-                      aria-pressed={accountSurface === 'care'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('care')}
-                    >
-                      Patient care
-                    </button>
-                  )}
-                  {['admin', 'lab', 'clinician', 'pharmacist', 'cashier', 'auditor'].includes(
-                    session.user.role,
-                  ) && (
-                    <button
-                      aria-pressed={accountSurface === 'departments'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('departments')}
-                    >
-                      Department operations
-                    </button>
-                  )}
-                  {['admin', 'auditor'].includes(session.user.role) && (
-                    <button
-                      aria-pressed={accountSurface === 'hospital'}
-                      disabled={Boolean(pending) || visitPending || accountPending}
-                      onClick={() => navigateAccount('hospital')}
-                    >
-                      Hospital management
-                    </button>
-                  )}
-                  <button
-                    aria-pressed={accountSurface === 'mfa'}
-                    onClick={() => navigateAccount('mfa')}
-                  >
-                    Authenticator security
-                  </button>
-                  <button
-                    aria-pressed={accountSurface === 'password'}
-                    disabled={Boolean(pending) || visitPending || accountPending}
-                    onClick={() => navigateAccount('password')}
-                  >
-                    Change password
-                  </button>
+                <nav
+                  className="staff-navigation staff-primary-navigation"
+                  aria-label={t('navigation:label')}
+                >
+                  {(['work', 'management', 'account'] as const).map((group) => (
+                    <div className="navigation-group" key={group}>
+                      <h2>{t(`navigation:${group}`)}</h2>
+                      {destinations(session.user.role)
+                        .filter((d) => d.group === group)
+                        .map((d) => (
+                          <a
+                            key={d.id}
+                            href={surfacePath(d.id)}
+                            aria-current={route === d.id ? 'page' : undefined}
+                            aria-disabled={Boolean(pending) || visitPending || accountPending}
+                            onClick={(e) => {
+                              if (!isPlainLinkClick(e)) return;
+                              e.preventDefault();
+                              goTo(d.id);
+                            }}
+                          >
+                            {t(d.label)}
+                          </a>
+                        ))}
+                    </div>
+                  ))}
                 </nav>
+              )}
+            {session.authState === 'complete' &&
+              !session.passwordChangeRequired &&
+              !recoveryCodes.length && (
+                <p className="staff-breadcrumb">
+                  <a
+                    href="/staff"
+                    onClick={(e) => {
+                      if (!isPlainLinkClick(e)) return;
+                      e.preventDefault();
+                      goTo('home');
+                    }}
+                  >
+                    {t('navigation:home')}
+                  </a>
+                  {route && route !== 'home' ? (
+                    <>
+                      {' '}
+                      /{' '}
+                      {t(
+                        destinations(session.user.role).find((d) => d.id === route)?.label ??
+                          'navigation:unavailable',
+                      )}
+                    </>
+                  ) : null}
+                </p>
               )}
             {(session.authState !== 'complete' &&
               !(session.authState === 'enrollment' && session.passwordChangeRequired)) ||
@@ -667,7 +739,7 @@ export default function StaffApp() {
                 }}
                 onContinue={() => {
                   setRecoveryCodes([]);
-                  setAccountSurface(null);
+                  goTo(route === 'mfa' ? mfaReturn.current : (route ?? 'home'), 'replace');
                 }}
                 onError={handleError}
               />
@@ -682,6 +754,28 @@ export default function StaffApp() {
                   clearIdentity(message);
                   channel.current?.postMessage('password');
                 }}
+              />
+            ) : !route || !destinations(session.user.role).some((d) => d.id === route) ? (
+              <section className="panel">
+                <h1>{t('navigation:unavailable')}</h1>
+                <a
+                  href="/staff"
+                  onClick={(e) => {
+                    if (!isPlainLinkClick(e)) return;
+                    e.preventDefault();
+                    goTo('home');
+                  }}
+                >
+                  {t('navigation:recover')}
+                </a>
+              </section>
+            ) : route === 'home' ? (
+              <WorkspaceHome
+                session={session}
+                onNavigate={(id) => {
+                  goTo(id);
+                }}
+                onSessionError={handleError}
               />
             ) : accountSurface === 'care' ? (
               <CareWorkspace
@@ -741,7 +835,7 @@ export default function StaffApp() {
               <>
                 {visitsOpen && error && (
                   <p role="alert" className="notice error">
-                    {error}
+                    {interfaceMessage(error)}
                   </p>
                 )}
                 {visitsOpen ? (
@@ -758,12 +852,14 @@ export default function StaffApp() {
                     <div className="page-heading">
                       <div>
                         <h1 ref={heading} tabIndex={-1}>
-                          {registering ? 'Register patient' : 'Patient directory'}
+                          {registering
+                            ? t('common:register_patient')
+                            : t('common:patient_directory')}
                         </h1>
                         <p>
                           {registering
-                            ? 'Start with the details needed to identify the patient.'
-                            : 'Find registered patients in your hospital.'}
+                            ? t('common:start_with_the_details_needed_to_identify_the_patient')
+                            : t('common:find_registered_patients_in_your_hospital')}
                         </p>
                       </div>
                       {!registering && !readOnly && (
@@ -775,26 +871,27 @@ export default function StaffApp() {
                             setNotice('');
                           }}
                         >
-                          <Plus size={18} />
-                          Register patient
+                          <Plus size={18} /> {t('common:register_patient')}{' '}
                         </button>
                       )}
                     </div>
                     {notice && (
                       <p role="status" className="notice success">
-                        {notice}
+                        {interfaceMessage(notice)}
                       </p>
                     )}
                     {error && (
                       <p role="alert" className="notice error">
-                        {error}
+                        {interfaceMessage(error)}
                       </p>
                     )}
                     {registering ? (
                       <section className="panel registration">
                         <form onSubmit={register}>
                           <label htmlFor="staff-patient-name">
-                            Full name <span className="muted">(required)</span>
+                            {' '}
+                            {t('common:full_name')}{' '}
+                            <span className="muted">{t('common:required')}</span>
                           </label>
                           <input
                             id="staff-patient-name"
@@ -812,7 +909,9 @@ export default function StaffApp() {
                           <div className="form-grid">
                             <div>
                               <label htmlFor="staff-age">
-                                Age <span className="muted">(optional)</span>
+                                {' '}
+                                {t('common:age')}{' '}
+                                <span className="muted">{t('common:optional_2')}</span>
                               </label>
                               <input
                                 id="staff-age"
@@ -827,7 +926,9 @@ export default function StaffApp() {
                             </div>
                             <div>
                               <label htmlFor="staff-contact">
-                                Contact <span className="muted">(optional)</span>
+                                {' '}
+                                {t('common:contact')}{' '}
+                                <span className="muted">{t('common:optional_2')}</span>
                               </label>
                               <input
                                 id="staff-contact"
@@ -842,8 +943,10 @@ export default function StaffApp() {
                           {duplicate && (
                             <div className="notice warning">
                               <p>
-                                A patient with this name already exists. Check the directory before
-                                creating a separate record.
+                                {' '}
+                                {t(
+                                  'common:a_patient_with_this_name_already_exists_check_the_directory_before_creating_a_separate_record',
+                                )}{' '}
                               </p>
                               <label className="checkbox">
                                 <input
@@ -851,15 +954,17 @@ export default function StaffApp() {
                                   checked={confirmed}
                                   onChange={(e) => setConfirmed(e.target.checked)}
                                   disabled={busy || Boolean(pending)}
-                                />
-                                This is a different person with the same name.
+                                />{' '}
+                                {t('common:this_is_a_different_person_with_the_same_name')}{' '}
                               </label>
                             </div>
                           )}
                           {pending && !busy && (
                             <p className="notice warning">
-                              The save has not been confirmed. Retry the same registration to find
-                              or finish the original save without creating another record.
+                              {' '}
+                              {t(
+                                'common:the_save_has_not_been_confirmed_retry_the_same_registration_to_find_or_finish_the_original_save',
+                              )}{' '}
                             </p>
                           )}
                           <div className="button-row">
@@ -867,7 +972,11 @@ export default function StaffApp() {
                               className="primary"
                               disabled={busy || !name.trim() || (duplicate && !confirmed)}
                             >
-                              {busy ? 'Saving…' : pending ? 'Retry registration' : 'Save patient'}
+                              {busy
+                                ? t('common:saving')
+                                : pending
+                                  ? t('common:retry_registration')
+                                  : t('common:save_patient')}
                             </button>
                             <button
                               type="button"
@@ -878,8 +987,7 @@ export default function StaffApp() {
                                 setError('');
                               }}
                             >
-                              <ArrowLeft size={16} />
-                              Back to directory
+                              <ArrowLeft size={16} /> {t('common:back_to_directory')}{' '}
                             </button>
                           </div>
                         </form>
@@ -888,7 +996,9 @@ export default function StaffApp() {
                       <section className="panel staff-directory">
                         <form className="staff-search" onSubmit={submitSearch}>
                           <div>
-                            <label htmlFor="staff-search">Search name or record number</label>
+                            <label htmlFor="staff-search">
+                              {t('common:search_name_or_record_number')}
+                            </label>
                             <input
                               id="staff-search"
                               type="search"
@@ -898,8 +1008,7 @@ export default function StaffApp() {
                             />
                           </div>
                           <button disabled={loading}>
-                            <Search size={16} />
-                            Search
+                            <Search size={16} /> {t('common:search')}{' '}
                           </button>
                           {query && (
                             <button
@@ -911,35 +1020,39 @@ export default function StaffApp() {
                                 setPage(1);
                               }}
                             >
-                              Clear
+                              {' '}
+                              {t('common:clear')}{' '}
                             </button>
                           )}
                         </form>
                         {loading ? (
                           <p role="status" className="empty">
-                            Loading patients…
+                            {' '}
+                            {t('common:loading_patients')}{' '}
                           </p>
                         ) : error ? (
                           <div className="empty">
-                            <p>Patient records could not be loaded.</p>
-                            <button onClick={() => setRefresh((n) => n + 1)}>Retry loading</button>
+                            <p>{t('common:patient_records_could_not_be_loaded')}</p>
+                            <button onClick={() => setRefresh((n) => n + 1)}>
+                              {t('common:retry_loading')}
+                            </button>
                           </div>
                         ) : records.patients.length ? (
                           <>
                             <div
                               role="region"
-                              aria-label="Registered patients"
+                              aria-label={t('common:registered_patients')}
                               tabIndex={0}
                               className="table-region"
                             >
                               <table>
                                 <thead>
                                   <tr>
-                                    <th>Patient</th>
-                                    <th>Record number</th>
-                                    <th>Age</th>
-                                    <th>Contact</th>
-                                    {!readOnly && <th>Visit</th>}
+                                    <th>{t('common:patient')}</th>
+                                    <th>{t('common:record_number')}</th>
+                                    <th>{t('common:age')}</th>
+                                    <th>{t('common:contact')}</th>
+                                    {!readOnly && <th>{t('common:visit')}</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -949,21 +1062,25 @@ export default function StaffApp() {
                                         <strong>{patient.name}</strong>
                                       </td>
                                       <td className="numeric">{patient.recordNumber}</td>
-                                      <td>{patient.age ?? 'Not provided'}</td>
-                                      <td>{patient.contact || 'Not provided'}</td>
+                                      <td>{patient.age ?? t('common:not_provided')}</td>
+                                      <td>{patient.contact || t('common:not_provided')}</td>
                                       {!readOnly && (
                                         <td>
                                           {patient.canonicalId ? (
-                                            <span>Linked to {patient.canonicalRecordNumber}</span>
+                                            <span>
+                                              {t('common:linked_to')}{' '}
+                                              {patient.canonicalRecordNumber}
+                                            </span>
                                           ) : (
                                             <button
                                               onClick={() => {
+                                                if (!goTo('visits')) return;
                                                 setCheckInPatient(patient);
-                                                setVisitsOpen(true);
                                                 setError('');
                                               }}
                                             >
-                                              Check in
+                                              {' '}
+                                              {t('common:check_in')}{' '}
                                               <span className="sr-only"> {patient.name}</span>
                                             </button>
                                           )}
@@ -976,16 +1093,22 @@ export default function StaffApp() {
                             </div>
                             <div className="staff-pagination">
                               <p role="status">
-                                {records.total} {records.total === 1 ? 'patient' : 'patients'} ·
-                                Page {records.page} of{' '}
-                                {Math.max(1, Math.ceil(records.total / records.pageSize))}
+                                {t('common:patient_page', {
+                                  count: records.total,
+                                  total: formatNumber(records.total),
+                                  page: formatNumber(records.page),
+                                  pages: formatNumber(
+                                    Math.max(1, Math.ceil(records.total / records.pageSize)),
+                                  ),
+                                })}
                               </p>
                               <div className="button-row">
                                 <button
                                   disabled={page === 1 || loading}
                                   onClick={() => setPage((p) => p - 1)}
                                 >
-                                  Previous
+                                  {' '}
+                                  {t('common:previous')}{' '}
                                 </button>
                                 <button
                                   disabled={
@@ -993,7 +1116,8 @@ export default function StaffApp() {
                                   }
                                   onClick={() => setPage((p) => p + 1)}
                                 >
-                                  Next
+                                  {' '}
+                                  {t('common:next')}{' '}
                                 </button>
                               </div>
                             </div>
@@ -1001,13 +1125,17 @@ export default function StaffApp() {
                         ) : (
                           <div className="empty">
                             <Search size={28} />
-                            <h2>{query ? 'No matching patients' : 'No patients registered yet'}</h2>
+                            <h2>
+                              {query
+                                ? t('common:no_matching_patients')
+                                : t('common:no_patients_registered_yet')}
+                            </h2>
                             <p>
                               {query
-                                ? 'Try a different name or record number.'
+                                ? t('common:try_a_different_name_or_record_number')
                                 : readOnly
-                                  ? 'Registered patients will appear here.'
-                                  : 'Register the first patient to begin.'}
+                                  ? t('common:registered_patients_will_appear_here')
+                                  : t('common:register_the_first_patient_to_begin')}
                             </p>
                           </div>
                         )}
@@ -1022,7 +1150,9 @@ export default function StaffApp() {
       </main>
       <footer className="staff-footer">
         Medi · Africa/Addis_Ababa ·{' '}
-        {appearance.calendar === 'ethiopic' ? 'Ethiopian calendar' : 'Gregorian calendar'}
+        {appearance.calendar === 'ethiopic'
+          ? t('common:ethiopian_calendar')
+          : t('common:gregorian_calendar')}
       </footer>
     </div>
   );

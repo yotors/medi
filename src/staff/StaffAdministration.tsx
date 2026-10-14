@@ -1,3 +1,7 @@
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t, formatDate } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
@@ -50,7 +54,9 @@ export default function StaffAdministration({
         setGrant('');
         setGrantExpiresAt(null);
         setNotice(
-          'Enrollment grant expired. Verify the staff member’s identity and issue a replacement grant.',
+          t(
+            'common:enrollment_grant_expired_verify_the_staff_member_s_identity_and_issue_a_replacement_grant',
+          ),
         );
       }
     };
@@ -117,7 +123,10 @@ export default function StaffAdministration({
       .catch((error) => {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) onSessionError(error);
-        else setLoadError(error instanceof Error ? error.message : 'Staff could not be loaded.');
+        else
+          setLoadError(
+            error instanceof Error ? error.message : t('common:staff_could_not_be_loaded'),
+          );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -142,7 +151,9 @@ export default function StaffAdministration({
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) onSessionError(error);
         else
-          setHistoryError(error instanceof Error ? error.message : 'History could not be loaded.');
+          setHistoryError(
+            error instanceof Error ? error.message : t('common:history_could_not_be_loaded'),
+          );
       })
       .finally(() => {
         if (!cancelled) setHistoryLoading(false);
@@ -168,7 +179,9 @@ export default function StaffAdministration({
       reloading ||
       pending ||
       (dirty &&
-        !window.confirm('Discard unsaved account details and clear any temporary credential?'))
+        !window.confirm(
+          t('common:discard_unsaved_account_details_and_clear_any_temporary_credential'),
+        ))
     )
       return;
     clearDraft();
@@ -237,7 +250,9 @@ export default function StaffAdministration({
           username: result.account.username,
           password: submission.command.temporaryPassword,
         });
-      setNotice('Staff account saved. Existing sessions were revoked for account changes.');
+      setNotice(
+        uiMessage('common:staff_account_saved_existing_sessions_were_revoked_for_account_changes'),
+      );
     } catch (error) {
       if (!alive.current) return;
       if (error instanceof ApiError && error.status === 401) {
@@ -250,7 +265,11 @@ export default function StaffAdministration({
       if (uncertainResponse || (submission.uncertain && verificationRejected))
         setPending({ ...submission, uncertain: true });
       else setPending(null);
-      setError(error instanceof Error ? error.message : 'The account save could not be confirmed.');
+      setError(
+        error instanceof Error
+          ? error.message
+          : t('common:the_account_save_could_not_be_confirmed'),
+      );
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -279,7 +298,7 @@ export default function StaffAdministration({
           setError(
             error instanceof Error
               ? error.message
-              : 'Grant could not be issued. Retry after verifying the account.',
+              : t('common:grant_could_not_be_issued_retry_after_verifying_the_account'),
           );
       }
     } finally {
@@ -294,7 +313,9 @@ export default function StaffAdministration({
       if (!alive.current) return;
       setSelected(result.account);
       setConfirmed(false);
-      setError('Current revision loaded. Review your retained draft before saving.');
+      setError(
+        uiMessage('common:current_revision_loaded_review_your_retained_draft_before_saving'),
+      );
     } catch (error) {
       if (!alive.current) return;
       if (error instanceof ApiError && error.status === 401) onSessionError(error);
@@ -302,7 +323,7 @@ export default function StaffAdministration({
         setError(
           error instanceof Error
             ? error.message
-            : 'Current account details could not be loaded. Retry the lookup.',
+            : t('common:current_account_details_could_not_be_loaded_retry_the_lookup'),
         );
     } finally {
       if (alive.current) setReloading(false);
@@ -314,17 +335,20 @@ export default function StaffAdministration({
         <div>
           <h1 ref={heading} tabIndex={-1}>
             {creating
-              ? 'Create staff account'
+              ? t('common:create_staff_account')
               : selected
                 ? selected.displayName
-                : 'Staff administration'}
+                : t('common:staff_administration')}
           </h1>
           <p>
             {creating
-              ? 'Give a named staff member access to this hospital.'
+              ? t('common:give_a_named_staff_member_access_to_this_hospital')
               : selected
-                ? `${selected.username} · Revision ${selected.revision}`
-                : 'Manage your hospital’s named accounts and access.'}
+                ? t('dynamic:account_revision', {
+                    username: selected.username,
+                    revision: selected.revision,
+                  })
+                : t('common:manage_your_hospital_s_named_accounts_and_access')}
           </p>
         </div>
         {!selected && !creating && (
@@ -338,45 +362,65 @@ export default function StaffAdministration({
               setNotice('');
             }}
           >
-            Create staff account
+            {' '}
+            {t('common:create_staff_account')}{' '}
           </button>
         )}
       </div>
       {notice && (
         <p className="notice success" role="status">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {grant && (
-        <section className="notice warning" aria-label="Enrollment grant">
-          <h2>Deliver this enrollment grant privately</h2>
+        <section className="notice warning" aria-label={t('common:enrollment_grant')}>
+          <h2>{t('common:deliver_this_enrollment_grant_privately')}</h2>
           <p>
-            Verify the staff member’s identity through an independent channel. This grant expires at{' '}
-            {grantExpiresAt ? new Date(grantExpiresAt).toLocaleTimeString() : 'the stated deadline'}
-            . A replacement invalidates previous grants and pending sign-ins.
+            {' '}
+            {t(
+              'common:verify_the_staff_member_s_identity_through_an_independent_channel_this_grant_expires_at',
+            )}{' '}
+            {grantExpiresAt
+              ? formatDate(new Date(grantExpiresAt), {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })
+              : t('common:the_stated_deadline')}{' '}
+            {t('common:a_replacement_invalidates_previous_grants_and_pending_sign_ins')}{' '}
           </p>
           <p data-private className="mfa-secret">
             <code>{grant}</code>
           </p>
-          <button onClick={() => setGrant('')}>Clear enrollment grant</button>
+          <button onClick={() => setGrant('')}>{t('common:clear_enrollment_grant')}</button>
         </section>
       )}
       {credential && (
-        <section className="notice warning staff-credential" aria-label="Temporary credential">
-          <h2>Share this temporary password privately</h2>
+        <section
+          className="notice warning staff-credential"
+          aria-label={t('common:temporary_credential')}
+        >
+          <h2>{t('common:share_this_temporary_password_privately')}</h2>
           <p>
-            Username: <strong>{credential.username}</strong> · Hospital:{' '}
+            {' '}
+            {t('common:username')} <strong>{credential.username}</strong> {t('common:hospital')}{' '}
             <strong>{session.user.hospital.code}</strong>
           </p>
-          <label htmlFor="temporary-password">Temporary password</label>
+          <label htmlFor="temporary-password">{t('common:temporary_password')}</label>
           <input id="temporary-password" readOnly value={credential.password} autoComplete="off" />
-          <p>This is held only in this page. The staff member must replace it at first sign-in.</p>
-          <button onClick={() => setCredential(null)}>I have shared it — clear password</button>
+          <p>
+            {t(
+              'common:this_is_held_only_in_this_page_the_staff_member_must_replace_it_at_first_sign_in',
+            )}
+          </p>
+          <button onClick={() => setCredential(null)}>
+            {t('common:i_have_shared_it_clear_password')}
+          </button>
         </section>
       )}
       {creating || selected ? (
@@ -384,7 +428,7 @@ export default function StaffAdministration({
           <form className="panel staff-account-form" onSubmit={save}>
             {creating && (
               <>
-                <label htmlFor="account-name">Staff display name</label>
+                <label htmlFor="account-name">{t('common:staff_display_name')}</label>
                 <input
                   id="account-name"
                   required
@@ -393,7 +437,7 @@ export default function StaffAdministration({
                   disabled={busy || Boolean(pending)}
                   onChange={(e) => setName(e.target.value)}
                 />
-                <label htmlFor="account-username">Staff username</label>
+                <label htmlFor="account-username">{t('common:staff_username')}</label>
                 <input
                   id="account-username"
                   required
@@ -406,7 +450,7 @@ export default function StaffAdministration({
                 />
               </>
             )}
-            <label htmlFor="account-role">Role</label>
+            <label htmlFor="account-role">{t('common:role')}</label>
             <select
               id="account-role"
               value={role}
@@ -418,7 +462,7 @@ export default function StaffAdministration({
             >
               {staffRoles.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {presentationLabel(value)}
                 </option>
               ))}
             </select>
@@ -433,8 +477,8 @@ export default function StaffAdministration({
                       setActive(e.target.checked);
                       setConfirmed(false);
                     }}
-                  />
-                  Active account
+                  />{' '}
+                  {t('common:active_account')}{' '}
                 </label>
                 {selected.id !== session.user.id && (
                   <label className="checkbox">
@@ -446,19 +490,19 @@ export default function StaffAdministration({
                         setReset(e.target.checked);
                         setConfirmed(false);
                       }}
-                    />
-                    Reset password with a new temporary credential
+                    />{' '}
+                    {t('common:reset_password_with_a_new_temporary_credential')}{' '}
                   </label>
                 )}
                 <p className="muted">
                   {selected.passwordChangeRequired
-                    ? 'Password replacement is required before workspace access.'
-                    : 'Password replacement completed.'}{' '}
-                  Account history is retained when access is removed.
+                    ? t('common:password_replacement_is_required_before_workspace_access')
+                    : t('common:password_replacement_completed')}{' '}
+                  {t('common:account_history_is_retained_when_access_is_removed')}{' '}
                 </p>
               </>
             )}
-            <label htmlFor="admin-current">Your current password</label>
+            <label htmlFor="admin-current">{t('common:your_current_password')}</label>
             <input
               id="admin-current"
               type="password"
@@ -477,16 +521,17 @@ export default function StaffAdministration({
                 onChange={(e) => setConfirmed(e.target.checked)}
               />
               {creating
-                ? 'Create this named account with the selected role.'
+                ? t('common:create_this_named_account_with_the_selected_role')
                 : reset
-                  ? 'Reset this account’s password and sign out its sessions.'
-                  : 'Apply this role and status, and sign out existing sessions.'}
+                  ? t('common:reset_this_account_s_password_and_sign_out_its_sessions')
+                  : t('common:apply_this_role_and_status_and_sign_out_existing_sessions')}
             </label>
             {pending && !busy && (
               <p className="notice warning" role="status">
-                The save is unconfirmed. Retry the original account details when verification is
-                available. You may correct your current password; the account details and temporary
-                credential remain preserved.
+                {' '}
+                {t(
+                  'common:the_save_is_unconfirmed_retry_the_original_account_details_when_verification_is_available_you_m',
+                )}{' '}
               </p>
             )}
             <div className="button-row">
@@ -497,25 +542,28 @@ export default function StaffAdministration({
                 }
               >
                 {busy
-                  ? 'Saving account…'
+                  ? t('common:saving_account')
                   : pending
-                    ? 'Retry account save'
+                    ? t('common:retry_account_save')
                     : creating
-                      ? 'Create account'
+                      ? t('common:create_account')
                       : reset
-                        ? 'Reset credential'
-                        : 'Save account'}
+                        ? t('common:reset_credential')
+                        : t('common:save_account')}
               </button>
               <button
                 type="button"
                 disabled={busy || reloading || Boolean(pending)}
                 onClick={close}
               >
-                Back to staff directory
+                {' '}
+                {t('common:back_to_staff_directory')}{' '}
               </button>
               {error && !pending && selected && (
                 <button type="button" disabled={reloading} onClick={() => void reloadAccount()}>
-                  {reloading ? 'Loading current revision…' : 'Reload current revision'}
+                  {reloading
+                    ? t('common:loading_current_revision')
+                    : t('common:reload_current_revision')}
                 </button>
               )}
             </div>
@@ -524,16 +572,19 @@ export default function StaffAdministration({
             !selected.passwordChangeRequired &&
             selected.id !== session.user.id && (
               <section className="panel">
-                <h2>First authenticator enrollment</h2>
+                <h2>{t('common:first_authenticator_enrollment')}</h2>
                 <p>
-                  After independently verifying this person’s identity, enter your current password
-                  above and issue a grant. Existing authenticators can only be reset using the
-                  person’s recovery code or the private operator process.
+                  {' '}
+                  {t(
+                    'common:after_independently_verifying_this_person_s_identity_enter_your_current_password_above_and_issu',
+                  )}{' '}
                 </p>
                 {!selected.firstEnrollmentEligible && (
                   <p>
-                    This account needs independent operator recovery or its own recovery code. First
-                    enrollment grants are unavailable.
+                    {' '}
+                    {t(
+                      'common:this_account_needs_independent_operator_recovery_or_its_own_recovery_code_first_enrollment_gran',
+                    )}{' '}
                   </p>
                 )}
                 <button
@@ -542,69 +593,76 @@ export default function StaffAdministration({
                   }
                   onClick={() => void grantEnrollment()}
                 >
-                  Issue enrollment grant
+                  {' '}
+                  {t('common:issue_enrollment_grant')}{' '}
                 </button>
               </section>
             )}
           {selected && (
             <section className="panel staff-account-history">
-              <h2>Administrative history</h2>
+              <h2>{t('common:administrative_history')}</h2>
               {historyError ? (
                 <>
-                  <p role="alert">{historyError}</p>
+                  <p role="alert">{interfaceMessage(historyError)}</p>
                   <button onClick={() => setHistoryRefresh((value) => value + 1)}>
-                    Retry history
+                    {' '}
+                    {t('common:retry_history')}{' '}
                   </button>
                 </>
               ) : historyLoading || !history ? (
-                <p role="status">Loading history…</p>
+                <p role="status">{t('common:loading_history')}</p>
               ) : history.events.length ? (
                 <ol>
                   {history.events.map((event) => (
                     <li key={event.id}>
                       <strong>
                         {event.action === 'staff.created'
-                          ? 'Account created'
+                          ? t('common:account_created')
                           : event.action === 'staff.updated'
-                            ? 'Access updated'
+                            ? t('common:access_updated')
                             : event.action === 'staff.reset'
-                              ? 'Credential reset'
-                              : 'Password changed'}
+                              ? t('common:credential_reset')
+                              : t('common:password_changed')}
                       </strong>
                       <p>
                         {event.actorName} ({event.actorUsername}) · {hospitalDate(event.createdAt)}{' '}
-                        · Revision {event.revision}
+                        {t('common:revision')} {event.revision}
                       </p>
                       <p>
-                        {event.role} · {event.active ? 'Active' : 'Inactive'}
+                        {presentationLabel(event.role)} ·{' '}
+                        {event.active ? t('common:active') : t('common:inactive')}
                       </p>
                     </li>
                   ))}
                 </ol>
               ) : (
                 <p>
-                  No administrative changes recorded. This may be an account created through secure
-                  setup.
+                  {' '}
+                  {t(
+                    'common:no_administrative_changes_recorded_this_may_be_an_account_created_through_secure_setup',
+                  )}{' '}
                 </p>
               )}
               {history && (
                 <div className="staff-pagination">
                   <p role="status">
-                    {history.total} history events · Page {history.page} of{' '}
-                    {Math.max(1, Math.ceil(history.total / history.pageSize))}
+                    {history.total} {t('common:history_events_page')} {history.page}{' '}
+                    {t('common:of')} {Math.max(1, Math.ceil(history.total / history.pageSize))}
                   </p>
                   <div className="button-row">
                     <button
                       disabled={historyLoading || historyPage === 1}
                       onClick={() => setHistoryPage((value) => value - 1)}
                     >
-                      Previous history
+                      {' '}
+                      {t('common:previous_history')}{' '}
                     </button>
                     <button
                       disabled={historyLoading || historyPage * history.pageSize >= history.total}
                       onClick={() => setHistoryPage((value) => value + 1)}
                     >
-                      Next history
+                      {' '}
+                      {t('common:next_history')}{' '}
                     </button>
                   </div>
                 </div>
@@ -624,7 +682,7 @@ export default function StaffAdministration({
             }}
           >
             <div>
-              <label htmlFor="account-search">Search staff name or username</label>
+              <label htmlFor="account-search">{t('common:search_staff_name_or_username')}</label>
               <input
                 id="account-search"
                 type="search"
@@ -633,30 +691,36 @@ export default function StaffAdministration({
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <button disabled={loading}>Search staff</button>
+            <button disabled={loading}>{t('common:search_staff')}</button>
           </form>
           {loading ? (
-            <p role="status">Loading staff…</p>
+            <p role="status">{t('common:loading_staff')}</p>
           ) : loadError ? (
             <>
-              <p role="alert">{loadError}</p>
+              <p role="alert">{interfaceMessage(loadError)}</p>
               <button onClick={() => setRefresh((value) => value + 1)}>
-                Retry staff directory
+                {' '}
+                {t('common:retry_staff_directory')}{' '}
               </button>
             </>
           ) : !directory?.accounts.length ? (
-            <p>No staff accounts match this search.</p>
+            <p>{t('common:no_staff_accounts_match_this_search')}</p>
           ) : (
             <>
-              <div className="table-region" role="region" aria-label="Staff accounts" tabIndex={0}>
+              <div
+                className="table-region"
+                role="region"
+                aria-label={t('common:staff_accounts')}
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
-                      <th>Staff member</th>
-                      <th>Username</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Account</th>
+                      <th>{t('common:staff_member')}</th>
+                      <th>{t('common:username_2')}</th>
+                      <th>{t('common:role')}</th>
+                      <th>{t('common:status')}</th>
+                      <th>{t('common:account')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -668,18 +732,21 @@ export default function StaffAdministration({
                           </button>
                         </td>
                         <td>{row.username}</td>
-                        <td>{row.role}</td>
+                        <td>{presentationLabel(row.role)}</td>
                         <td>
-                          {row.active ? 'Active' : 'Inactive'}
+                          {row.active ? t('common:active') : t('common:inactive')}
                           {row.passwordChangeRequired && (
                             <span className="staff-account-secondary">
-                              Password change required
+                              {' '}
+                              {t('common:password_change_required')}{' '}
                             </span>
                           )}
                         </td>
                         <td>
                           <button onClick={() => open(row)}>
-                            Manage<span className="sr-only"> {row.displayName}</span>
+                            {' '}
+                            {t('common:manage')}
+                            <span className="sr-only"> {row.displayName}</span>
                           </button>
                         </td>
                       </tr>
@@ -689,17 +756,19 @@ export default function StaffAdministration({
               </div>
               <div className="staff-pagination">
                 <p role="status">
-                  {directory.total} staff accounts · Page {directory.page}
+                  {directory.total} {t('common:staff_accounts_page')} {directory.page}
                 </p>
                 <div className="button-row">
                   <button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
-                    Previous
+                    {' '}
+                    {t('common:previous')}{' '}
                   </button>
                   <button
                     disabled={page * 25 >= directory.total}
                     onClick={() => setPage((value) => value + 1)}
                   >
-                    Next
+                    {' '}
+                    {t('common:next')}{' '}
                   </button>
                 </div>
               </div>

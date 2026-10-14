@@ -1,3 +1,6 @@
+import { uiMessage } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Session } from '../../shared/registration';
 import { ApiError, request } from './api';
@@ -37,7 +40,7 @@ export default function PasswordChange({
     event.preventDefault();
     if (busy) return;
     if (next !== confirm) {
-      setError('The new passwords do not match.');
+      setError(uiMessage('auth:the_new_passwords_do_not_match'));
       return;
     }
     setBusy(true);
@@ -49,15 +52,13 @@ export default function PasswordChange({
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
       });
       if (!alive.current) return;
-      onChanged(
-        'Password changed. Sign in with your new password. All previous sessions have ended.',
-      );
+      onChanged(t('common:password_changed'));
     } catch (error) {
       if (!alive.current) return;
       if (error instanceof ApiError && error.status === 401) onSessionError(error);
       else {
         setError(
-          error instanceof Error ? error.message : 'Password change could not be confirmed.',
+          error instanceof Error ? error.message : t('auth:password_change_could_not_be_confirmed'),
         );
         setUncertain(!(error instanceof ApiError) || error.status === 0 || error.status >= 500);
       }
@@ -69,28 +70,32 @@ export default function PasswordChange({
     <section className="staff-password">
       <div className="page-heading">
         <div>
-          <h1>Change password</h1>
+          <h1>{t('auth:change_password')}</h1>
           <p>
             {session.passwordChangeRequired
-              ? 'Replace your temporary password before accessing the workspace.'
-              : 'Choose a private password for your staff account.'}
+              ? t('auth:replace_your_temporary_password_before_accessing_the_workspace')
+              : t('auth:choose_a_private_password_for_your_staff_account')}
           </p>
         </div>
       </div>
       <form className="panel" onSubmit={submit}>
-        <p>Use at least 12 characters. Changing your password signs out all your sessions.</p>
+        <p>
+          {t('auth:use_at_least_12_characters_changing_your_password_signs_out_all_your_sessions')}
+        </p>
         {error && (
           <p role="alert" className="notice error">
-            {error}
+            {interfaceMessage(error)}
           </p>
         )}
         {uncertain && (
           <p role="status" className="notice warning">
-            The response was lost. Retry with the same details, or sign out and try your new
-            password. If it was saved, the previous session has already ended.
+            {' '}
+            {t(
+              'auth:the_response_was_lost_retry_with_the_same_details_or_sign_out_and_try_your_new_password_if_it_w',
+            )}{' '}
           </p>
         )}
-        <label htmlFor="change-current">Current password</label>
+        <label htmlFor="change-current">{t('auth:current_password')}</label>
         <input
           id="change-current"
           type="password"
@@ -101,7 +106,7 @@ export default function PasswordChange({
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
         />
-        <label htmlFor="change-new">New password</label>
+        <label htmlFor="change-new">{t('auth:new_password')}</label>
         <input
           id="change-new"
           type="password"
@@ -113,7 +118,7 @@ export default function PasswordChange({
           value={next}
           onChange={(e) => setNext(e.target.value)}
         />
-        <label htmlFor="change-confirm">Confirm new password</label>
+        <label htmlFor="change-confirm">{t('auth:confirm_new_password')}</label>
         <input
           id="change-confirm"
           type="password"
@@ -126,10 +131,10 @@ export default function PasswordChange({
         />
         <button className="primary" disabled={busy}>
           {busy
-            ? 'Changing password…'
+            ? t('auth:changing_password')
             : uncertain
-              ? 'Retry password change'
-              : 'Change password and sign out'}
+              ? t('auth:retry_password_change')
+              : t('auth:change_password_and_sign_out')}
         </button>
       </form>
     </section>

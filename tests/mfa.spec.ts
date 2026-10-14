@@ -1,3 +1,5 @@
+import jsQR from 'jsqr';
+import { PNG } from 'pngjs';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -63,7 +65,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
     if (r.url().includes('/api/patients')) patientRequests++;
   });
   const signIn = async () => {
-    await page.goto('/staff');
+    await page.goto('/staff/patients');
     await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
     await page.getByLabel('Username', { exact: true }).fill('staff');
     await page.getByLabel('Password', { exact: true }).fill(password);
@@ -78,6 +80,23 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   await expect(page.getByRole('heading', { name: 'Set up your authenticator' })).toBeFocused();
   const secret = await page.locator('.mfa-secret code').textContent();
   if (!secret) throw Error('Missing setup');
+  const qr = PNG.sync.read(await page.locator('.mfa-qr svg').screenshot());
+  const decoded = jsQR(new Uint8ClampedArray(qr.data), qr.width, qr.height);
+  if (!decoded) throw Error('Enrollment QR could not be decoded');
+  const enrollment = new URL(decoded.data);
+  // Never print secret-bearing QR/URI values into browser artifacts or assertion logs.
+  if (
+    enrollment.protocol !== 'otpauth:' ||
+    enrollment.hostname !== 'totp' ||
+    enrollment.searchParams.get('secret') !== secret ||
+    enrollment.searchParams.get('algorithm') !== 'SHA1' ||
+    enrollment.searchParams.get('digits') !== '6' ||
+    enrollment.searchParams.get('period') !== '30' ||
+    enrollment.searchParams.get('issuer') !== 'Synthetic MFA hospital' ||
+    decodeURIComponent(enrollment.pathname) !== `/${hospitalCode}:${user.id}`
+  )
+    throw Error('Enrollment QR protocol mismatch');
+
   expect(
     (await new AxeBuilder({ page }).analyze()).violations.map(({ id, impact }) => ({ id, impact })),
   ).toEqual([]);
@@ -125,7 +144,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
     await statusGate;
     await route.fulfill({ response });
   });
-  await page.getByRole('button', { name: 'Authenticator security', exact: true }).click();
+  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
   await expect(page.getByText('Loading authenticator setup…')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Replace authenticator', exact: true }),
@@ -154,14 +173,14 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   });
   await page.getByRole('button', { name: 'Generate new recovery codes' }).click();
   await responseReady;
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await expect(page.getByRole('status')).toContainText('Generating new recovery codes…');
   await capture(page, info.project.name + '-maintenance-pending');
   release();
   await expect(page.getByRole('heading', { name: 'Save your recovery codes' })).toBeVisible();
   await page.unroute('**/api/auth/mfa/regenerate');
   await page.getByRole('button', { name: 'Continue to workspace' }).click();
-  await page.getByRole('button', { name: 'Authenticator security', exact: true }).click();
+  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
   await freshProof();
   await page.getByLabel('Current password', { exact: true }).fill(password);
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());
@@ -232,7 +251,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
       json: { ...body, expiresAt: grantRow.expires_at.toISOString() },
     });
   });
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Manage Grant recipient', exact: true }).click();
   await page.getByLabel('Your current password').fill(password);
   await page.getByRole('button', { name: 'Issue enrollment grant' }).click();
@@ -278,7 +297,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   await capture(page, info.project.name + '-admin-ineligible');
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/patients') && r.status() === 200),
-    page.getByRole('button', { name: 'Patient directory', exact: true }).click(),
+    page.getByRole('link', { name: 'Patient directory', exact: true }).click(),
   ]);
   await expect(page.getByText('Loading patients…', { exact: true })).toHaveCount(0);
   await pool.query(
@@ -371,7 +390,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
     if (r.url().includes('/api/patients')) patientRequests++;
   });
   const signIn = async () => {
-    await page.goto('/staff');
+    await page.goto('/staff/patients');
     await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
     await page.getByLabel('Username', { exact: true }).fill('staff');
     await page.getByLabel('Password', { exact: true }).fill(password);
@@ -428,7 +447,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
     await pool.query('UPDATE staff_factors SET last_counter=-1 WHERE user_id=$1', [user.id]);
   };
   await page.route('**/api/auth/mfa/status', (route) => route.abort());
-  await page.getByRole('button', { name: 'Authenticator security', exact: true }).click();
+  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retry loading setup' })).toBeVisible();
   await capture(page, info.project.name + '-uncertain-maintenance-load-error');
   await page.unroute('**/api/auth/mfa/status');
@@ -471,7 +490,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());
   await page.getByRole('button', { name: 'Verify code' }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory' })).toBeVisible();
-  await page.getByRole('button', { name: 'Authenticator security', exact: true }).click();
+  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
   await freshProof();
   await page.getByLabel('Current password', { exact: true }).fill(password);
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());

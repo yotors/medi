@@ -1,18 +1,39 @@
+import { uiMessage } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useState } from 'react';
 import type { InventoryEvent, InventoryPage } from '../../shared/inventory';
 import type { VisitView } from '../../shared/outpatient';
 import { ApiError, request } from './api';
 const labels: Record<string, string> = {
-  'product.create': 'Product created',
-  'product.status': 'Product status changed',
-  'batch.create': 'Batch created',
-  'batch.status': 'Quarantine changed',
-  'stock.receive': 'Stock received',
-  'stock.adjust': 'Stock adjusted',
-  authorize: 'Product and quantity authorized',
-  dispense: 'Prescription supplied',
-  cancel: 'Remaining supply cancelled',
+  get 'product.create'() {
+    return t('labels:product_created');
+  },
+  get 'product.status'() {
+    return t('labels:product_status_changed');
+  },
+  get 'batch.create'() {
+    return t('labels:batch_created');
+  },
+  get 'batch.status'() {
+    return t('labels:quarantine_changed');
+  },
+  get 'stock.receive'() {
+    return t('labels:stock_received');
+  },
+  get 'stock.adjust'() {
+    return t('labels:stock_adjusted');
+  },
+  get authorize() {
+    return t('labels:product_and_quantity_authorized');
+  },
+  get dispense() {
+    return t('labels:prescription_supplied');
+  },
+  get cancel() {
+    return t('labels:remaining_supply_cancelled');
+  },
 };
 export default function InventoryHistory({
   path,
@@ -49,7 +70,11 @@ export default function InventoryHistory({
         if (!cancelled) {
           if (error instanceof ApiError && error.status === 401) onSessionError(error);
           else
-            setError('Inventory history could not be loaded. Retry when the connection returns.');
+            setError(
+              uiMessage(
+                'inventory:inventory_history_could_not_be_loaded_retry_when_the_connection_returns',
+              ),
+            );
         }
       })
       .finally(() => {
@@ -60,17 +85,17 @@ export default function InventoryHistory({
     };
   }, [path, page, refresh, retry]);
   return (
-    <section className="inventory-history" aria-label="Inventory history">
-      <h3>Inventory history</h3>
+    <section className="inventory-history" aria-label={t('inventory:inventory_history')}>
+      <h3>{t('inventory:inventory_history')}</h3>
       {loading ? (
-        <p role="status">Loading inventory history…</p>
+        <p role="status">{t('inventory:loading_inventory_history')}</p>
       ) : error ? (
-        <p role="alert">{error}</p>
+        <p role="alert">{interfaceMessage(error)}</p>
       ) : (
         data && (
           <>
             {!data.entries.length ? (
-              <p className="empty-small">No inventory events recorded.</p>
+              <p className="empty-small">{t('inventory:no_inventory_events_recorded')}</p>
             ) : (
               <ol className="timeline">
                 {data.entries.map((event) => {
@@ -83,30 +108,44 @@ export default function InventoryHistory({
                         {event.actorName} · {hospitalDate(event.at)}
                       </small>
                       <details className="inventory-identity">
-                        <summary>Recorded movement and staff identity</summary>
+                        <summary>{t('inventory:recorded_movement_and_staff_identity')}</summary>
                         <p>
                           {event.action === 'dispense'
-                            ? 'Original dispense ID for patient returns'
-                            : 'Inventory event ID'}
+                            ? t('inventory:original_dispense_id_for_patient_returns')
+                            : t('inventory:inventory_event_id')}
                           : {event.id}
                         </p>
-                        {event.batchId && <p>Batch ID: {event.batchId}</p>}
-                        <p>Product ID: {event.productId}</p>
-                        <p>Staff ID: {event.actorId}</p>
+                        {event.batchId && (
+                          <p>
+                            {t('inventory:batch_id')} {event.batchId}
+                          </p>
+                        )}
+                        <p>
+                          {t('inventory:product_id')} {event.productId}
+                        </p>
+                        <p>
+                          {t('inventory:staff_id')} {event.actorId}
+                        </p>
                       </details>
                       {event.prescriptionId &&
                         (index >= 0 ? (
                           <div>
                             <p>
-                              <strong>Prescription {index + 1}</strong>
+                              <strong>
+                                {t('inventory:prescription')} {index + 1}
+                              </strong>
                             </p>
                             <p className="preserve">{prescriptions![index].instruction}</p>
                           </div>
                         ) : (
                           <details className="inventory-identity">
-                            <summary>Visit and prescription identity</summary>
-                            <p>Visit ID: {event.visitId}</p>
-                            <p>Prescription ID: {event.prescriptionId}</p>
+                            <summary>{t('inventory:visit_and_prescription_identity')}</summary>
+                            <p>
+                              {t('inventory:visit_id')} {event.visitId}
+                            </p>
+                            <p>
+                              {t('inventory:prescription_id')} {event.prescriptionId}
+                            </p>
                           </details>
                         ))}
                       <p>
@@ -114,40 +153,67 @@ export default function InventoryHistory({
                       </p>
                       {event.snapshot.lot && (
                         <p>
-                          Lot {event.snapshot.lot}
-                          {event.snapshot.expiry && <> · Recorded expiry {event.snapshot.expiry}</>}
+                          {' '}
+                          {t('inventory:lot')} {event.snapshot.lot}
+                          {event.snapshot.expiry && (
+                            <>
+                              {' '}
+                              {t('inventory:recorded_expiry')} {event.snapshot.expiry}
+                            </>
+                          )}
                         </p>
                       )}
                       {event.snapshot.quantity !== undefined && (
                         <p>
-                          Quantity: {event.snapshot.quantity} {event.snapshot.unit}
+                          {' '}
+                          {t('inventory:quantity')} {event.snapshot.quantity} {event.snapshot.unit}
                           {event.snapshot.balance !== undefined && (
-                            <> · Batch balance: {event.snapshot.balance}</>
+                            <>
+                              {' '}
+                              {t('inventory:batch_balance')} {event.snapshot.balance}
+                            </>
                           )}
                         </p>
                       )}
                       {event.snapshot.remaining !== undefined && (
                         <p>
-                          Remaining: {event.snapshot.remaining} {event.snapshot.unit}
+                          {' '}
+                          {t('inventory:remaining')} {event.snapshot.remaining}{' '}
+                          {event.snapshot.unit}
                         </p>
                       )}
                       {event.snapshot.cancelledQuantity !== undefined && (
                         <p>
-                          Cancelled remainder: {event.snapshot.cancelledQuantity} · Already
-                          supplied: {event.snapshot.supplied}
+                          {' '}
+                          {t('inventory:cancelled_remainder')} {event.snapshot.cancelledQuantity}{' '}
+                          {t('inventory:already_supplied')} {event.snapshot.supplied}
                         </p>
                       )}
                       {event.snapshot.reason && (
-                        <p className="preserve">Reason: {event.snapshot.reason}</p>
+                        <p className="preserve">
+                          {t('common:reason')} {event.snapshot.reason}
+                        </p>
                       )}
                       {event.snapshot.reference && (
-                        <p className="preserve">Receipt reference: {event.snapshot.reference}</p>
+                        <p className="preserve">
+                          {t('inventory:receipt_reference')} {event.snapshot.reference}
+                        </p>
                       )}
                       {event.snapshot.active !== undefined && (
-                        <p>Product {event.snapshot.active ? 'active' : 'inactive'}</p>
+                        <p>
+                          {t(
+                            event.snapshot.active
+                              ? 'inventory:product_active'
+                              : 'inventory:product_inactive',
+                          )}
+                        </p>
                       )}
                       {event.snapshot.quarantined !== undefined && (
-                        <p>{event.snapshot.quarantined ? 'Quarantined' : 'Not quarantined'}</p>
+                        <p>
+                          {event.snapshot.quarantined
+                            ? t('common:quarantined')
+                            : t('inventory:not_quarantined')}
+                        </p>
                       )}
                     </li>
                   );
@@ -155,7 +221,7 @@ export default function InventoryHistory({
               </ol>
             )}
             <p>
-              {data.total} events · Page {data.page} of{' '}
+              {data.total} {t('common:events_page')} {data.page} {t('common:of')}{' '}
               {Math.max(1, Math.ceil(data.total / data.pageSize))}
             </p>
           </>
@@ -163,7 +229,8 @@ export default function InventoryHistory({
       )}
       <div className="button-row">
         <button disabled={disabled || loading || page === 1} onClick={() => setPage(page - 1)}>
-          Previous inventory history
+          {' '}
+          {t('inventory:previous_inventory_history')}{' '}
         </button>
         <button
           disabled={
@@ -171,10 +238,13 @@ export default function InventoryHistory({
           }
           onClick={() => setPage(page + 1)}
         >
-          Next inventory history
+          {' '}
+          {t('inventory:next_inventory_history')}{' '}
         </button>
         <button disabled={disabled || loading} onClick={() => setRetry(retry + 1)}>
-          {error ? 'Retry inventory history' : 'Refresh inventory history'}
+          {error
+            ? t('inventory:retry_inventory_history')
+            : t('inventory:refresh_inventory_history')}
         </button>
       </div>
     </section>

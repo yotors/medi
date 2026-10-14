@@ -1,0 +1,19 @@
+{
+  "patient": "{{name}} · MRN {{number}}",
+  "linked": " · Linked to MRN {{number}}",
+  "historical": " · Historical order (confirm matching configured test)",
+  "quarantined": " · Quarantined",
+  "specimen": "{{person}} · {{test}} · Accession {{accession}} · {{status}}",
+  "return": "{{person}} · {{productName}} · Return {{quantity}} {{unit}} · {{status}}",
+  "purchase": "{{supplierName}} · {{products}} · {{status}} · {{createdAt}}",
+  "shift": "Cashier {{ownerName}} · Opening {{opening}} · {{status}} · {{createdAt}}",
+  "orders": "{{person}} · {{test}}{{extra}}",
+  "batches": "{{productName}} · Lot {{lot}} · Expires {{expiry}} · {{balance}} {{unit}}{{extra}}",
+  "dispenses": "{{person}} · {{productName}} · Lot {{lot}} · {{quantity}} {{unit}} returnable",
+  "invoices": "{{number}} · {{person}} · Net {{net}} · Paid {{paid}}",
+  "payments": "{{number}} · {{amount}} · {{method}} · {{remaining}} unreversed",
+  "cashEntries": "{{entry}} · {{person}} · {{amount}} {{direction}}",
+  "recorded_kind": "Recorded {{kind}}",
+  "received": "cash received",
+  "paid_out": "cash paid out"
+}

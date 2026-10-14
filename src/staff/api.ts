@@ -1,3 +1,4 @@
+import i18n, { t } from '../i18n';
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -21,18 +22,23 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       },
     });
   } catch {
-    throw new ApiError(
-      0,
-      'NETWORK',
-      'The server could not be reached. Check the connection and retry.',
-    );
+    throw new ApiError(0, 'NETWORK', t('errors:NETWORK'));
   }
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
+    const payload = await response.json().catch(() => ({}));
+    const error = payload && typeof payload === 'object' ? payload : {};
     throw new ApiError(
       response.status,
       error.code ?? 'REQUEST_FAILED',
-      error.message ?? 'The request could not be completed. Please retry.',
+      t(
+        error.code === 'MFA_REQUIRED' && path.startsWith('/api/auth/mfa')
+          ? 'errors:MFA_PROOF_INVALID'
+          : i18n.exists(`errors:${error.code}`)
+            ? `errors:${error.code}`
+            : response.status >= 500
+              ? 'errors:READ_UNAVAILABLE'
+              : 'errors:REQUEST_FAILED',
+      ),
     );
   }
   const expiry = response.headers.get('X-Session-Expires-At');

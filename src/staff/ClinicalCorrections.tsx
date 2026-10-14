@@ -1,3 +1,6 @@
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -67,7 +70,7 @@ export default function ClinicalCorrections({
     kind === 'note'
       ? (visit.notes ?? []).map((note, index) => ({
           id: note.id,
-          label: `Note ${index + 1}`,
+          label: t('dynamic:note_number', { number: index + 1 }),
           body: note.body,
         }))
       : (visit.orders ?? [])
@@ -110,8 +113,7 @@ export default function ClinicalCorrections({
       .catch((error) => {
         if (!cancelled) {
           if (error instanceof ApiError && error.status === 401) onSessionError(error);
-          else
-            setReviewersError('Reviewers could not be loaded. Retry before saving a correction.');
+          else setReviewersError(t('common:reviewers_failed'));
         }
       })
       .finally(() => {
@@ -163,12 +165,14 @@ export default function ClinicalCorrections({
         version: saved.version,
         text:
           submission.command.type === 'note.amend'
-            ? 'Note amendment saved. The original remains in the record.'
+            ? t('common:note_amendment_saved_the_original_remains_in_the_record')
             : submission.command.type === 'result.correct'
-              ? 'Result correction saved. A new clinician review is required.'
+              ? t('common:result_correction_saved_a_new_clinician_review_is_required')
               : submission.command.type === 'result.takeover'
-                ? 'You now own this review. Read the latest correction before acknowledging it.'
-                : 'Corrected result reviewed.',
+                ? t(
+                    'common:you_now_own_this_review_read_the_latest_correction_before_acknowledging_it',
+                  )
+                : t('common:corrected_result_reviewed'),
       });
       document.getElementById(`${prefix}-subject-${submission.command.subjectId}`)?.focus();
       onSaved();
@@ -181,7 +185,9 @@ export default function ClinicalCorrections({
       if (error instanceof ApiError && error.status === 401) onSessionError(error);
       else {
         setError(
-          error instanceof Error ? error.message : 'The clinical change could not be saved.',
+          error instanceof Error
+            ? error.message
+            : t('common:the_clinical_change_could_not_be_saved'),
         );
         if (error instanceof ApiError && error.status === 409) {
           setNeedsReview(true);
@@ -232,15 +238,19 @@ export default function ClinicalCorrections({
   const formRecord = records.find((record) => record.subjectId === draft?.subjectId);
   return (
     <section className="clinical-corrections" aria-labelledby={`${prefix}-title`}>
-      <h2 id={`${prefix}-title`}>{kind === 'note' ? 'Note amendments' : 'Result corrections'}</h2>
+      <h2 id={`${prefix}-title`}>
+        {kind === 'note' ? t('common:note_amendments') : t('common:result_corrections')}
+      </h2>
       <p className="muted">
         {kind === 'note'
-          ? 'Append a reasoned correction to a saved note. Original notes remain above.'
-          : 'Original released results remain above. Every correction requires a new review, including after visit closure.'}
+          ? t('common:append_a_reasoned_correction_to_a_saved_note_original_notes_remain_above')
+          : t(
+              'common:original_released_results_remain_above_every_correction_requires_a_new_review_including_after_v',
+            )}
       </p>
       {error && (
         <p role="alert" className="notice error">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {notice && (
@@ -252,19 +262,24 @@ export default function ClinicalCorrections({
         <div role="status" className="notice warning">
           <span>
             {busy
-              ? 'Saving clinical history…'
-              : 'This clinical save has not been confirmed. Retry the same request to find or finish the original save.'}
+              ? t('common:saving_clinical_history')
+              : t(
+                  'common:this_clinical_save_has_not_been_confirmed_retry_the_same_request_to_find_or_finish_the_original',
+                )}
           </span>
           <button disabled={busy} onClick={() => void submit(pending)}>
-            Retry clinical save
+            {' '}
+            {t('common:retry_clinical_save')}{' '}
           </button>
         </div>
       )}
       {needsReview && (
         <div className="notice warning">
           <span>
-            Your draft is preserved. Read the latest history, then confirm the version before saving
-            again.
+            {' '}
+            {t(
+              'common:your_draft_is_preserved_read_the_latest_history_then_confirm_the_version_before_saving_again',
+            )}{' '}
           </span>
           <button
             disabled={disabled || Boolean(pending)}
@@ -279,15 +294,16 @@ export default function ClinicalCorrections({
               setError('');
             }}
           >
-            Use latest clinical version
+            {' '}
+            {t('common:use_latest_clinical_version')}{' '}
           </button>
         </div>
       )}
       {!subjects.length && (
         <p className="empty-small">
           {kind === 'note'
-            ? 'Save a note before adding an amendment.'
-            : 'No released results are available to correct.'}
+            ? t('common:save_a_note_before_adding_an_amendment')
+            : t('common:no_released_results_are_available_to_correct')}
         </p>
       )}
       {subjects.map((subject) => {
@@ -298,7 +314,10 @@ export default function ClinicalCorrections({
           <article
             className="clinical-subject"
             key={subject.id}
-            aria-label={`${subject.label} ${kind === 'note' ? 'amendments' : 'corrections'}`}
+            aria-label={t('dynamic:subject_history', {
+              label: subject.label,
+              kind: kind === 'note' ? t('common:note_amendments') : t('common:result_corrections'),
+            })}
           >
             <div className="section-heading">
               <h3 id={`${prefix}-subject-${subject.id}`} tabIndex={-1}>
@@ -309,51 +328,72 @@ export default function ClinicalCorrections({
                   className={`badge ${reviewState && !reviewState.reviewed ? 'warning' : 'neutral'}`}
                 >
                   {kind === 'note'
-                    ? 'Amended'
+                    ? t('common:amended')
                     : reviewState?.reviewed
-                      ? 'Correction reviewed'
-                      : 'Review required'}
+                      ? t('common:correction_reviewed')
+                      : t('common:review_required')}
                 </span>
               )}
             </div>
             {record?.originalActor && (
               <p className="muted clinical-identity">
-                Original actor: @{record.originalActor.username} · {record.originalActor.id}.
-                Current account name: {record.originalActor.currentName}. Historical display name
-                unavailable.{record.originalAt && <> Recorded {date(record.originalAt)}.</>}
+                {' '}
+                {t('common:original_actor')}
+                {record.originalActor.username} · {record.originalActor.id}
+                {t('common:current_account_name')} {record.originalActor.currentName}
+                {t('common:historical_display_name_unavailable')}
+                {record.originalAt && (
+                  <>
+                    {' '}
+                    {t('common:recorded')} {date(record.originalAt)}.
+                  </>
+                )}
               </p>
             )}
             {latest ? (
               <>
-                <h4>{kind === 'note' ? 'Latest amended note' : 'Latest corrected result'}</h4>
+                <h4>
+                  {kind === 'note'
+                    ? t('common:latest_amended_note')
+                    : t('common:latest_corrected_result')}
+                </h4>
                 <p className="preserve clinical-current">{latest.body}</p>
                 <p className="preserve">
-                  <strong>Reason:</strong> {latest.reason}
+                  <strong>{t('common:reason')}</strong> {latest.reason}
                 </p>
                 <small>
                   {latest.actorName} · {date(latest.at)}
                 </small>
               </>
             ) : (
-              <p className="muted">No {kind === 'note' ? 'amendments' : 'corrections'} recorded.</p>
+              <p className="muted">
+                {t(
+                  kind === 'note'
+                    ? 'common:no_amendments_recorded'
+                    : 'common:no_corrections_recorded',
+                )}
+              </p>
             )}
             {reviewState && (
               <div className="clinical-review">
                 <p>
-                  <strong>Review owner:</strong> {reviewState.ownerName}
+                  <strong>{t('common:review_owner')}</strong> {reviewState.ownerName}
                   {!reviewState.ownerActive &&
                     !reviewState.reviewed &&
-                    ' · Unavailable — another clinician must take over'}
+                    t('common:unavailable_another_clinician_must_take_over')}
                 </p>
                 {reviewState.reviewed ? (
                   <p>
-                    Reviewed by {reviewState.reviewerName} · {date(reviewState.reviewedAt!)}
+                    {' '}
+                    {t('common:reviewed_by')} {reviewState.reviewerName} ·{' '}
+                    {date(reviewState.reviewedAt!)}
                   </p>
                 ) : (
                   <p className="clinical-pending">
-                    This correction still needs acknowledgement.
+                    {' '}
+                    {t('common:this_correction_still_needs_acknowledgement')}{' '}
                     {visit.status === 'closed' &&
-                      ' The visit remains closed; this follow-up stays outstanding.'}
+                      t('common:the_visit_remains_closed_this_follow_up_stays_outstanding')}
                   </p>
                 )}
               </div>
@@ -375,8 +415,8 @@ export default function ClinicalCorrections({
                   onClick={() => start(subject.id)}
                 >
                   {kind === 'note'
-                    ? `Amend ${subject.label.toLowerCase()}`
-                    : `Correct ${subject.label} result`}
+                    ? t('dynamic:amend_subject', { label: subject.label })
+                    : t('dynamic:correct_subject', { label: subject.label })}
                 </button>
               )}
               {canReview &&
@@ -388,14 +428,16 @@ export default function ClinicalCorrections({
                     disabled={disabled || Boolean(pending) || Boolean(draft) || needsReview}
                     onClick={() => review(record!)}
                   >
-                    Acknowledge {subject.label} correction
+                    {' '}
+                    {t('common:acknowledge')} {subject.label} {t('common:correction')}{' '}
                   </button>
                 ) : (
                   <button
                     disabled={disabled || Boolean(pending) || Boolean(draft)}
                     onClick={() => start(subject.id, true)}
                   >
-                    Take over {subject.label} review
+                    {' '}
+                    {t('common:take_over')} {subject.label} {t('common:review')}{' '}
                   </button>
                 ))}
             </div>
@@ -405,7 +447,7 @@ export default function ClinicalCorrections({
       {draft && (
         <form
           className="clinical-draft"
-          aria-label={`${formSubject?.label} clinical change`}
+          aria-label={t('dynamic:clinical_change', { label: formSubject?.label })}
           onSubmit={(event) => {
             event.preventDefault();
             saveDraft();
@@ -413,16 +455,18 @@ export default function ClinicalCorrections({
         >
           <h3>
             {draft.action === 'result.takeover'
-              ? 'Take responsibility for review'
+              ? t('common:take_responsibility_for_review')
               : draft.action === 'note.amend'
-                ? 'Amend saved note'
-                : 'Correct released result'}{' '}
+                ? t('common:amend_saved_note')
+                : t('common:correct_released_result')}{' '}
             · {formSubject?.label}
           </h3>
           {draft.action !== 'result.takeover' && (
             <>
               <label htmlFor={`${prefix}-body`}>
-                {kind === 'note' ? 'Amended note text' : 'Corrected result text'}
+                {kind === 'note'
+                  ? t('common:amended_note_text')
+                  : t('common:corrected_result_text')}
               </label>
               <textarea
                 ref={draftField}
@@ -437,8 +481,8 @@ export default function ClinicalCorrections({
           )}
           <label htmlFor={`${prefix}-reason`}>
             {draft.action === 'result.takeover'
-              ? 'Reason for taking over'
-              : 'Reason for correction'}
+              ? t('common:reason_for_taking_over')
+              : t('common:reason_for_correction')}
           </label>
           <textarea
             ref={draft.action === 'result.takeover' ? draftField : undefined}
@@ -451,7 +495,7 @@ export default function ClinicalCorrections({
           />
           {draft.action === 'result.correct' && (
             <>
-              <label htmlFor={`${prefix}-owner`}>Assign correction reviewer</label>
+              <label htmlFor={`${prefix}-owner`}>{t('common:assign_correction_reviewer')}</label>
               <select
                 id={`${prefix}-owner`}
                 required
@@ -459,20 +503,21 @@ export default function ClinicalCorrections({
                 disabled={disabled || Boolean(pending) || reviewersLoading}
                 onChange={(event) => setDraft({ ...draft, ownerId: event.target.value })}
               >
-                <option value="">Choose an active reviewer</option>
+                <option value="">{t('common:choose_an_active_reviewer')}</option>
                 {reviewers.map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>
-                    {reviewer.name} · @{reviewer.username} · {reviewer.role}
+                    {reviewer.name} · @{reviewer.username} · {presentationLabel(reviewer.role)}
                   </option>
                 ))}
               </select>
-              {reviewersLoading && <p role="status">Loading reviewers…</p>}
+              {reviewersLoading && <p role="status">{t('common:loading_reviewers')}</p>}
               {reviewersError && <p role="alert">{reviewersError}</p>}
               {!reviewersLoading && !reviewersError && reviewers.length === 0 && (
                 <p role="status">
-                  No eligible reviewers are available. An administrator must activate a clinician or
-                  administrator account and the reviewer must complete any required password change.
-                  Refresh reviewers after this is resolved.
+                  {' '}
+                  {t(
+                    'common:no_eligible_reviewers_are_available_an_administrator_must_activate_a_clinician_or_administrator',
+                  )}{' '}
                 </p>
               )}
               <button
@@ -480,7 +525,8 @@ export default function ClinicalCorrections({
                 disabled={disabled || Boolean(pending) || reviewersLoading}
                 onClick={() => setReviewersRefresh((n) => n + 1)}
               >
-                Refresh reviewers
+                {' '}
+                {t('common:refresh_reviewers')}{' '}
               </button>
             </>
           )}
@@ -498,10 +544,10 @@ export default function ClinicalCorrections({
               }
             >
               {draft.action === 'note.amend'
-                ? 'Save note amendment'
+                ? t('common:save_note_amendment')
                 : draft.action === 'result.correct'
-                  ? 'Save result correction'
-                  : 'Take responsibility'}
+                  ? t('common:save_result_correction')
+                  : t('common:take_responsibility')}
             </button>
             <button
               type="button"
@@ -512,7 +558,8 @@ export default function ClinicalCorrections({
                 setNeedsReview(false);
               }}
             >
-              Discard clinical draft
+              {' '}
+              {t('common:discard_clinical_draft')}{' '}
             </button>
           </div>
         </form>

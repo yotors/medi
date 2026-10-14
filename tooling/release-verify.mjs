@@ -27,6 +27,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ??= fileURLToPath(
   new URL('../.cache/ms-playwright', import.meta.url),
 );
 const { chromium } = await import('@playwright/test');
+let verificationStage = 'release-api';
 class VerificationError extends Error {}
 const check = (condition, message) => {
   if (!condition) throw new VerificationError(message);
@@ -1180,6 +1181,7 @@ try {
       'Private search accepted revoked release authority.',
     );
   cookie = undefined;
+  verificationStage = 'browser-start';
   const browser = await chromium.launch();
   try {
     // The HTTPS requests above verify the actual private CA. Chromium uses a
@@ -1188,21 +1190,26 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', () => errors.push('runtime'));
-    await page.goto(`${origin}/staff`);
+    verificationStage = 'browser-login';
+    await page.goto(`${origin}/staff/patients`);
     await page.getByLabel('Hospital code', { exact: true }).fill(fixture.hospitalCode);
     await page.getByLabel('Username', { exact: true }).fill(fixture.username);
     await page.getByLabel('Password', { exact: true }).fill(fixture.password);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    verificationStage = 'browser-mfa';
     await page.getByRole('heading', { name: 'Enter authenticator code', exact: true }).waitFor();
     const browserFactor = fixtureFactor(fixture.hospitalCode, fixture.username);
     const wait = Math.max(0, (browserFactor.counter + 1) * 30000 - Date.now());
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait + 25));
     await page.getByLabel('Authenticator code', { exact: true }).fill(otp(browserFactor.secret));
     await page.getByRole('button', { name: 'Verify code', exact: true }).click();
+    verificationStage = 'browser-patient-directory';
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
     await page.reload();
+    verificationStage = 'browser-patient-directory';
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Operational reports', exact: true }).click();
+    verificationStage = 'browser-report';
+    await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
     await page.getByRole('heading', { name: 'Operational reports', exact: true }).waitFor();
     await page.getByLabel('From date', { exact: true }).fill(reportRange.from);
     await page.getByLabel('Through date', { exact: true }).fill(reportRange.to);
@@ -1214,7 +1221,8 @@ try {
       })
       .waitFor();
     await page.getByRole('heading', { name: 'Product stock', exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Authenticator security', exact: true }).click();
+    verificationStage = 'browser-security';
+    await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
     await page.getByLabel('Current password', { exact: true }).waitFor();
     check(
       (await page
@@ -1236,10 +1244,11 @@ try {
       });
       await page.getByLabel('Current password', { exact: true }).fill(fixture.password);
       await page.getByLabel('Authenticator code', { exact: true }).fill('000000');
+      verificationStage = 'browser-security-pending';
       await page.getByRole('button', { name: button, exact: true }).click();
       await page.getByRole('status').filter({ hasText: message }).waitFor();
       check(
-        await page.getByRole('button', { name: 'Patient directory', exact: true }).isDisabled(),
+        await page.getByRole('link', { name: 'Patient directory', exact: true }).isDisabled(),
         'Built maintenance navigation must remain guarded.',
       );
       release();
@@ -1318,7 +1327,7 @@ try {
   console.error(
     error instanceof VerificationError
       ? error.message
-      : 'Release verification failed; sensitive diagnostics withheld.',
+      : `Release verification failed at ${verificationStage}; sensitive diagnostics withheld.`,
   );
   process.exitCode = 1;
 } finally {

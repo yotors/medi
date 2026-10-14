@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '../../shared/registration';
 import type { InventoryCommand, InventoryResult, PharmacyCommand } from '../../shared/inventory';
@@ -51,11 +52,7 @@ export function useInventoryMutation(
       }
       if (error instanceof ApiError && error.status === 401) onSessionError(error);
       else {
-        setError(
-          error instanceof Error
-            ? error.message
-            : 'The inventory save failed. Retry the same request.',
-        );
+        setError(error instanceof Error ? error.message : t('common:inventory_failed'));
         if (error instanceof ApiError && error.status === 409) {
           setConflict(true);
           onConflict();

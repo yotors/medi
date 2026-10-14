@@ -37,7 +37,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 test('persistent patient profile correction and appointment arrival', async ({ page }, info) => {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(code);
   await page.getByLabel('Username', { exact: true }).fill('careadmin');
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -53,7 +53,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
     data: { name: 'Fictional Browser Care', age: 30, contact: 'fictional' },
   });
   expect(registered.status()).toBe(201);
-  await page.getByRole('button', { name: 'Patient care', exact: true }).click();
+  await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill('Fictional Browser Care');
   await page.getByRole('button', { name: 'Search patients' }).click();
   await page.getByRole('button', { name: /Fictional Browser Care ·/ }).click();
@@ -88,7 +88,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
   await page.getByRole('button', { name: 'Sign and save' }).click();
   await expect(page.getByRole('cell', { name: 'arrived', exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Patient care', exact: true }).click();
+  await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill('Fictional Browser Corrected');
   await page.getByRole('button', { name: 'Search patients' }).click();
   await page.getByRole('button', { name: /Fictional Browser Corrected ·/ }).click();
@@ -105,7 +105,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
 test('duplicate resolution selects canonical identity by hospital-scoped name and MRN', async ({
   page,
 }, info) => {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(code);
   await page.getByLabel('Username', { exact: true }).fill('careadmin');
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -133,7 +133,7 @@ test('duplicate resolution selects canonical identity by hospital-scoped name an
       expect(r.headers()['x-csrf-token']).toBeTruthy();
     }
   });
-  await page.getByRole('button', { name: 'Patient care', exact: true }).click();
+  await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill(names[0]);
   await page.getByRole('button', { name: 'Search patients', exact: true }).click();
   await page

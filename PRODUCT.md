@@ -7,7 +7,7 @@ web
 
 ## Stack
 React/TypeScript/Vite browser client, Fastify/TypeScript API and PostgreSQL.
-One authenticated application at `/`, with `/staff` as an alias. Published Docker
+A public product showcase at `/` and authenticated, routed staff workspaces at `/staff`. Published Docker
 images support dedicated hosted or hospital-local installations. Developer agent
 skills are local tools and are excluded from the product runtime.
 
@@ -28,8 +28,8 @@ Authenticated staff workspaces persist in PostgreSQL with hospital-scoped
 transactions, tenant policies, role permissions, MFA and attributable histories.
 Cash/manual transfers are recorded facts; no live payment-provider integration or
 automated diagnosis, dose calculation or treatment recommendation is supplied.
-English interface; English/Amharic record dates and Gregorian/Ethiopian display
-calendars. Date-entry controls remain explicitly Gregorian with Addis time.
+Bundled English/Amharic interface; independent English/Amharic record dates and
+Gregorian/Ethiopian display calendars. Date-entry controls remain explicitly Gregorian with Addis time.
 Use synthetic records for development. Actual deployment, contractual terms and
 hospital clinical/operational acceptance belong to the deploying organization.
 

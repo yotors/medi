@@ -1,3 +1,8 @@
+import { formatMinorCurrency } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { uiMessage } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '../../shared/registration';
@@ -21,10 +26,10 @@ import './billing.css';
 
 type DraftLine = { service: Service; quantity: number };
 type Pending = { key: string; command: BillingCommand; uncertain: boolean };
-const money = (value: number) => `${formatETB(value)} ETB`;
+const money = (value: number) => formatMinorCurrency(value);
 const when = (value: string) => hospitalDate(value);
 const failure = (error: unknown) =>
-  error instanceof Error ? error.message : 'Billing could not be loaded. Please retry.';
+  error instanceof Error ? error.message : t('billing:billing_could_not_be_loaded_please_retry');
 
 export default function BillingPanel({
   visitId,
@@ -194,7 +199,8 @@ export default function BillingPanel({
     setPricesStale(false);
   }
   function changeView(id: string | null, prepare = false) {
-    if (locked || (dirty && !window.confirm('Discard these unsaved billing drafts?'))) return;
+    if (locked || (dirty && !window.confirm(t('billing:discard_these_unsaved_billing_drafts'))))
+      return;
     clearDrafts();
     setDetail(null);
     setSelected(id);
@@ -245,11 +251,15 @@ export default function BillingPanel({
       setPricesStale(Boolean(failed));
       if (failed)
         setError(
-          'Some prices could not be refreshed. Successful updates are retained; retry before issuing.',
+          t(
+            'billing:some_prices_could_not_be_refreshed_successful_updates_are_retained_retry_before_issuing',
+          ),
         );
       else
         setNotice(
-          'Current catalog prices loaded. Review every line and the total again. Remove any unavailable service.',
+          t(
+            'billing:current_catalog_prices_loaded_review_every_line_and_the_total_again_remove_any_unavailable_serv',
+          ),
         );
     } catch (e) {
       if (mounted.current) {
@@ -299,10 +309,10 @@ export default function BillingPanel({
       setDetail(null);
       setNotice(
         result.receiptNumber
-          ? `Payment recorded. Receipt ${result.receiptNumber}.`
+          ? uiMessage('dynamic:payment_receipt', { number: result.receiptNumber })
           : submission.command.type === 'invoice.void'
-            ? 'Invoice voided. Its original lines and history are retained.'
-            : 'Invoice issued.',
+            ? t('billing:invoice_voided_its_original_lines_and_history_are_retained')
+            : t('billing:invoice_issued'),
       );
       setRefresh((n) => n + 1);
       onSaved();
@@ -338,120 +348,136 @@ export default function BillingPanel({
     if (locked || readsBlocked) return;
     const parsed = billingCommandSchema.safeParse(command);
     if (!parsed.success) {
-      setError('Check the amounts, quantities and required reference or reason before saving.');
+      setError(
+        uiMessage(
+          'billing:check_the_amounts_quantities_and_required_reference_or_reason_before_saving',
+        ),
+      );
       return;
     }
     void submit({ key: crypto.randomUUID(), command: parsed.data, uncertain: false });
   }
   const amountMinor = parseETB(amount.trim());
   return (
-    <section className="billing-workspace" aria-label="Visit billing">
+    <section className="billing-workspace" aria-label={t('billing:visit_billing')}>
       <div className="section-heading">
         <div>
           <h2 ref={title} tabIndex={-1}>
             {preparing
-              ? 'Prepare invoice'
+              ? t('billing:prepare_invoice')
               : invoice
-                ? `Invoice ${invoice.number}`
-                : 'Invoices and payments'}
+                ? t('dynamic:invoice_number', { number: invoice.number })
+                : t('billing:invoices_and_payments')}
           </h2>
           <p>ETB · Billing is separate from clinical completion.</p>
         </div>
         <div className="button-row">
           {(selected || preparing) && (
             <button disabled={locked} onClick={() => changeView(null)}>
-              All invoices
+              {' '}
+              {t('billing:all_invoices')}{' '}
             </button>
           )}
           {!preparing && list?.permissions.issue && (
             <button disabled={locked} onClick={() => changeView(null, true)}>
-              Prepare invoice
+              {' '}
+              {t('billing:prepare_invoice')}{' '}
             </button>
           )}
           <button
             disabled={locked || loading || detailLoading}
             onClick={() => setRefresh((n) => n + 1)}
           >
-            Refresh billing
+            {' '}
+            {t('billing:refresh_billing')}{' '}
           </button>
         </div>
       </div>
       {notice && (
         <p className="notice success" role="status">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {pending && (
         <div className="notice warning" role="status">
           <span>
             {busy
-              ? 'Saving billing record…'
-              : 'This save is not yet confirmed. Retry the same request to find or finish the original record.'}
+              ? t('billing:saving_billing_record')
+              : t(
+                  'billing:this_save_is_not_yet_confirmed_retry_the_same_request_to_find_or_finish_the_original_record',
+                )}
           </span>
           <button disabled={busy || disabled} onClick={() => void submit(pending)}>
-            {busy ? 'Saving…' : 'Retry billing save'}
+            {busy ? t('common:saving') : t('billing:retry_billing_save')}
           </button>
         </div>
       )}
       {readError && (
         <div className="notice error" role="alert">
-          <span>{readError} Saved records have not changed.</span>
+          <span>
+            {readError} {t('billing:saved_records_have_not_changed')}
+          </span>
           <button
             disabled={locked || loading || detailLoading}
             onClick={() => setRefresh((n) => n + 1)}
           >
-            Retry loading billing
+            {' '}
+            {t('billing:retry_loading_billing')}{' '}
           </button>
         </div>
       )}
       {loading && (
         <p role="status" className="empty-small">
-          Loading billing…
+          {' '}
+          {t('billing:loading_billing')}{' '}
         </p>
       )}
       {list && (
         <dl className="billing-summary">
           <div>
-            <dt>Financial status</dt>
+            <dt>{t('common:financial_status')}</dt>
             <dd>
               {list.summary.state === 'unbilled'
-                ? 'Not yet billed'
+                ? t('common:not_yet_billed')
                 : list.summary.state === 'settled'
-                  ? 'Settled'
-                  : 'Payment outstanding'}
+                  ? t('common:settled')
+                  : t('billing:payment_outstanding')}
             </dd>
           </div>
           <div>
-            <dt>Invoiced</dt>
+            <dt>{t('billing:invoiced')}</dt>
             <dd>{money(list.summary.totalMinor)}</dd>
           </div>
           <div>
-            <dt>Paid</dt>
+            <dt>{t('common:paid')}</dt>
             <dd>{money(list.summary.paidMinor)}</dd>
           </div>
           <div>
-            <dt>Balance</dt>
+            <dt>{t('common:balance')}</dt>
             <dd>{money(list.summary.balanceMinor)}</dd>
           </div>
         </dl>
       )}
       {dirty && (
         <div className="notice warning">
-          <span>Unsaved billing draft.</span>
+          <span>{t('billing:unsaved_billing_draft')}</span>
           <button disabled={locked} onClick={clearDrafts}>
-            Discard billing draft
+            {' '}
+            {t('billing:discard_billing_draft')}{' '}
           </button>
         </div>
       )}
       {preparing && (
         <>
           <div className="billing-catalog">
-            <label htmlFor="billing-service-search">Find a service by name or code</label>
+            <label htmlFor="billing-service-search">
+              {t('billing:find_a_service_by_name_or_code')}
+            </label>
             <input
               id="billing-service-search"
               type="search"
@@ -464,12 +490,13 @@ export default function BillingPanel({
               }}
             />
             {catalogLoading ? (
-              <p role="status">Loading services…</p>
+              <p role="status">{t('billing:loading_services')}</p>
             ) : catalogError ? (
               <div role="alert">
                 <p>{catalogError}</p>
                 <button disabled={locked} onClick={() => setRefresh((n) => n + 1)}>
-                  Retry loading services
+                  {' '}
+                  {t('billing:retry_loading_services')}{' '}
                 </button>
               </div>
             ) : (
@@ -492,26 +519,30 @@ export default function BillingPanel({
                               lines.length >= 20 ||
                               lines.some((line) => line.service.id === service.id)
                             }
-                            aria-label={`Add ${service.name} to invoice`}
+                            aria-label={t('dynamic:add_service', { name: service.name })}
                             onClick={() => {
                               setLines((previous) => [...previous, { service, quantity: 1 }]);
                               setConfirmed(false);
                             }}
                           >
-                            Add
+                            {' '}
+                            {t('common:add')}{' '}
                           </button>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <p className="empty-small">
-                      No active services match. An administrator can configure services and prices
-                      in Hospital settings.
+                      {' '}
+                      {t(
+                        'billing:no_active_services_match_an_administrator_can_configure_services_and_prices_in_hospital_setting',
+                      )}{' '}
                     </p>
                   )}
                   <div className="staff-pagination">
                     <p>
-                      Services · Page {catalog.page} of{' '}
+                      {' '}
+                      {t('billing:services_page')} {catalog.page} {t('common:of')}{' '}
                       {Math.max(1, Math.ceil(catalog.total / catalog.pageSize))}
                     </p>
                     <div className="button-row">
@@ -519,13 +550,15 @@ export default function BillingPanel({
                         disabled={locked || catalogPage === 1}
                         onClick={() => setCatalogPage((n) => n - 1)}
                       >
-                        Previous services
+                        {' '}
+                        {t('billing:previous_services')}{' '}
                       </button>
                       <button
                         disabled={locked || catalog.page * catalog.pageSize >= catalog.total}
                         onClick={() => setCatalogPage((n) => n + 1)}
                       >
-                        Next services
+                        {' '}
+                        {t('billing:next_services')}{' '}
                       </button>
                     </div>
                   </div>
@@ -547,14 +580,19 @@ export default function BillingPanel({
                 });
             }}
           >
-            <h3>Invoice lines</h3>
+            <h3>{t('billing:invoice_lines')}</h3>
             <p>
-              Review the selected service versions, quantities and total before issuing. Issued
-              lines cannot be edited.
+              {' '}
+              {t(
+                'billing:review_the_selected_service_versions_quantities_and_total_before_issuing_issued_lines_cannot_be',
+              )}{' '}
             </p>
             {!lines.length && (
               <p className="empty-small">
-                Add the services provided during this visit. No charges are added automatically.
+                {' '}
+                {t(
+                  'billing:add_the_services_provided_during_this_visit_no_charges_are_added_automatically',
+                )}{' '}
               </p>
             )}
             <ul className="billing-draft-lines">
@@ -563,18 +601,20 @@ export default function BillingPanel({
                   <div>
                     <strong>{line.service.name}</strong>
                     <small>
-                      {line.service.code} · Version {line.service.revision} ·{' '}
-                      {money(line.service.priceMinor)} each
+                      {line.service.code} {t('common:version')} {line.service.revision} ·{' '}
+                      {money(line.service.priceMinor)} {t('billing:each')}{' '}
                     </small>
                     {(!line.service.active || !line.service.departmentActive) && (
                       <p className="billing-invalid">
-                        Unavailable. Remove this service before issuing.
+                        {' '}
+                        {t('billing:unavailable_remove_this_service_before_issuing')}{' '}
                       </p>
                     )}
                   </div>
                   <div>
                     <label htmlFor={`qty-${line.service.id}`}>
-                      Quantity for {line.service.name}
+                      {' '}
+                      {t('billing:quantity_for')} {line.service.name}
                     </label>
                     <input
                       id={`qty-${line.service.id}`}
@@ -601,12 +641,12 @@ export default function BillingPanel({
                     line.service.priceMinor * line.quantity <= MAX_PRICE_MINOR &&
                     Number.isSafeInteger(line.service.priceMinor * line.quantity)
                       ? money(line.service.priceMinor * line.quantity)
-                      : 'Check quantity'}
+                      : t('billing:check_quantity')}
                   </span>
                   <button
                     type="button"
                     disabled={locked}
-                    aria-label={`Remove ${line.service.name}`}
+                    aria-label={t('dynamic:remove_service', { name: line.service.name })}
                     onClick={() => {
                       setLines((previous) =>
                         previous.filter((item) => item.service.id !== line.service.id),
@@ -614,7 +654,8 @@ export default function BillingPanel({
                       setConfirmed(false);
                     }}
                   >
-                    Remove
+                    {' '}
+                    {t('billing:remove')}{' '}
                   </button>
                 </li>
               ))}
@@ -622,22 +663,26 @@ export default function BillingPanel({
             {lines.length > 0 && (
               <>
                 <div className="invoice-total">
-                  <strong>Invoice total</strong>
+                  <strong>{t('billing:invoice_total')}</strong>
                   <strong>
                     {validTotal && Number.isSafeInteger(total) && total >= 0
                       ? money(total)
-                      : 'Total exceeds the permitted amount'}
+                      : t('billing:total_exceeds_the_permitted_amount')}
                   </strong>
                 </div>
                 <div className="button-row">
                   <button type="button" disabled={locked} onClick={() => void refreshPrices()}>
-                    {pricesLoading ? 'Loading prices…' : 'Refresh selected prices'}
+                    {pricesLoading
+                      ? t('billing:loading_prices')
+                      : t('billing:refresh_selected_prices')}
                   </button>
                 </div>
                 {pricesStale && (
                   <p className="notice warning">
-                    The catalog or visit changed. Refresh selected prices and review the invoice
-                    again.
+                    {' '}
+                    {t(
+                      'billing:the_catalog_or_visit_changed_refresh_selected_prices_and_review_the_invoice_again',
+                    )}{' '}
                   </p>
                 )}
                 <label className="billing-confirm">
@@ -646,8 +691,8 @@ export default function BillingPanel({
                     checked={confirmed}
                     disabled={locked || pricesStale}
                     onChange={(e) => setConfirmed(e.target.checked)}
-                  />
-                  I reviewed these invoice lines and the total.
+                  />{' '}
+                  {t('billing:i_reviewed_these_invoice_lines_and_the_total')}{' '}
                 </label>
                 <button
                   className="primary"
@@ -667,7 +712,8 @@ export default function BillingPanel({
                     )
                   }
                 >
-                  Issue invoice
+                  {' '}
+                  {t('billing:issue_invoice')}{' '}
                 </button>
               </>
             )}
@@ -677,15 +723,20 @@ export default function BillingPanel({
       {!preparing && !selected && list && !loading && (
         <>
           {list.invoices.length ? (
-            <div role="region" aria-label="Invoices" tabIndex={0} className="table-region">
+            <div
+              role="region"
+              aria-label={t('billing:invoices')}
+              tabIndex={0}
+              className="table-region"
+            >
               <table>
                 <thead>
                   <tr>
-                    <th>Invoice</th>
-                    <th>Status</th>
-                    <th>Total</th>
-                    <th>Paid</th>
-                    <th>Balance</th>
+                    <th>{t('billing:invoice')}</th>
+                    <th>{t('common:status')}</th>
+                    <th>{t('common:total')}</th>
+                    <th>{t('common:paid')}</th>
+                    <th>{t('common:balance')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -703,10 +754,10 @@ export default function BillingPanel({
                       </td>
                       <td>
                         {item.status === 'void'
-                          ? 'Void'
+                          ? t('billing:void')
                           : item.balanceMinor
-                            ? 'Payment outstanding'
-                            : 'Settled'}
+                            ? t('billing:payment_outstanding')
+                            : t('common:settled')}
                       </td>
                       <td>{money(item.totalMinor)}</td>
                       <td>{money(item.paidMinor)}</td>
@@ -718,46 +769,54 @@ export default function BillingPanel({
             </div>
           ) : (
             <p className="empty-small">
-              No invoices issued. Prepare an invoice from the hospital’s service catalog when the
-              charges are ready.
+              {' '}
+              {t(
+                'billing:no_invoices_issued_prepare_an_invoice_from_the_hospital_s_service_catalog_when_the_charges_are_',
+              )}{' '}
             </p>
           )}
           <div className="staff-pagination">
             <p>
-              {list.total} invoices · Page {list.page} of{' '}
+              {list.total} {t('billing:invoices_page')} {list.page} {t('common:of')}{' '}
               {Math.max(1, Math.ceil(list.total / list.pageSize))}
             </p>
             <div className="button-row">
               <button disabled={locked || page === 1} onClick={() => setPage((n) => n - 1)}>
-                Previous invoices
+                {' '}
+                {t('billing:previous_invoices')}{' '}
               </button>
               <button
                 disabled={locked || list.page * list.pageSize >= list.total}
                 onClick={() => setPage((n) => n + 1)}
               >
-                Next invoices
+                {' '}
+                {t('billing:next_invoices')}{' '}
               </button>
             </div>
           </div>
         </>
       )}
-      {detailLoading && <p role="status">Loading invoice…</p>}
+      {detailLoading && <p role="status">{t('billing:loading_invoice')}</p>}
       {!preparing && selected && detail && invoice && (
         <>
           <p>
-            Invoice ID: <code>{invoice.id}</code> · Revision {invoice.revision}
+            {' '}
+            {t('billing:invoice_id')} <code>{invoice.id}</code> {t('common:revision')}{' '}
+            {invoice.revision}
           </p>
           <button type="button" onClick={() => window.print()}>
-            Print factual invoice statement
+            {' '}
+            {t('billing:print_factual_invoice_statement')}{' '}
           </button>
           <p>
-            Issued {when(invoice.issuedAt)} by {invoice.actorName}.{' '}
+            {' '}
+            {t('billing:issued')} {when(invoice.issuedAt)} {t('billing:by')} {invoice.actorName}.{' '}
             <strong>
               {invoice.status === 'void'
-                ? 'Void'
+                ? t('billing:void')
                 : invoice.balanceMinor
-                  ? 'Payment outstanding'
-                  : 'Settled'}
+                  ? t('billing:payment_outstanding')
+                  : t('common:settled')}
             </strong>
           </p>
           <div className="invoice">
@@ -766,39 +825,39 @@ export default function BillingPanel({
                 <span>
                   {line.name}
                   <small>
-                    {line.code} · {line.quantity} × {money(line.unitPriceMinor)} · Version{' '}
-                    {line.serviceRevision}
+                    {line.code} · {line.quantity} × {money(line.unitPriceMinor)}{' '}
+                    {t('common:version')} {line.serviceRevision}
                   </small>
                 </span>
                 <strong>{money(line.totalMinor)}</strong>
               </div>
             ))}
             <div>
-              <span>Original charges</span>
+              <span>{t('billing:original_charges')}</span>
               <strong>{money(invoice.chargeMinor ?? invoice.totalMinor)}</strong>
             </div>
             <div>
-              <span>Credits and discounts</span>
+              <span>{t('billing:credits_and_discounts')}</span>
               <strong>{money(invoice.creditedMinor ?? 0)}</strong>
             </div>
             <div className="invoice-total">
-              <strong>Net invoice total</strong>
+              <strong>{t('billing:net_invoice_total')}</strong>
               <strong>{money(invoice.totalMinor)}</strong>
             </div>
             <div>
-              <span>Collected</span>
+              <span>{t('billing:collected')}</span>
               <strong>{money(invoice.collectedMinor ?? invoice.paidMinor)}</strong>
             </div>
             <div>
-              <span>Refunded or reversed</span>
+              <span>{t('billing:refunded_or_reversed')}</span>
               <strong>{money(invoice.refundedMinor ?? 0)}</strong>
             </div>
             <div>
-              <span>Net paid</span>
+              <span>{t('billing:net_paid')}</span>
               <strong>{money(invoice.paidMinor)}</strong>
             </div>
             <div>
-              <strong>Balance</strong>
+              <strong>{t('common:balance')}</strong>
               <strong>{money(invoice.balanceMinor)}</strong>
             </div>
           </div>
@@ -818,14 +877,16 @@ export default function BillingPanel({
                   });
               }}
             >
-              <h3>Record a payment</h3>
+              <h3>{t('billing:record_a_payment')}</h3>
               <p>
-                Record money already received. A manual transfer record does not verify or move
-                funds.
+                {' '}
+                {t(
+                  'billing:record_money_already_received_a_manual_transfer_record_does_not_verify_or_move_funds',
+                )}{' '}
               </p>
               <div className="billing-form-grid">
                 <div>
-                  <label htmlFor="billing-amount">Amount received (ETB)</label>
+                  <label htmlFor="billing-amount">{t('billing:amount_received_etb')}</label>
                   <input
                     id="billing-amount"
                     inputMode="decimal"
@@ -840,7 +901,7 @@ export default function BillingPanel({
                   />
                 </div>
                 <div>
-                  <label htmlFor="billing-method">Payment method</label>
+                  <label htmlFor="billing-method">{t('billing:payment_method')}</label>
                   <select
                     id="billing-method"
                     value={method}
@@ -850,15 +911,15 @@ export default function BillingPanel({
                       setPaymentConfirmed(false);
                     }}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="manual_transfer">Manual transfer</option>
+                    <option value="cash">{t('common:cash')}</option>
+                    <option value="manual_transfer">{t('common:manual_transfer')}</option>
                   </select>
                 </div>
                 <div>
                   <label htmlFor="billing-reference">
                     {method === 'manual_transfer'
-                      ? 'Transfer reference (required)'
-                      : 'Reference (optional)'}
+                      ? t('billing:transfer_reference_required')
+                      : t('billing:reference_optional')}
                   </label>
                   <input
                     id="billing-reference"
@@ -878,8 +939,9 @@ export default function BillingPanel({
                   amountMinor <= 0 ||
                   amountMinor > invoice.balanceMinor) && (
                   <p className="billing-invalid">
-                    Enter a positive amount up to {money(invoice.balanceMinor)}, with no more than
-                    two decimal places.
+                    {' '}
+                    {t('billing:enter_a_positive_amount_up_to')} {money(invoice.balanceMinor)}
+                    {t('billing:with_no_more_than_two_decimal_places')}{' '}
                   </p>
                 )}
               <label className="billing-confirm">
@@ -888,8 +950,8 @@ export default function BillingPanel({
                   disabled={locked}
                   checked={paymentConfirmed}
                   onChange={(e) => setPaymentConfirmed(e.target.checked)}
-                />
-                I confirm this money was received and the details are correct.
+                />{' '}
+                {t('billing:i_confirm_this_money_was_received_and_the_details_are_correct')}{' '}
               </label>
               <button
                 className="primary"
@@ -903,7 +965,8 @@ export default function BillingPanel({
                   (method === 'manual_transfer' && !reference.trim())
                 }
               >
-                Record payment
+                {' '}
+                {t('billing:record_payment')}{' '}
               </button>
             </form>
           )}
@@ -923,9 +986,9 @@ export default function BillingPanel({
                     });
                 }}
               >
-                <h3>Void unpaid invoice</h3>
-                <p>The invoice and reason remain in the financial history.</p>
-                <label htmlFor="billing-void-reason">Reason for voiding</label>
+                <h3>{t('billing:void_unpaid_invoice')}</h3>
+                <p>{t('billing:the_invoice_and_reason_remain_in_the_financial_history')}</p>
+                <label htmlFor="billing-void-reason">{t('billing:reason_for_voiding')}</label>
                 <input
                   id="billing-void-reason"
                   required
@@ -943,11 +1006,12 @@ export default function BillingPanel({
                     disabled={locked}
                     checked={voidConfirmed}
                     onChange={(e) => setVoidConfirmed(e.target.checked)}
-                  />
-                  I confirm this unpaid invoice should be voided.
+                  />{' '}
+                  {t('billing:i_confirm_this_unpaid_invoice_should_be_voided')}{' '}
                 </label>
                 <button disabled={locked || readsBlocked || !reason.trim() || !voidConfirmed}>
-                  Void invoice
+                  {' '}
+                  {t('billing:void_invoice')}{' '}
                 </button>
               </form>
             )}
@@ -955,53 +1019,63 @@ export default function BillingPanel({
             ((invoice.status === 'void' || invoice.paidMinor > 0) && reason)) && (
             <div className="notice warning">
               <p>
-                The invoice changed. These unsaved details cannot be recorded here. Copy them or
-                discard the billing draft explicitly.
+                {' '}
+                {t(
+                  'billing:the_invoice_changed_these_unsaved_details_cannot_be_recorded_here_copy_them_or_discard_the_bill',
+                )}{' '}
               </p>
               {(invoice.status === 'void' || invoice.balanceMinor === 0) &&
                 (amount || reference) && (
                   <p className="preserve">
-                    Unsaved payment: {amount || 'No amount'} ETB ·{' '}
-                    {method === 'cash' ? 'Cash' : 'Manual transfer'} · {reference || 'No reference'}
+                    {' '}
+                    {t('billing:unsaved_payment')} {amount || t('billing:no_amount')} ETB ·{' '}
+                    {method === 'cash' ? t('common:cash') : t('common:manual_transfer')} ·{' '}
+                    {reference || t('billing:no_reference')}
                   </p>
                 )}
               {(invoice.status === 'void' || invoice.paidMinor > 0) && reason && (
-                <p className="preserve">Unsaved void reason: {reason}</p>
+                <p className="preserve">
+                  {t('billing:unsaved_void_reason')} {reason}
+                </p>
               )}
             </div>
           )}
-          <h3>Financial adjustments</h3>
+          <h3>{t('billing:financial_adjustments')}</h3>
           {!detail.adjustments?.length && (
-            <p>No credits, discounts, refunds or reversals recorded.</p>
+            <p>{t('billing:no_credits_discounts_refunds_or_reversals_recorded')}</p>
           )}
           <ul className="timeline">
             {detail.adjustments?.map((entry) => (
               <li key={entry.id}>
                 <strong>
-                  {entry.kind} · {money(entry.amountMinor)}
+                  {presentationLabel(entry.kind)} · {money(entry.amountMinor)}
                 </strong>
                 <small>
-                  {when(entry.at)} · {entry.actorName} · Authority {entry.authorityId}
+                  {when(entry.at)} · {entry.actorName} {t('billing:authority')} {entry.authorityId}
                 </small>
                 <p>
                   ID {entry.id}
-                  {entry.paymentId ? ` · Original payment ${entry.paymentId}` : ''}
+                  {entry.paymentId ? t('dynamic:original_payment', { id: entry.paymentId }) : ''}
                 </p>
                 <p>{entry.reason}</p>
-                {entry.reference && <p>Manual transfer reference: {entry.reference}</p>}
+                {entry.reference && (
+                  <p>
+                    {t('billing:manual_transfer_reference')} {entry.reference}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
-          <h3>Financial history</h3>
+          <h3>{t('billing:financial_history')}</h3>
           <ul className="timeline">
             {detail.events.map((event) => (
               <li key={event.id}>
                 <strong>
                   {event.action === 'invoice.issue'
-                    ? 'Invoice issued'
+                    ? t('billing:invoice_issued_2')
                     : event.action === 'invoice.void'
-                      ? 'Invoice voided'
-                      : 'Payment recorded'}
+                      ? t('billing:invoice_voided')
+                      : t('billing:payment_recorded')}
                 </strong>
                 <small>
                   {when(event.createdAt)} · {event.actorName}
@@ -1010,16 +1084,23 @@ export default function BillingPanel({
                 {event.payment && (
                   <div>
                     <p>
-                      <strong>Receipt {event.payment.receiptNumber}</strong>
+                      <strong>
+                        {t('billing:receipt')} {event.payment.receiptNumber}
+                      </strong>
                       <small>
-                        Payment ID {event.payment.id} · Receipt ID {event.payment.receiptId} · Actor{' '}
-                        {event.payment.actorId}
+                        {' '}
+                        {t('billing:payment_id')} {event.payment.id} {t('billing:receipt_id')}{' '}
+                        {event.payment.receiptId} {t('billing:actor')} {event.payment.actorId}
                       </small>{' '}
                       · {money(event.payment.amountMinor)} ·{' '}
-                      {event.payment.method === 'cash' ? 'Cash' : 'Manual transfer'}
+                      {event.payment.method === 'cash'
+                        ? t('common:cash')
+                        : t('common:manual_transfer')}
                     </p>
                     {event.payment.reference && (
-                      <p className="preserve">Reference: {event.payment.reference}</p>
+                      <p className="preserve">
+                        {t('billing:reference')} {event.payment.reference}
+                      </p>
                     )}
                   </div>
                 )}
@@ -1028,7 +1109,8 @@ export default function BillingPanel({
           </ul>
           <div className="staff-pagination">
             <p>
-              History · Page {detail.page} of{' '}
+              {' '}
+              {t('billing:history_page')} {detail.page} {t('common:of')}{' '}
               {Math.max(1, Math.ceil(detail.total / detail.pageSize))}
             </p>
             <div className="button-row">
@@ -1036,13 +1118,15 @@ export default function BillingPanel({
                 disabled={locked || detailLoading || historyPage === 1}
                 onClick={() => setHistoryPage((n) => n - 1)}
               >
-                Previous billing history
+                {' '}
+                {t('billing:previous_billing_history')}{' '}
               </button>
               <button
                 disabled={locked || detailLoading || detail.page * detail.pageSize >= detail.total}
                 onClick={() => setHistoryPage((n) => n + 1)}
               >
-                Next billing history
+                {' '}
+                {t('billing:next_billing_history')}{' '}
               </button>
             </div>
           </div>

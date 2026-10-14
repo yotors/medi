@@ -102,7 +102,7 @@ async function activate(control: Locator) {
   await control.press('Enter');
 }
 async function signIn(page: Page, role: StaffRole = 'admin', code = hospitalCode) {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(code);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -288,7 +288,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await activate(
     page
       .getByRole('navigation', { name: 'Staff workspace' })
-      .getByRole('button', { name: 'Outpatient visits', exact: true }),
+      .getByRole('link', { name: 'Outpatient visits', exact: true }),
   );
   await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
   await activate(page.getByRole('button', { name, exact: true }));
@@ -361,8 +361,8 @@ test('lost check-in and note responses retain one request and block navigation',
   await expect(
     page.getByRole('button', { name: 'Back to visit queue', exact: true }),
   ).toBeDisabled();
-  await page.getByRole('link', { name: 'Workspace home' }).click();
-  await expect(page).toHaveURL(/\/staff$/);
+  await page.getByRole('link', { name: 'Inside the workspace' }).click();
+  await expect(page).toHaveURL(/\/staff\/visits$/);
   await page.getByRole('button', { name: 'Retry visit save', exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
   expect(requests[0]).toEqual(requests[1]);
@@ -440,7 +440,7 @@ test('department handoffs complete a visit with permitted API sections and priva
       await signIn(page, 'clinician');
       await page
         .getByRole('navigation', { name: 'Staff workspace' })
-        .getByRole('button', { name: 'Outpatient visits', exact: true })
+        .getByRole('link', { name: 'Outpatient visits', exact: true })
         .click();
       await page.getByRole('button', { name, exact: true }).click();
       await section(page, 'Diagnostics');
@@ -464,7 +464,7 @@ test('department handoffs complete a visit with permitted API sections and priva
     expect(JSON.stringify(queue)).not.toContain('Private synthetic consultation text.');
     await page
       .getByRole('navigation', { name: 'Staff workspace' })
-      .getByRole('button', { name: 'Outpatient visits', exact: true })
+      .getByRole('link', { name: 'Outpatient visits', exact: true })
       .click();
     await page.getByLabel('Visit status', { exact: true }).selectOption('all');
     await page.getByRole('button', { name, exact: true }).click();
@@ -616,7 +616,7 @@ test('non-stale rejections explain the failure and an active-visit conflict leav
   const name = await checkIn(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Patient directory', exact: true })
+    .getByRole('link', { name: 'Patient directory', exact: true })
     .click();
   await page
     .getByRole('row')
@@ -713,8 +713,8 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
     page.getByRole('button', { name: 'Back to visit queue', exact: true }),
     page
       .getByRole('navigation', { name: 'Staff workspace' })
-      .getByRole('button', { name: 'Patient directory', exact: true }),
-    page.getByRole('link', { name: 'Workspace home' }),
+      .getByRole('link', { name: 'Patient directory', exact: true }),
+    page.getByRole('link', { name: 'Inside the workspace' }),
     page.getByRole('button', { name: 'Sign out', exact: true }),
   ]) {
     page.once('dialog', (dialog) => dialog.dismiss());
@@ -727,11 +727,11 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
   page.once('dialog', (dialog) => dialog.accept());
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Patient directory', exact: true })
+    .getByRole('link', { name: 'Patient directory', exact: true })
     .click();
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByRole('button', { name, exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
@@ -755,7 +755,7 @@ test('visit pagination changes rows and search and status reset the second page'
     await seedVisit(page, `${prefix} ${String(index).padStart(2, '0')}`);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   await page.getByLabel('Search visits by patient or record number').fill(prefix);
   await page.getByRole('button', { name: 'Search visits', exact: true }).click();
@@ -878,7 +878,7 @@ test('private queue name contact and MRN stay in exact bodies while authenticate
   ).toBe(201);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
-    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .getByRole('link', { name: 'Outpatient visits', exact: true })
     .click();
   const urls: string[] = [];
   page.on('request', (request) => urls.push(decodeURIComponent(request.url())));

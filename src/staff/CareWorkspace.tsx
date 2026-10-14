@@ -1,3 +1,7 @@
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { useEffect, useState } from 'react';
 import type { Session, RegisteredPatient, PatientPage } from '../../shared/registration';
 import {
@@ -28,41 +32,142 @@ type Field = {
 };
 const fields: Record<CareKind, Field[]> = {
   profile: [
-    { key: 'name', label: 'Patient name' },
-    { key: 'contact', label: 'Contact', optional: true },
-    { key: 'dateOfBirth', label: 'Date of birth', type: 'date', optional: true },
-    { key: 'sex', label: 'Sex', options: ['unknown', 'female', 'male', 'other'] },
-    { key: 'address', label: 'Address', optional: true },
-    { key: 'emergencyContact', label: 'Emergency contact', optional: true },
-    { key: 'identity', label: 'Identity verification', options: ['provisional', 'verified'] },
+    {
+      key: 'name',
+      get label() {
+        return t('care:patient_name');
+      },
+    },
+    {
+      key: 'contact',
+      get label() {
+        return t('common:contact');
+      },
+      optional: true,
+    },
+    {
+      key: 'dateOfBirth',
+      get label() {
+        return t('care:date_of_birth');
+      },
+      type: 'date',
+      optional: true,
+    },
+    {
+      key: 'sex',
+      get label() {
+        return t('care:sex');
+      },
+      options: ['unknown', 'female', 'male', 'other'],
+    },
+    {
+      key: 'address',
+      get label() {
+        return t('care:address');
+      },
+      optional: true,
+    },
+    {
+      key: 'emergencyContact',
+      get label() {
+        return t('care:emergency_contact');
+      },
+      optional: true,
+    },
+    {
+      key: 'identity',
+      get label() {
+        return t('care:identity_verification');
+      },
+      options: ['provisional', 'verified'],
+    },
     {
       key: 'allergiesStatus',
-      label: 'Allergy information',
+      get label() {
+        return t('care:allergy_information');
+      },
       options: ['not-entered', 'none-known', 'entered'],
     },
-    { key: 'allergies', label: 'Entered allergies', type: 'textarea', optional: true },
+    {
+      key: 'allergies',
+      get label() {
+        return t('care:entered_allergies');
+      },
+      type: 'textarea',
+      optional: true,
+    },
   ],
   appointment: [
-    { key: 'clinicianId', label: 'Responsible clinician', source: 'clinician' },
-    { key: 'service', label: 'Service' },
-    { key: 'facility', label: 'Facility' },
-    { key: 'start', label: 'Start', type: 'datetime-local' },
-    { key: 'end', label: 'End', type: 'datetime-local' },
+    {
+      key: 'clinicianId',
+      get label() {
+        return t('care:responsible_clinician');
+      },
+      source: 'clinician',
+    },
+    {
+      key: 'service',
+      get label() {
+        return t('common:service');
+      },
+    },
+    {
+      key: 'facility',
+      get label() {
+        return t('care:facility');
+      },
+    },
+    {
+      key: 'start',
+      get label() {
+        return t('care:start');
+      },
+      type: 'datetime-local',
+    },
+    {
+      key: 'end',
+      get label() {
+        return t('care:end');
+      },
+      type: 'datetime-local',
+    },
     {
       key: 'status',
-      label: 'Appointment status',
+      get label() {
+        return t('care:appointment_status');
+      },
       options: ['booked', 'arrived', 'cancelled', 'no-show'],
     },
   ],
   triage: [
-    { key: 'encounterId', label: 'Outpatient encounter ID (optional)', optional: true },
+    {
+      key: 'encounterId',
+      get label() {
+        return t('care:outpatient_encounter_id_optional');
+      },
+      optional: true,
+    },
     {
       key: 'urgency',
-      label: 'Staff selected urgency',
+      get label() {
+        return t('care:staff_selected_urgency');
+      },
       options: ['routine', 'urgent', 'emergency'],
     },
-    { key: 'symptoms', label: 'Symptoms entered by staff', type: 'textarea' },
-    { key: 'eventAt', label: 'Observed at', type: 'datetime-local' },
+    {
+      key: 'symptoms',
+      get label() {
+        return t('care:symptoms_entered_by_staff');
+      },
+      type: 'textarea',
+    },
+    {
+      key: 'eventAt',
+      get label() {
+        return t('care:observed_at');
+      },
+      type: 'datetime-local',
+    },
     ...(
       [
         ['temperatureC', 'Temperature (°C)'],
@@ -76,80 +181,298 @@ const fields: Record<CareKind, Field[]> = {
     ).map(([key, label]) => ({ key, label, type: 'number' as const, optional: true })),
   ],
   ward: [
-    { key: 'name', label: 'Ward name' },
-    { key: 'facility', label: 'Facility' },
-    { key: 'active', label: 'Active ward', type: 'checkbox' },
+    {
+      key: 'name',
+      get label() {
+        return t('care:ward_name');
+      },
+    },
+    {
+      key: 'facility',
+      get label() {
+        return t('care:facility');
+      },
+    },
+    {
+      key: 'active',
+      get label() {
+        return t('care:active_ward');
+      },
+      type: 'checkbox',
+    },
   ],
   bed: [
-    { key: 'wardId', label: 'Ward', source: 'ward' },
-    { key: 'name', label: 'Bed name' },
-    { key: 'active', label: 'Active bed', type: 'checkbox' },
+    {
+      key: 'wardId',
+      get label() {
+        return t('care:ward');
+      },
+      source: 'ward',
+    },
+    {
+      key: 'name',
+      get label() {
+        return t('care:bed_name');
+      },
+    },
+    {
+      key: 'active',
+      get label() {
+        return t('care:active_bed');
+      },
+      type: 'checkbox',
+    },
   ],
   admission: [
-    { key: 'bedId', label: 'Bed', source: 'bed' },
-    { key: 'clinicianId', label: 'Responsible clinician', source: 'clinician' },
-    { key: 'reason', label: 'Admission reason', type: 'textarea' },
+    {
+      key: 'bedId',
+      get label() {
+        return t('care:bed');
+      },
+      source: 'bed',
+    },
+    {
+      key: 'clinicianId',
+      get label() {
+        return t('care:responsible_clinician');
+      },
+      source: 'clinician',
+    },
+    {
+      key: 'reason',
+      get label() {
+        return t('care:admission_reason');
+      },
+      type: 'textarea',
+    },
     {
       key: 'eventAt',
-      label: 'Admission / transfer / discharge event time',
+      get label() {
+        return t('care:admission_transfer_discharge_event_time');
+      },
       type: 'datetime-local',
     },
-    { key: 'status', label: 'Admission status', options: ['active', 'discharged'] },
-    { key: 'summary', label: 'Signed discharge summary', type: 'textarea', optional: true },
-    { key: 'disposition', label: 'Discharge disposition', optional: true },
+    {
+      key: 'status',
+      get label() {
+        return t('care:admission_status');
+      },
+      options: ['active', 'discharged'],
+    },
+    {
+      key: 'summary',
+      get label() {
+        return t('care:signed_discharge_summary');
+      },
+      type: 'textarea',
+      optional: true,
+    },
+    {
+      key: 'disposition',
+      get label() {
+        return t('care:discharge_disposition');
+      },
+      optional: true,
+    },
     {
       key: 'followUp',
-      label: 'Discharge follow-up instructions',
+      get label() {
+        return t('care:discharge_follow_up_instructions');
+      },
       type: 'textarea',
       optional: true,
     },
   ],
   nursing: [
-    { key: 'admissionId', label: 'Admission', source: 'admission' },
-    { key: 'eventAt', label: 'Observation event time', type: 'datetime-local' },
-    { key: 'shift', label: 'Shift' },
-    { key: 'observation', label: 'Signed nursing observation / note', type: 'textarea' },
+    {
+      key: 'admissionId',
+      get label() {
+        return t('care:admission');
+      },
+      source: 'admission',
+    },
+    {
+      key: 'eventAt',
+      get label() {
+        return t('care:observation_event_time');
+      },
+      type: 'datetime-local',
+    },
+    {
+      key: 'shift',
+      get label() {
+        return t('care:shift');
+      },
+    },
+    {
+      key: 'observation',
+      get label() {
+        return t('care:signed_nursing_observation_note');
+      },
+      type: 'textarea',
+    },
   ],
   medication: [
-    { key: 'admissionId', label: 'Admission', source: 'admission' },
-    { key: 'drug', label: 'Product / drug entered by clinician' },
-    { key: 'dose', label: 'Entered dose', type: 'number' },
-    { key: 'unit', label: 'Dose unit' },
-    { key: 'route', label: 'Route' },
-    { key: 'scheduledAt', label: 'Scheduled administration time', type: 'datetime-local' },
-    { key: 'instructions', label: 'Administration / stop instructions', type: 'textarea' },
+    {
+      key: 'admissionId',
+      get label() {
+        return t('care:admission');
+      },
+      source: 'admission',
+    },
+    {
+      key: 'drug',
+      get label() {
+        return t('care:product_drug_entered_by_clinician');
+      },
+    },
+    {
+      key: 'dose',
+      get label() {
+        return t('care:entered_dose');
+      },
+      type: 'number',
+    },
+    {
+      key: 'unit',
+      get label() {
+        return t('care:dose_unit');
+      },
+    },
+    {
+      key: 'route',
+      get label() {
+        return t('care:route');
+      },
+    },
+    {
+      key: 'scheduledAt',
+      get label() {
+        return t('care:scheduled_administration_time');
+      },
+      type: 'datetime-local',
+    },
+    {
+      key: 'instructions',
+      get label() {
+        return t('care:administration_stop_instructions');
+      },
+      type: 'textarea',
+    },
     {
       key: 'status',
-      label: 'Medication task status',
+      get label() {
+        return t('care:medication_task_status');
+      },
       options: ['ordered', 'stopped', 'cancelled'],
     },
   ],
   administration: [
-    { key: 'medicationId', label: 'Medication administration task', source: 'medication' },
-    { key: 'eventAt', label: 'Actual administration event time', type: 'datetime-local' },
-    { key: 'outcome', label: 'Accountable outcome', options: ['given', 'withheld', 'refused'] },
-    { key: 'reason', label: 'Outcome reason', type: 'textarea', optional: true },
+    {
+      key: 'medicationId',
+      get label() {
+        return t('care:medication_administration_task');
+      },
+      source: 'medication',
+    },
+    {
+      key: 'eventAt',
+      get label() {
+        return t('care:actual_administration_event_time');
+      },
+      type: 'datetime-local',
+    },
+    {
+      key: 'outcome',
+      get label() {
+        return t('care:accountable_outcome');
+      },
+      options: ['given', 'withheld', 'refused'],
+    },
+    {
+      key: 'reason',
+      get label() {
+        return t('care:outcome_reason');
+      },
+      type: 'textarea',
+      optional: true,
+    },
   ],
   referral: [
-    { key: 'type', label: 'Referral / follow-up', options: ['referral', 'follow-up'] },
-    { key: 'destination', label: 'Service / destination' },
-    { key: 'reason', label: 'Referral reason', type: 'textarea' },
-    { key: 'dueAt', label: 'Due at', type: 'datetime-local' },
-    { key: 'ownerId', label: 'Assigned owner', source: 'staff' },
-    { key: 'status', label: 'Follow-up status', options: ['pending', 'completed', 'cancelled'] },
+    {
+      key: 'type',
+      get label() {
+        return t('care:referral_follow_up');
+      },
+      options: ['referral', 'follow-up'],
+    },
+    {
+      key: 'destination',
+      get label() {
+        return t('care:service_destination');
+      },
+    },
+    {
+      key: 'reason',
+      get label() {
+        return t('care:referral_reason');
+      },
+      type: 'textarea',
+    },
+    {
+      key: 'dueAt',
+      get label() {
+        return t('care:due_at');
+      },
+      type: 'datetime-local',
+    },
+    {
+      key: 'ownerId',
+      get label() {
+        return t('care:assigned_owner');
+      },
+      source: 'staff',
+    },
+    {
+      key: 'status',
+      get label() {
+        return t('care:follow_up_status');
+      },
+      options: ['pending', 'completed', 'cancelled'],
+    },
   ],
 };
 const labels: Record<CareKind, string> = {
-  profile: 'Patient profile',
-  appointment: 'Appointments',
-  triage: 'Triage',
-  ward: 'Wards',
-  bed: 'Beds',
-  admission: 'Admissions',
-  nursing: 'Nursing notes',
-  medication: 'Medication orders',
-  administration: 'Administration outcomes',
-  referral: 'Referrals & follow-up',
+  get profile() {
+    return t('labels:patient_profile');
+  },
+  get appointment() {
+    return t('labels:appointments');
+  },
+  get triage() {
+    return t('labels:triage');
+  },
+  get ward() {
+    return t('labels:wards');
+  },
+  get bed() {
+    return t('labels:beds');
+  },
+  get admission() {
+    return t('labels:admissions');
+  },
+  get nursing() {
+    return t('labels:nursing_notes');
+  },
+  get medication() {
+    return t('labels:medication_orders');
+  },
+  get administration() {
+    return t('labels:administration_outcomes');
+  },
+  get referral() {
+    return t('labels:referrals_follow_up');
+  },
 };
 const title = (r: CareRecord) => {
   const d = r.data as Record<string, unknown>;
@@ -159,10 +482,10 @@ const title = (r: CareRecord) => {
       d.destination ??
       d.service ??
       d.shift ??
-      d.urgency ??
-      d.outcome ??
+      (d.urgency ? presentationLabel(d.urgency) : undefined) ??
+      (d.outcome ? presentationLabel(d.outcome) : undefined) ??
       d.reason ??
-      'Care record',
+      t('care:care_record'),
   );
 };
 export function CareWorkspace({
@@ -209,7 +532,9 @@ export function CareWorkspace({
         status: string;
       }[];
     } | null>(null);
-  const [options, setOptions] = useState<Record<string, { id: string; label: string }[]>>({}),
+  const [options, setOptions] = useState<
+      Record<string, { id: string; label: string; status?: string; identifier?: string }[]>
+    >({}),
     [staff, setStaff] = useState<{ id: string; name: string; role: string }[]>([]),
     [loading, setLoading] = useState(false),
     [saving, setSaving] = useState(false),
@@ -332,7 +657,9 @@ export function CareWorkspace({
           source,
           r.records.map((v) => ({
             id: v.id,
-            label: `${title(v)} · ${(v.data as Record<string, unknown>).status ?? 'configured'} · ${v.id.slice(0, 8)}`,
+            label: title(v),
+            status: String((v.data as Record<string, unknown>).status ?? 'configured'),
+            identifier: v.id.slice(0, 8),
           })),
         ] as const;
       }),
@@ -348,7 +675,7 @@ export function CareWorkspace({
     };
   }, [kind, patient?.id]);
   function depart() {
-    return !dirty || (!pending && window.confirm('Discard the unsaved care draft?'));
+    return !dirty || (!pending && window.confirm(t('care:discard_the_unsaved_care_draft')));
   }
   function newRecord(r: CareRecord | null) {
     if (!depart()) return;
@@ -383,7 +710,7 @@ export function CareWorkspace({
         }
         if (f.type === 'datetime-local') {
           if (!data[f.key]) {
-            setError(`Enter ${f.label.toLowerCase()}.`);
+            setError(uiMessage('dynamic:enter_field', { label: f.label }));
             return;
           }
           data[f.key] = careTimePayload(String(data[f.key]));
@@ -395,11 +722,11 @@ export function CareWorkspace({
         data.visitId = (selected.data as Record<string, unknown>).visitId;
       const parsed = careSchemas[kind].safeParse(data);
       if (!parsed.success) {
-        setError(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '));
+        setError(uiMessage('errors:INVALID_REQUEST'));
         return;
       }
       if (!reason.trim()) {
-        setError('Enter a reason for this entry or amendment.');
+        setError(uiMessage('care:enter_a_reason_for_this_entry_or_amendment'));
         return;
       }
       task = {
@@ -427,7 +754,7 @@ export function CareWorkspace({
       setDraft(null);
       setSelected(null);
       setReason('');
-      setMessage('Saved with your name and recorded time.');
+      setMessage(t('common:saved_named'));
       await reload();
     } catch (e) {
       setError((e as Error).message);
@@ -472,7 +799,11 @@ export function CareWorkspace({
   }
   async function merge() {
     if (!patient || !canonicalPatient || !reason.trim()) {
-      setError('Select the canonical patient by name and MRN, and enter a resolution reason.');
+      setError(
+        uiMessage(
+          'care:select_the_canonical_patient_by_name_and_mrn_and_enter_a_resolution_reason',
+        ),
+      );
       return;
     }
     const task = pending ?? {
@@ -494,7 +825,7 @@ export function CareWorkspace({
       setMergePatients([]);
       setMergeSearched(false);
       setReason('');
-      setMessage('Identities linked. Original records and history are retained.');
+      setMessage(t('common:identities_linked'));
       setIdentity(await request(`/api/care/patients/${patient.id}/identity`));
     } catch (e) {
       setError((e as Error).message);
@@ -508,10 +839,10 @@ export function CareWorkspace({
     <section className="care-workspace" aria-labelledby="care-heading">
       <header className="care-heading">
         <div>
-          <h1 id="care-heading">Patient care</h1>
-          <p>Identity, scheduled visits and accountable inpatient care.</p>
+          <h1 id="care-heading">{t('care:patient_care')}</h1>
+          <p>{t('care:identity_scheduled_visits_and_accountable_inpatient_care')}</p>
         </div>
-        <p className="care-zone">Gregorian dates · Africa/Addis_Ababa (UTC+03:00)</p>
+        <p className="care-zone">{t('care:gregorian_dates_africa_addis_ababa_utc_03_00')}</p>
       </header>
       <form
         className="care-search"
@@ -534,16 +865,17 @@ export function CareWorkspace({
         }}
       >
         <label>
-          Find a patient
+          {' '}
+          {t('care:find_a_patient')}{' '}
           <input
             value={query}
             maxLength={100}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name, MRN or contact"
+            placeholder={t('care:name_mrn_or_contact')}
             disabled={saving || !!pending}
           />
         </label>
-        <button disabled={saving || !!pending}>Search patients</button>
+        <button disabled={saving || !!pending}>{t('common:search_patients')}</button>
       </form>
       {patients.length > 0 && (
         <ul className="care-patients">
@@ -576,24 +908,29 @@ export function CareWorkspace({
         <div className="care-identity">
           <strong>{patient.name}</strong>
           <span>
-            MRN {patient.recordNumber} · Original registration {displayTime(patient.createdAt)}
+            MRN {patient.recordNumber} {t('care:original_registration')}{' '}
+            {displayTime(patient.createdAt)}
           </span>
           {identity && identity.identities.length > 1 && (
             <details>
               <summary>
-                Linked identities ({identity.identities.length}) — histories retain original MRNs
+                {' '}
+                {t('care:linked_identities')}
+                {identity.identities.length}
+                {t('care:histories_retain_original_mrns')}{' '}
               </summary>
               {identity.identities.map((p) => (
                 <p key={p.id}>
                   {p.name} · {p.recordNumber}
-                  {p.canonicalId ? ' · duplicate linked to canonical identity' : ''} {p.linkReason}
+                  {p.canonicalId ? t('care:duplicate_linked_to_canonical_identity') : ''}{' '}
+                  {p.linkReason}
                 </p>
               ))}
             </details>
           )}
         </div>
       )}
-      <nav className="care-tabs" aria-label="Care workflows">
+      <nav className="care-tabs" aria-label={t('care:care_workflows')}>
         {careKinds
           .filter((k) => canReadCare(role, k))
           .map((k) => (
@@ -622,24 +959,29 @@ export function CareWorkspace({
       </nav>
       {error && (
         <p className="care-error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {message && (
         <p role="status" className="care-success">
-          {message}
+          {interfaceMessage(message)}
         </p>
       )}
       {!!pending && (
         <div className="care-retry">
-          <p>The save result is unresolved. Your original details and retry key are preserved.</p>
+          <p>
+            {t(
+              'care:the_save_result_is_unresolved_your_original_details_and_retry_key_are_preserved',
+            )}
+          </p>
           <button
             disabled={saving}
             onClick={() =>
               pending.path === '/api/care/identity-links' ? void merge() : void save()
             }
           >
-            Retry the same save
+            {' '}
+            {t('care:retry_the_same_save')}{' '}
           </button>
         </div>
       )}
@@ -648,7 +990,7 @@ export function CareWorkspace({
         {canWriteCare(role, kind, { status: 'active' }) &&
           (patient || ['ward', 'bed'].includes(kind)) && (
             <button disabled={saving || !!pending} onClick={() => newRecord(null)}>
-              {kind === 'profile' ? 'Enter patient profile' : 'New entry'}
+              {kind === 'profile' ? t('care:enter_patient_profile') : t('care:new_entry')}
             </button>
           )}
         {kind === 'appointment' && (
@@ -661,46 +1003,54 @@ export function CareWorkspace({
                 setToday(e.target.checked);
                 setPage(1);
               }}
-            />
-            Today only (Addis Ababa)
+            />{' '}
+            {t('care:today_only_addis_ababa')}{' '}
           </label>
         )}
       </div>
       {kind === 'triage' && (
         <p>
-          Enter observed values and select urgency yourself. Numeric limits protect data
-          representation and do not determine urgency or treatment.
+          {' '}
+          {t(
+            'care:enter_observed_values_and_select_urgency_yourself_numeric_limits_protect_data_representation_an',
+          )}{' '}
         </p>
       )}
       {kind === 'medication' && (
         <p>
-          One order creates one administration task. Enter the prescribed dose, unit, route and
-          scheduled time explicitly.
+          {' '}
+          {t(
+            'care:one_order_creates_one_administration_task_enter_the_prescribed_dose_unit_route_and_scheduled_ti',
+          )}{' '}
         </p>
       )}
       {!patient && !['ward', 'bed'].includes(kind) ? (
-        <p className="care-empty">Find and select a patient to view their care records.</p>
+        <p className="care-empty">
+          {t('care:find_and_select_a_patient_to_view_their_care_records')}
+        </p>
       ) : loading ? (
-        <p role="status">Loading care records…</p>
+        <p role="status">{t('care:loading_care_records')}</p>
       ) : records.length === 0 ? (
         <p className="care-empty">
-          No {labels[kind].toLowerCase()} recorded. Authorized staff can create an entry.
+          {' '}
+          {t('common:no')} {labels[kind].toLowerCase()}{' '}
+          {t('care:recorded_authorized_staff_can_create_an_entry')}{' '}
         </p>
       ) : (
         <div
           className="care-table"
           role="region"
-          aria-label={`${labels[kind]} records`}
+          aria-label={t('dynamic:records_label', { label: labels[kind] })}
           tabIndex={0}
         >
           <table>
             <thead>
               <tr>
-                <th>Record / original identity</th>
-                <th>Status</th>
-                <th>Event & recorded time</th>
-                <th>Author</th>
-                <th>Actions</th>
+                <th>{t('care:record_original_identity')}</th>
+                <th>{t('common:status')}</th>
+                <th>{t('care:event_recorded_time')}</th>
+                <th>{t('care:author')}</th>
+                <th>{t('common:actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -715,24 +1065,36 @@ export function CareWorkspace({
                           {r.patient.name} · {r.patient.recordNumber}
                         </span>
                       )}
-                      <small>Revision {r.revision}</small>
+                      <small>
+                        {t('common:revision_2')} {r.revision}
+                      </small>
                       <details>
-                        <summary>View entered details</summary>
+                        <summary>{t('care:view_entered_details')}</summary>
                         <dl>
                           {Object.entries(d).map(([key, v]) => (
                             <div key={key}>
                               <dt>{fields[kind].find((f) => f.key === key)?.label ?? key}</dt>
-                              <dd>{String(v ?? 'Not entered')}</dd>
+                              <dd>
+                                {[
+                                  'status',
+                                  'sex',
+                                  'identity',
+                                  'allergiesStatus',
+                                  'urgency',
+                                ].includes(key)
+                                  ? presentationLabel(v)
+                                  : String(v ?? t('care:not_entered'))}
+                              </dd>
                             </div>
                           ))}
                         </dl>
                       </details>
                     </td>
                     <td>
-                      {String(
+                      {presentationLabel(
                         d.status ??
                           d.identity ??
-                          d.outcome ??
+                          (d.outcome ? presentationLabel(d.outcome) : undefined) ??
                           (d.active === undefined ? 'recorded' : d.active ? 'active' : 'inactive'),
                       )}
                     </td>
@@ -742,20 +1104,23 @@ export function CareWorkspace({
                           {displayTime(String(d.eventAt ?? d.start ?? d.scheduledAt ?? d.dueAt))}
                         </span>
                       ) : null}
-                      <small>Recorded {displayTime(r.updatedAt)}</small>
+                      <small>
+                        {t('common:recorded')} {displayTime(r.updatedAt)}
+                      </small>
                     </td>
                     <td>{r.actorName}</td>
                     <td>
                       {canWriteCare(role, r.kind, d) && (
                         <button disabled={saving || !!pending} onClick={() => newRecord(r)}>
                           {['nursing', 'triage', 'administration'].includes(kind)
-                            ? 'Amend'
-                            : 'Update'}
+                            ? t('care:amend')
+                            : t('care:update')}
                         </button>
                       )}
                       {!(role === 'receptionist' && kind === 'admission') && (
                         <button disabled={saving || !!pending} onClick={() => void history(r)}>
-                          History
+                          {' '}
+                          {t('common:history')}{' '}
                         </button>
                       )}
                     </td>
@@ -769,16 +1134,19 @@ export function CareWorkspace({
       {total > 25 && (
         <div className="care-pagination">
           <button disabled={page === 1 || saving || !!pending} onClick={() => setPage(page - 1)}>
-            Previous
+            {' '}
+            {t('common:previous')}{' '}
           </button>
           <span>
-            Page {page} · {total} records
+            {' '}
+            {t('common:page')} {page} · {total} {t('care:records')}{' '}
           </span>
           <button
             disabled={page * 25 >= total || saving || !!pending}
             onClick={() => setPage(page + 1)}
           >
-            Next
+            {' '}
+            {t('common:next')}{' '}
           </button>
         </div>
       )}
@@ -791,9 +1159,12 @@ export function CareWorkspace({
           }}
         >
           <h3>
-            {selected ? 'Amend / update' : 'Create'} {labels[kind].toLowerCase()}
+            {selected ? t('care:amend_update') : t('care:create')} {labels[kind].toLowerCase()}
           </h3>
-          <p>Signed as {session.user.displayName}. Earlier versions remain in the history.</p>
+          <p>
+            {t('care:signed_as')} {session.user.displayName}
+            {t('care:earlier_versions_remain_in_the_history')}
+          </p>
           <fieldset disabled={saving || !!pending}>
             <div className="care-fields">
               {fields[kind]
@@ -819,10 +1190,10 @@ export function CareWorkspace({
                   return (
                     <div className="care-field" key={f.key}>
                       <label htmlFor={`care-${kind}-${f.key}`}>
-                        {f.label}
-                        {f.type === 'datetime-local' ? ' (Addis Ababa, Gregorian)' : ''}
-                        {f.type === 'date' ? ' (Gregorian)' : ''}
-                        {f.optional ? ' (optional)' : ''}
+                        {interfaceMessage(f.label)}
+                        {f.type === 'datetime-local' ? t('care:addis_ababa_gregorian') : ''}
+                        {f.type === 'date' ? t('care:gregorian') : ''}
+                        {f.optional ? t('common:optional') : ''}
                       </label>
                       {f.options || opts ? (
                         <select
@@ -836,11 +1207,17 @@ export function CareWorkspace({
                           }
                           onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
                         >
-                          {opts && <option value="">Select {f.label.toLowerCase()}</option>}
+                          {opts && (
+                            <option value="">
+                              {t('common:select')} {f.label.toLowerCase()}
+                            </option>
+                          )}
                           {opts
                             ? opts.map((o) => (
                                 <option key={o.id} value={o.id}>
                                   {o.label}
+                                  {'status' in o && <> · {presentationLabel(o.status)}</>}
+                                  {'identifier' in o && <> · {o.identifier}</>}
                                 </option>
                               ))
                             : f
@@ -852,7 +1229,11 @@ export function CareWorkspace({
                                       o === 'discharged'
                                     ),
                                 )
-                                .map((o) => <option key={o}>{o}</option>)}
+                                .map((o) => (
+                                  <option key={o} value={o}>
+                                    {presentationLabel(o)}
+                                  </option>
+                                ))}
                         </select>
                       ) : f.type === 'textarea' ? (
                         <textarea
@@ -908,7 +1289,9 @@ export function CareWorkspace({
                   );
                 })}
               <div className="care-field care-reason">
-                <label htmlFor="care-entry-reason">Entry / correction / cancellation reason</label>
+                <label htmlFor="care-entry-reason">
+                  {t('care:entry_correction_cancellation_reason')}
+                </label>
                 <textarea
                   id="care-entry-reason"
                   required
@@ -919,7 +1302,7 @@ export function CareWorkspace({
               </div>
             </div>
             <div className="care-actions">
-              <button type="submit">{saving ? 'Saving…' : 'Sign and save'}</button>
+              <button type="submit">{saving ? t('common:saving') : t('care:sign_and_save')}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -930,7 +1313,8 @@ export function CareWorkspace({
                   }
                 }}
               >
-                Discard draft
+                {' '}
+                {t('common:discard_draft')}{' '}
               </button>
             </div>
           </fieldset>
@@ -938,11 +1322,14 @@ export function CareWorkspace({
       )}
       {events.length > 0 && (
         <section className="care-history">
-          <h3>Immutable history · {selected && title(selected)}</h3>
+          <h3>
+            {t('care:immutable_history')} {selected && title(selected)}
+          </h3>
           {events.map((e) => (
             <article key={e.id}>
               <h4>
-                Revision {e.revision} · {e.actorName}
+                {' '}
+                {t('common:revision_2')} {e.revision} · {e.actorName}
               </h4>
               <p>
                 {displayTime(e.createdAt)} · {e.reason}
@@ -951,7 +1338,11 @@ export function CareWorkspace({
                 {Object.entries(e.data as Record<string, unknown>).map(([key, v]) => (
                   <div key={key}>
                     <dt>{fields[selected!.kind].find((f) => f.key === key)?.label ?? key}</dt>
-                    <dd>{String(v ?? 'Not entered')}</dd>
+                    <dd>
+                      {['status', 'sex', 'identity', 'allergiesStatus', 'urgency'].includes(key)
+                        ? presentationLabel(v)
+                        : String(v ?? t('care:not_entered'))}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -963,14 +1354,18 @@ export function CareWorkspace({
                 disabled={historyPage === 1}
                 onClick={() => void history(selected!, historyPage - 1)}
               >
-                Newer history
+                {' '}
+                {t('common:newer_history')}{' '}
               </button>
-              <span>History page {historyPage}</span>
+              <span>
+                {t('care:history_page_2')} {historyPage}
+              </span>
               <button
                 disabled={historyPage * 25 >= historyTotal}
                 onClick={() => void history(selected!, historyPage + 1)}
               >
-                Older history
+                {' '}
+                {t('common:older_history')}{' '}
               </button>
             </div>
           )}
@@ -978,25 +1373,31 @@ export function CareWorkspace({
       )}
       {kind === 'profile' && identity && identity.visits.length > 0 && (
         <details className="care-longitudinal">
-          <summary>Longitudinal outpatient history ({identity.visits.length}, latest 100)</summary>
+          <summary>
+            {t('care:longitudinal_outpatient_history')}
+            {identity.visits.length}
+            {t('care:latest_100')}
+          </summary>
           {identity.visits.map((v) => (
             <p key={v.id}>
-              {v.name} · {v.recordNumber} · {v.status} · {displayTime(v.openedAt)} · Encounter{' '}
-              {v.id}
+              {v.name} · {v.recordNumber} · {presentationLabel(v.status)} ·{' '}
+              {displayTime(v.openedAt)} {t('care:encounter')} {v.id}
             </p>
           ))}
         </details>
       )}
       {kind === 'profile' && role === 'admin' && patient && !draft && (
         <details className="care-merge">
-          <summary>Resolve a duplicate patient identity</summary>
+          <summary>{t('care:resolve_a_duplicate_patient_identity')}</summary>
           <p>
-            Duplicate:{' '}
+            {' '}
+            {t('care:duplicate')}{' '}
             <strong>
               {patient.name} · {patient.recordNumber}
-            </strong>
-            . Select the verified canonical patient. Both original identities and histories remain
-            intact.
+            </strong>{' '}
+            {t(
+              'care:select_the_verified_canonical_patient_both_original_identities_and_histories_remain_intact',
+            )}{' '}
           </p>
           <form
             onSubmit={(e) => {
@@ -1006,7 +1407,8 @@ export function CareWorkspace({
           >
             <div className="care-field">
               <label htmlFor="care-canonical-search">
-                Find canonical patient by name, MRN or contact
+                {' '}
+                {t('care:find_canonical_patient_by_name_mrn_or_contact')}{' '}
               </label>
               <input
                 id="care-canonical-search"
@@ -1022,12 +1424,15 @@ export function CareWorkspace({
               />
             </div>
             <button disabled={saving || !!pending || mergeLoading || !mergeQuery.trim()}>
-              Search canonical patients
+              {' '}
+              {t('care:search_canonical_patients')}{' '}
             </button>
           </form>
-          {mergeLoading && <p role="status">Searching this hospital’s patients…</p>}
+          {mergeLoading && <p role="status">{t('care:searching_this_hospital_s_patients')}</p>}
           {mergeSearched && !mergeLoading && mergePatients.length === 0 && (
-            <p>No other matching patient found in this hospital. Refine the name or MRN.</p>
+            <p>
+              {t('care:no_other_matching_patient_found_in_this_hospital_refine_the_name_or_mrn')}
+            </p>
           )}
           <ul className="care-patients">
             {mergePatients.map((p) => (
@@ -1037,7 +1442,8 @@ export function CareWorkspace({
                   aria-pressed={canonicalPatient?.id === p.id}
                   onClick={() => setCanonicalPatient(p)}
                 >
-                  Select canonical: {p.name} · {p.recordNumber}
+                  {' '}
+                  {t('care:select_canonical')} {p.name} · {p.recordNumber}
                 </button>
               </li>
             ))}
@@ -1048,27 +1454,32 @@ export function CareWorkspace({
                 disabled={mergePage === 1 || saving || !!pending || mergeLoading}
                 onClick={() => void searchCanonical(mergePage - 1)}
               >
-                Previous canonical matches
+                {' '}
+                {t('care:previous_canonical_matches')}{' '}
               </button>
-              <span>Page {mergePage}</span>
+              <span>
+                {t('common:page')} {mergePage}
+              </span>
               <button
                 disabled={mergePage * 25 >= mergeTotal || saving || !!pending || mergeLoading}
                 onClick={() => void searchCanonical(mergePage + 1)}
               >
-                Next canonical matches
+                {' '}
+                {t('care:next_canonical_matches')}{' '}
               </button>
             </div>
           )}
           {canonicalPatient && (
             <p role="status">
-              Canonical:{' '}
+              {' '}
+              {t('care:canonical')}{' '}
               <strong>
                 {canonicalPatient.name} · {canonicalPatient.recordNumber}
               </strong>
             </p>
           )}
           <div className="care-field">
-            <label htmlFor="care-resolution-reason">Resolution reason</label>
+            <label htmlFor="care-resolution-reason">{t('care:resolution_reason')}</label>
             <textarea
               id="care-resolution-reason"
               maxLength={1000}
@@ -1081,7 +1492,8 @@ export function CareWorkspace({
             disabled={saving || !!pending || !canonicalPatient || !reason.trim()}
             onClick={() => void merge()}
           >
-            Link duplicate to canonical identity
+            {' '}
+            {t('care:link_duplicate_to_canonical_identity')}{' '}
           </button>
         </details>
       )}

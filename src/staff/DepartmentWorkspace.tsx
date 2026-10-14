@@ -1,3 +1,9 @@
+import { choiceLabel } from './choice-label';
+import { fieldLabel } from '../i18n';
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { hospitalDate } from './date';
 import type { Session } from '../../shared/registration';
@@ -34,164 +40,234 @@ const field = (
   label: string,
   kind?: Field['kind'],
   extra: Partial<Field> = {},
-): Field => ({ key, label, kind, ...extra });
+): Field => ({
+  key,
+  get label() {
+    return t(label);
+  },
+  kind,
+  ...extra,
+});
 const hidden = (key: string, optional = false) => field(key, '', 'hidden', { optional });
-const target = [field('id', 'Record', 'select', { source: 'current' }), hidden('expectedRevision')],
-  reason = field('reason', 'Reason', 'textarea');
+const target = [
+    field('id', 'labels:record', 'select', { source: 'current' }),
+    hidden('expectedRevision'),
+  ],
+  reason = field('reason', 'labels:reason', 'textarea');
 const specs: Record<string, { label: string; category: string; fields: Field[]; admin?: boolean }> =
   {
     'lab.catalog': {
-      label: 'Configure laboratory test',
+      get label() {
+        return t('departments:configure_laboratory_test');
+      },
       category: 'catalog',
       admin: true,
       fields: [
-        field('code', 'Test code'),
-        field('name', 'Test name'),
-        field('specimen', 'Specimen type'),
-        field('unit', 'Result unit'),
-        field('criticalLow', 'Critical lower threshold', 'number', { optional: true }),
-        field('criticalHigh', 'Critical upper threshold', 'number', { optional: true }),
+        field('code', 'labels:test_code'),
+        field('name', 'labels:test_name'),
+        field('specimen', 'labels:specimen_type'),
+        field('unit', 'labels:result_unit'),
+        field('criticalLow', 'labels:critical_lower_threshold', 'number', { optional: true }),
+        field('criticalHigh', 'labels:critical_upper_threshold', 'number', { optional: true }),
       ],
     },
     'lab.register': {
-      label: 'Register specimen',
+      get label() {
+        return t('departments:register_specimen');
+      },
       category: 'specimen',
       fields: [
-        field('orderId', 'Patient investigation order', 'select', { source: 'orders' }),
+        field('orderId', 'labels:patient_investigation_order', 'select', { source: 'orders' }),
         hidden('visitId'),
-        field('catalogId', 'Matching configured laboratory test', 'select', { source: 'catalog' }),
-        field('accession', 'Accession'),
-        field('clinicianId', 'Responsible clinician', 'select', { source: 'clinicians' }),
+        field('catalogId', 'labels:matching_configured_laboratory_test', 'select', {
+          source: 'catalog',
+        }),
+        field('accession', 'labels:accession'),
+        field('clinicianId', 'labels:responsible_clinician', 'select', { source: 'clinicians' }),
       ],
     },
-    'lab.collect': { label: 'Record collection', category: 'specimen', fields: target },
-    'lab.receive': { label: 'Record specimen receipt', category: 'specimen', fields: target },
-    'lab.reject': { label: 'Reject specimen', category: 'specimen', fields: [...target, reason] },
-    'lab.recollect': {
-      label: 'Request recollection',
+    'lab.collect': {
+      get label() {
+        return t('common:record_collection');
+      },
       category: 'specimen',
-      fields: [...target, field('accession', 'New accession'), reason],
+      fields: target,
+    },
+    'lab.receive': {
+      get label() {
+        return t('departments:record_specimen_receipt');
+      },
+      category: 'specimen',
+      fields: target,
+    },
+    'lab.reject': {
+      get label() {
+        return t('departments:reject_specimen');
+      },
+      category: 'specimen',
+      fields: [...target, reason],
+    },
+    'lab.recollect': {
+      get label() {
+        return t('departments:request_recollection');
+      },
+      category: 'specimen',
+      fields: [...target, field('accession', 'labels:new_accession'), reason],
     },
     'lab.result': {
-      label: 'Enter or correct result',
+      get label() {
+        return t('departments:enter_or_correct_result');
+      },
       category: 'specimen',
       fields: [
         ...target,
-        field('value', 'Result', 'textarea'),
-        field('numericValue', 'Numeric value', 'number', { optional: true }),
-        field('critical', 'Flag critical result', 'checkbox'),
-        field('reason', 'Correction reason (required for subsequent versions)', 'textarea', {
+        field('value', 'labels:result', 'textarea'),
+        field('numericValue', 'labels:numeric_value', 'number', { optional: true }),
+        field('critical', 'labels:flag_critical_result', 'checkbox'),
+        field('reason', 'labels:correction_reason_required_for_subsequent_versions', 'textarea', {
           optional: true,
         }),
       ],
     },
-    'lab.release': { label: 'Release result', category: 'specimen', fields: target },
+    'lab.release': {
+      get label() {
+        return t('common:release_result');
+      },
+      category: 'specimen',
+      fields: target,
+    },
     'lab.acknowledge': {
-      label: 'Acknowledge accountable result review',
+      get label() {
+        return t('departments:acknowledge_accountable_result_review');
+      },
       category: 'specimen',
       fields: [
         ...target,
-        field('delivery', 'Delivery record', 'textarea'),
-        field('acknowledgement', 'Acknowledgement and action', 'textarea'),
+        field('delivery', 'labels:delivery_record', 'textarea'),
+        field('acknowledgement', 'labels:acknowledgement_and_action', 'textarea'),
       ],
     },
     'supplier.create': {
-      label: 'Add supplier',
+      get label() {
+        return t('departments:add_supplier');
+      },
       category: 'supplier',
-      fields: [field('name', 'Supplier name'), field('contact', 'Supplier contact')],
+      fields: [field('name', 'labels:supplier_name'), field('contact', 'labels:supplier_contact')],
     },
     'purchase.create': {
-      label: 'Request purchase',
+      get label() {
+        return t('departments:request_purchase');
+      },
       category: 'purchase',
-      fields: [field('supplierId', 'Supplier', 'select', { source: 'supplier' })],
+      fields: [field('supplierId', 'labels:supplier', 'select', { source: 'supplier' })],
     },
     'purchase.approve': {
-      label: 'Approve purchase',
+      get label() {
+        return t('departments:approve_purchase');
+      },
       category: 'purchase',
       admin: true,
       fields: [...target, reason],
     },
     'purchase.receive': {
-      label: 'Receive purchase line',
+      get label() {
+        return t('departments:receive_purchase_line');
+      },
       category: 'purchase',
       fields: [
         ...target,
-        field('line', 'Purchase line', 'select'),
-        field('batchId', 'Stock batch', 'select', { source: 'batches' }),
+        field('line', 'labels:purchase_line', 'select'),
+        field('batchId', 'labels:stock_batch', 'select', { source: 'batches' }),
         hidden('expectedBatchRevision'),
-        field('quantity', 'Packs received', 'number'),
-        field('authorization', 'Responsible controlled-item authorization', 'textarea', {
+        field('quantity', 'labels:packs_received', 'number'),
+        field('authorization', 'labels:responsible_controlled_item_authorization', 'textarea', {
           optional: true,
         }),
       ],
     },
     'purchase.cancel': {
-      label: 'Cancel unreceived remainder',
+      get label() {
+        return t('departments:cancel_unreceived_remainder');
+      },
       category: 'purchase',
       fields: [...target, reason],
     },
     'return.record': {
-      label: 'Record patient return into quarantine',
+      get label() {
+        return t('departments:record_patient_return_into_quarantine');
+      },
       category: 'return',
       fields: [
-        field('dispenseId', 'Patient dispense', 'select', { source: 'dispenses' }),
-        field('quantity', 'Returned stock units', 'number'),
+        field('dispenseId', 'labels:patient_dispense', 'select', { source: 'dispenses' }),
+        field('quantity', 'labels:returned_stock_units', 'number'),
         reason,
       ],
     },
     'return.quality': {
-      label: 'Authorize return quality decision',
+      get label() {
+        return t('departments:authorize_return_quality_decision');
+      },
       category: 'return',
       admin: true,
       fields: [
         ...target,
-        field('qualityBatch', 'Original stock batch', 'select', {
+        field('qualityBatch', 'labels:original_stock_batch', 'select', {
           source: 'batches',
           virtual: true,
         }),
         hidden('expectedBatchRevision'),
-        field('decision', 'Quality decision', 'select', { choices: ['restock', 'destroy'] }),
+        field('decision', 'labels:quality_decision', 'select', { choices: ['restock', 'destroy'] }),
         reason,
       ],
     },
     'invoice.credit': {
-      label: 'Approve invoice credit or discount',
+      get label() {
+        return t('departments:approve_invoice_credit_or_discount');
+      },
       category: 'finance',
       admin: true,
       fields: [
-        field('invoiceId', 'Patient invoice', 'select', { source: 'invoices' }),
+        field('invoiceId', 'labels:patient_invoice', 'select', { source: 'invoices' }),
         hidden('expectedRevision'),
-        field('amountMinor', 'Amount (ETB)', 'money'),
-        field('kind', 'Adjustment', 'select', { choices: ['credit', 'discount'] }),
+        field('amountMinor', 'labels:amount_etb', 'money'),
+        field('kind', 'labels:adjustment', 'select', { choices: ['credit', 'discount'] }),
         reason,
       ],
     },
     'payment.refund': {
-      label: 'Approve recorded refund or reversal',
+      get label() {
+        return t('departments:approve_recorded_refund_or_reversal');
+      },
       category: 'finance',
       admin: true,
       fields: [
-        field('invoiceId', 'Patient invoice', 'select', { source: 'invoices' }),
+        field('invoiceId', 'labels:patient_invoice', 'select', { source: 'invoices' }),
         hidden('expectedRevision'),
-        field('paymentId', 'Original receipt', 'select', { source: 'payments' }),
-        field('amountMinor', 'Amount (ETB)', 'money'),
-        field('kind', 'Adjustment', 'select', { choices: ['refund', 'reversal'] }),
-        field('method', 'Recorded outcome', 'select', { choices: ['cash', 'manual_transfer'] }),
-        field('reference', 'Manual transfer reference', 'textarea', { optional: true }),
+        field('paymentId', 'labels:original_receipt', 'select', { source: 'payments' }),
+        field('amountMinor', 'labels:amount_etb', 'money'),
+        field('kind', 'labels:adjustment', 'select', { choices: ['refund', 'reversal'] }),
+        field('method', 'labels:recorded_outcome', 'select', {
+          choices: ['cash', 'manual_transfer'],
+        }),
+        field('reference', 'labels:manual_transfer_reference', 'textarea', { optional: true }),
         reason,
       ],
     },
     'shift.open': {
-      label: 'Open cashier shift',
+      get label() {
+        return t('departments:open_cashier_shift');
+      },
       category: 'shift',
-      fields: [field('openingMinor', 'Opening cash (ETB)', 'money')],
+      fields: [field('openingMinor', 'labels:opening_cash_etb', 'money')],
     },
     'shift.allocate': {
-      label: 'Allocate cash entry to shift',
+      get label() {
+        return t('departments:allocate_cash_entry_to_shift');
+      },
       category: 'shift',
       fields: [
         ...target,
-        field('cashEntry', 'Cash receipt or refund', 'select', {
+        field('cashEntry', 'labels:cash_receipt_or_refund', 'select', {
           source: 'cashEntries',
           virtual: true,
         }),
@@ -200,46 +276,72 @@ const specs: Record<string, { label: string; category: string; fields: Field[]; 
       ],
     },
     'shift.close': {
-      label: 'Sign and close shift',
+      get label() {
+        return t('departments:sign_and_close_shift');
+      },
       category: 'shift',
       fields: [
         ...target,
-        field('countedMinor', 'Counted cash (ETB)', 'money'),
-        field('signature', 'Closing signature'),
+        field('countedMinor', 'labels:counted_cash_etb', 'money'),
+        field('signature', 'labels:closing_signature'),
       ],
     },
     'shift.review': {
-      label: 'Manager review of closed shift',
+      get label() {
+        return t('departments:manager_review_of_closed_shift');
+      },
       category: 'shift',
       admin: true,
       fields: [...target, reason],
     },
   };
 const labels: Record<string, string> = {
-  catalog: 'Laboratory catalog',
-  specimen: 'Laboratory specimens',
-  supplier: 'Suppliers',
-  purchase: 'Purchase orders',
-  return: 'Patient returns',
-  finance: 'Financial adjustments',
-  shift: 'Cashier shifts',
+  get catalog() {
+    return t('labels:laboratory_catalog');
+  },
+  get specimen() {
+    return t('labels:laboratory_specimens');
+  },
+  get supplier() {
+    return t('labels:suppliers');
+  },
+  get purchase() {
+    return t('labels:purchase_orders');
+  },
+  get return() {
+    return t('labels:patient_returns');
+  },
+  get finance() {
+    return t('labels:financial_adjustments');
+  },
+  get shift() {
+    return t('labels:cashier_shifts');
+  },
 };
 const recordLabels: Record<string, string> = {
-  specimen: 'Specimen',
-  purchase: 'Purchase order',
-  return: 'Patient return',
-  shift: 'Cashier shift',
+  get specimen() {
+    return t('labels:specimen');
+  },
+  get purchase() {
+    return t('labels:purchase_order');
+  },
+  get return() {
+    return t('labels:patient_return');
+  },
+  get shift() {
+    return t('labels:cashier_shift');
+  },
 };
 const title = (r: DepartmentRecord) =>
   r.data.name ??
   r.data.accession ??
   (r.kind === 'finance'
-    ? `${r.data.kind} · ${formatETB(r.data.amountMinor ?? r.data.amount_minor)} ETB`
+    ? `${presentationLabel(r.data.kind)} · ${formatETB(r.data.amountMinor ?? r.data.amount_minor)} ETB`
     : r.kind === 'shift'
-      ? `Cashier shift · ${formatETB(r.data.openingMinor)} ETB opening`
+      ? t('dynamic:cashier_opening', { amount: formatETB(r.data.openingMinor) })
       : r.kind === 'return'
-        ? `Patient return · ${r.data.quantity} units`
-        : `Purchase · ${r.data.lines?.length ?? 0} lines`);
+        ? t('dynamic:patient_return_quantity', { count: r.data.quantity })
+        : t('dynamic:purchase_lines_count', { count: r.data.lines?.length ?? 0 }));
 function Facts({
   data,
   showIdentity = false,
@@ -258,12 +360,16 @@ function Facts({
         )
         .map(([k, v]) => (
           <div key={k}>
-            <dt>{k.replace(/([A-Z])/g, ' $1').replaceAll('_', ' ')}</dt>
+            <dt>{fieldLabel(k)}</dt>
             <dd>
               {v !== null && typeof v === 'object' ? (
                 <Facts data={v} showIdentity={showIdentity} />
               ) : k.toLowerCase().includes('minor') && typeof v === 'number' ? (
                 `${v < 0 ? '-' : ''}${formatETB(Math.abs(v))} ETB`
+              ) : ['status', 'kind', 'method', 'decision', 'calendar', 'locale'].includes(k) ? (
+                presentationLabel(v)
+              ) : typeof v === 'boolean' ? (
+                t(v ? 'labels:enum.yes' : 'labels:enum.no')
               ) : (
                 String(v ?? '—')
               )}
@@ -272,10 +378,10 @@ function Facts({
         ))}
       {!showIdentity && identities.length > 0 && (
         <div>
-          <dt>Identity history</dt>
+          <dt>{t('departments:identity_history')}</dt>
           <dd>
             <details>
-              <summary>Recorded identifiers</summary>
+              <summary>{t('departments:recorded_identifiers')}</summary>
               <Facts data={Object.fromEntries(identities)} showIdentity />
             </details>
           </dd>
@@ -283,11 +389,13 @@ function Facts({
       )}
       {data.lines && (
         <div>
-          <dt>Purchase lines</dt>
+          <dt>{t('departments:purchase_lines')}</dt>
           <dd>
             {data.lines.map((l: any, i: number) => (
               <section key={i}>
-                <strong>Line {i + 1}</strong>
+                <strong>
+                  {t('departments:line')} {i + 1}
+                </strong>
                 <Facts data={l} showIdentity={showIdentity} />
               </section>
             ))}
@@ -296,12 +404,13 @@ function Facts({
       )}
       {data.versions && (
         <div>
-          <dt>Retained result versions</dt>
+          <dt>{t('departments:retained_result_versions')}</dt>
           <dd>
             {data.versions.map((v: any, i: number) => (
               <section key={i}>
                 <strong>
-                  Version{' '}
+                  {' '}
+                  {t('departments:version_2')}{' '}
                   {(data.versionCount ?? data.versions.length) - data.versions.length + i + 1}
                 </strong>
                 <Facts data={v} showIdentity={showIdentity} />
@@ -387,7 +496,7 @@ export default function DepartmentWorkspace({
   }, [dirty, locked]);
   const fail = (e: unknown) => {
     if (e instanceof ApiError && [401, 403].includes(e.status)) onSessionError(e);
-    setError(e instanceof Error ? e.message : 'Could not load department records.');
+    setError(e instanceof Error ? e.message : t('departments:could_not_load_department_records'));
   };
   useEffect(() => {
     let active = true;
@@ -442,7 +551,7 @@ export default function DepartmentWorkspace({
       setPending(null);
       setDraft({});
       setChoices({});
-      setNotice('Saved accountable record.');
+      setNotice(uiMessage('departments:saved_accountable_record'));
       setRefresh((n) => n + 1);
     } catch (e) {
       if (!alive.current || identity.current !== actor) return;
@@ -483,7 +592,7 @@ export default function DepartmentWorkspace({
     }
     const parsed = departmentCommandSchema.safeParse(values);
     if (!parsed.success) {
-      setError(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+      setError(uiMessage('errors:INVALID_REQUEST'));
       return;
     }
     void send(parsed.data);
@@ -516,7 +625,7 @@ export default function DepartmentWorkspace({
   }
   function navigate(next: string) {
     if (locked) return;
-    if (dirty && !window.confirm('Discard unsaved department details?')) return;
+    if (dirty && !window.confirm(t('departments:discard_unsaved_department_details'))) return;
     setDraft({});
     setChoices({});
     setCategory(next);
@@ -530,7 +639,8 @@ export default function DepartmentWorkspace({
     if (f.key === 'catalogId' && choices.orderId?.data?.catalogId)
       return (
         <p key={f.key}>
-          Configured test: <strong>{choices.orderId.data.test}</strong>
+          {' '}
+          {t('departments:configured_test')} <strong>{choices.orderId.data.test}</strong>
         </p>
       );
     const ident = `department-${f.key}`,
@@ -552,18 +662,20 @@ export default function DepartmentWorkspace({
         context.recordId = draft.id;
         unavailable = !draft.id;
       }
-      const label = f.source === 'current' ? (recordLabels[category] ?? 'Record') : f.label;
+      const label =
+        f.source === 'current' ? (recordLabels[category] ?? t('departments:record')) : f.label;
       return (
         <div key={f.key}>
           {unavailable ? (
             <p>
-              Select{' '}
+              {' '}
+              {t('common:select')}{' '}
               {f.source === 'payments'
-                ? 'a patient invoice'
+                ? t('departments:a_patient_invoice')
                 : action === 'return.quality'
-                  ? 'a patient return'
-                  : 'a purchase order and line'}{' '}
-              to load {label.toLowerCase()} choices.
+                  ? t('departments:a_patient_return')
+                  : t('departments:a_purchase_order_and_line')}{' '}
+              {t('departments:to_load')} {label.toLowerCase()} {t('departments:choices_3')}{' '}
             </p>
           ) : (
             <DepartmentPicker
@@ -572,7 +684,7 @@ export default function DepartmentWorkspace({
               kind={kind}
               session={session}
               value={value}
-              selectedLabel={choices[f.key]?.label}
+              selectedLabel={choices[f.key] ? choiceLabel(choices[f.key]) : undefined}
               context={context}
               disabled={locked}
               required={!f.optional}
@@ -589,7 +701,7 @@ export default function DepartmentWorkspace({
         names = choices.id?.data?.productNames ?? [];
       return (
         <div key={f.key}>
-          <label htmlFor={ident}>{f.label}</label>
+          <label htmlFor={ident}>{interfaceMessage(f.label)}</label>
           <select
             id={ident}
             required
@@ -605,11 +717,12 @@ export default function DepartmentWorkspace({
               }));
             }}
           >
-            <option value="">Choose an ordered product line</option>
+            <option value="">{t('departments:choose_an_ordered_product_line')}</option>
             {lines.map((l: any, i: number) => (
               <option key={i} value={i}>
-                {names[i] ?? `Line ${i + 1}`} · {l.quantity - l.received} packs remaining ·{' '}
-                {l.packSize} {l.unit} per pack
+                {names[i] ?? t('dynamic:line_number', { number: i + 1 })} ·{' '}
+                {l.quantity - l.received} {t('departments:packs_remaining')} {l.packSize} {l.unit}{' '}
+                {t('departments:per_pack')}{' '}
               </option>
             ))}
           </select>
@@ -619,8 +732,8 @@ export default function DepartmentWorkspace({
     return (
       <div key={f.key} className="department-control">
         <label htmlFor={ident}>
-          {f.label}
-          {f.optional ? ' (optional)' : ''}
+          {interfaceMessage(f.label)}
+          {f.optional ? t('common:optional') : ''}
         </label>
         {f.kind === 'select' ? (
           <select
@@ -631,7 +744,9 @@ export default function DepartmentWorkspace({
             onChange={(e) => change(f.key, e.target.value)}
           >
             {f.choices?.map((c) => (
-              <option key={c}>{c}</option>
+              <option key={c} value={c}>
+                {presentationLabel(c)}
+              </option>
             ))}
           </select>
         ) : f.kind === 'textarea' ? (
@@ -672,15 +787,16 @@ export default function DepartmentWorkspace({
     <section className="department-workspace">
       <header className="section-heading">
         <div>
-          <p className="eyebrow">Department operations</p>
+          <p className="eyebrow">{t('departments:department_operations')}</p>
           <h1>{labels[category]}</h1>
-          <p>Accountable handoffs, retained history, and explicit approvals.</p>
+          <p>{t('departments:accountable_handoffs_retained_history_and_explicit_approvals')}</p>
         </div>
         <button disabled={locked} onClick={() => setRefresh((n) => n + 1)}>
-          Refresh records
+          {' '}
+          {t('departments:refresh_records')}{' '}
         </button>
       </header>
-      <nav className="department-tabs" aria-label="Department workflows">
+      <nav className="department-tabs" aria-label={t('departments:department_workflows')}>
         {categories.map((k) => (
           <button
             key={k}
@@ -694,22 +810,24 @@ export default function DepartmentWorkspace({
       </nav>
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {notice && (
         <p className="notice" role="status">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {pending && (
         <aside className="notice warning">
           <p>
-            Request retained for an exact retry. Key: <code>{pending.key}</code>
+            {' '}
+            {t('departments:request_retained_for_an_exact_retry_key')} <code>{pending.key}</code>
           </p>
           <Facts data={pending.command} />
           <button disabled={busy} onClick={() => void send(pending.command, pending.key)}>
-            Retry exact request
+            {' '}
+            {t('departments:retry_exact_request')}{' '}
           </button>
         </aside>
       )}
@@ -721,19 +839,19 @@ export default function DepartmentWorkspace({
           }}
           className="department-form"
         >
-          <label htmlFor="department-action">Action</label>
+          <label htmlFor="department-action">{t('departments:action')}</label>
           <select
             id="department-action"
             disabled={locked}
             value={action}
             onChange={(e) => {
-              if (dirty && !window.confirm('Discard unsaved action details?')) return;
+              if (dirty && !window.confirm(t('departments:discard_unsaved_action_details'))) return;
               setAction(e.target.value);
               setDraft({});
               setChoices({});
             }}
           >
-            <option value="">Choose a workflow</option>
+            <option value="">{t('departments:choose_a_workflow')}</option>
             {actions.map(([key, s]) => (
               <option key={key} value={key}>
                 {s.label}
@@ -747,7 +865,8 @@ export default function DepartmentWorkspace({
               {action === 'purchase.create' && (
                 <>
                   <label>
-                    Purchase line count
+                    {' '}
+                    {t('departments:purchase_line_count')}{' '}
                     <input
                       type="number"
                       min={1}
@@ -761,13 +880,17 @@ export default function DepartmentWorkspace({
                     length: Math.min(20, Math.max(1, Number(draft.lineCount ?? 1))),
                   }).map((_, i) => (
                     <fieldset key={i}>
-                      <legend>Purchase line {i + 1}</legend>
+                      <legend>
+                        {t('departments:purchase_line')} {i + 1}
+                      </legend>
                       <DepartmentPicker
-                        label={`Product for line ${i + 1}`}
+                        label={t('dynamic:line_product', { number: i + 1 })}
                         kind="products"
                         session={session}
                         value={draft[`product${i}`] ?? ''}
-                        selectedLabel={choices[`product${i}`]?.label}
+                        selectedLabel={
+                          choices[`product${i}`] ? choiceLabel(choices[`product${i}`]) : undefined
+                        }
                         disabled={locked}
                         onError={fail}
                         onChoose={(choice) => {
@@ -781,7 +904,9 @@ export default function DepartmentWorkspace({
                       />
                       {draft[`unit${i}`] && (
                         <p>
-                          Configured stock unit: <strong>{draft[`unit${i}`]}</strong>
+                          {' '}
+                          {t('departments:configured_stock_unit')}{' '}
+                          <strong>{draft[`unit${i}`]}</strong>
                         </p>
                       )}
                       <div className="department-fields">
@@ -791,7 +916,7 @@ export default function DepartmentWorkspace({
                           ['pack', 'Stock units per pack'],
                         ].map(([key, label]) => (
                           <label key={key}>
-                            {label}
+                            {interfaceMessage(label)}
                             <input
                               required
                               maxLength={100}
@@ -803,7 +928,8 @@ export default function DepartmentWorkspace({
                           </label>
                         ))}
                         <label>
-                          Controlled item
+                          {' '}
+                          {t('departments:controlled_item')}{' '}
                           <input
                             type="checkbox"
                             disabled={locked}
@@ -817,12 +943,14 @@ export default function DepartmentWorkspace({
                 </>
               )}
               <p>
-                Review the details before saving. Records are attributed to{' '}
-                {session.user.displayName}. Cash and manual transfers record completed outcomes.
+                {' '}
+                {t('departments:review_the_details_before_saving_records_are_attributed_to')}{' '}
+                {session.user.displayName}
+                {t('departments:cash_and_manual_transfers_record_completed_outcomes')}{' '}
               </p>
               <div className="button-row">
                 <button className="primary" disabled={locked || loading}>
-                  {busy ? 'Saving…' : 'Save accountable record'}
+                  {busy ? t('common:saving') : t('departments:save_accountable_record')}
                 </button>
                 <button
                   type="button"
@@ -832,7 +960,8 @@ export default function DepartmentWorkspace({
                     setChoices({});
                   }}
                 >
-                  Discard draft
+                  {' '}
+                  {t('common:discard_draft')}{' '}
                 </button>
               </div>
             </>
@@ -840,7 +969,7 @@ export default function DepartmentWorkspace({
         </form>
       )}
       {loading ? (
-        <p role="status">Loading department records…</p>
+        <p role="status">{t('departments:loading_department_records')}</p>
       ) : (
         list && (
           <>
@@ -848,10 +977,10 @@ export default function DepartmentWorkspace({
               <table>
                 <thead>
                   <tr>
-                    <th>Record</th>
-                    <th>Status</th>
-                    <th>Revision</th>
-                    <th>History</th>
+                    <th>{t('departments:record')}</th>
+                    <th>{t('common:status')}</th>
+                    <th>{t('common:revision_2')}</th>
+                    <th>{t('common:history')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -861,9 +990,11 @@ export default function DepartmentWorkspace({
                         <strong>{title(r)}</strong>
                       </td>
                       <td>
-                        {r.data.status ?? r.data.kind ?? 'Configured'}
+                        {presentationLabel(r.data.status ?? r.data.kind ?? 'configured')}
                         {r.data.review === 'pending' && (
-                          <strong className="department-review">Accountable review pending</strong>
+                          <strong className="department-review">
+                            {t('departments:accountable_review_pending')}
+                          </strong>
                         )}
                       </td>
                       <td>{r.revision}</td>
@@ -876,7 +1007,8 @@ export default function DepartmentWorkspace({
                             setHistory([]);
                           }}
                         >
-                          View record and history
+                          {' '}
+                          {t('departments:view_record_and_history')}{' '}
                         </button>
                       </td>
                     </tr>
@@ -885,21 +1017,25 @@ export default function DepartmentWorkspace({
               </table>
             </div>
             {!list.entries.length && (
-              <p className="empty-small">No {labels[category].toLowerCase()} recorded yet.</p>
+              <p className="empty-small">
+                {t('common:no')} {labels[category].toLowerCase()} {t('departments:recorded_yet')}
+              </p>
             )}
             <div className="staff-pagination">
               <p>
-                {list.total} records · Page {page}
+                {list.total} {t('departments:records_page')} {page}
               </p>
               <div className="button-row">
                 <button disabled={locked || page === 1} onClick={() => setPage((n) => n - 1)}>
-                  Previous records
+                  {' '}
+                  {t('departments:previous_records')}{' '}
                 </button>
                 <button
                   disabled={locked || page * 25 >= list.total}
                   onClick={() => setPage((n) => n + 1)}
                 >
-                  Next records
+                  {' '}
+                  {t('departments:next_records')}{' '}
                 </button>
               </div>
             </div>
@@ -918,10 +1054,10 @@ export default function DepartmentWorkspace({
           <h2>{title(selected)}</h2>
           <Facts data={selected.data} />
           <details>
-            <summary>Record identity</summary>
+            <summary>{t('departments:record_identity')}</summary>
             <p>{selected.id}</p>
           </details>
-          <h3>Immutable history</h3>
+          <h3>{t('departments:immutable_history_2')}</h3>
           <ol className="timeline">
             {history.map((e) => (
               <li key={e.id}>
@@ -931,7 +1067,7 @@ export default function DepartmentWorkspace({
                 </small>
                 <Facts data={e.snapshot.command ?? e.snapshot} />
                 <details>
-                  <summary>Event and operator identity</summary>
+                  <summary>{t('departments:event_and_operator_identity')}</summary>
                   <p>
                     {e.id} · {e.actorId}
                   </p>
@@ -944,15 +1080,17 @@ export default function DepartmentWorkspace({
               disabled={locked || historyPage === 1}
               onClick={() => setHistoryPage((n) => n - 1)}
             >
-              Previous history
+              {' '}
+              {t('common:previous_history')}{' '}
             </button>
             <button
               disabled={locked || history.length < 25}
               onClick={() => setHistoryPage((n) => n + 1)}
             >
-              Next history
+              {' '}
+              {t('common:next_history')}{' '}
             </button>
-            <button onClick={() => window.print()}>Print factual record</button>
+            <button onClick={() => window.print()}>{t('departments:print_factual_record')}</button>
           </div>
         </article>
       )}

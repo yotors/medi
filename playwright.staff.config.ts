@@ -9,6 +9,8 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     'staff.spec.ts',
+    'navigation.spec.ts',
+    'localization.spec.ts',
     'outpatient.spec.ts',
     'administration.spec.ts',
     'configuration.spec.ts',

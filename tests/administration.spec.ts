@@ -41,14 +41,14 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, username = 'admin', value = password) {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(value);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 async function createDraft(page: Page, username: string) {
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Create staff account', exact: true }).click();
   await page.getByLabel('Staff display name').fill(`Fictional ${username}`);
   await page.getByLabel('Staff username').fill(username);
@@ -60,7 +60,7 @@ test('review2: keyboard create and back restore focus and a role-only draft is g
   page,
 }) => {
   await signIn(page, 'review2-admin');
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Create staff account', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(
@@ -123,7 +123,7 @@ test('review2: a reset with a lost response clears the obsolete displayed creden
     timeout: 15000,
   });
   await expect(page.getByLabel('Temporary password', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry account save' }).click();
   await expect(page.getByLabel('Temporary password', { exact: true })).toBeVisible({
     timeout: 15000,
@@ -166,7 +166,7 @@ test('keyboard onboarding, temporary password replacement, access management and
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await signIn(page, 'new-clinician', temporary);
   await expect(page.getByRole('heading', { name: 'Change password', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toHaveCount(0);
   expect((await page.request.get('/api/patients')).status()).toBe(403);
   await page.getByLabel('Current password', { exact: true }).fill(temporary);
   await page.getByLabel('New password', { exact: true }).fill(password);
@@ -191,10 +191,10 @@ test('keyboard onboarding, temporary password replacement, access management and
   await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   await signIn(page, 'new-clinician');
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Staff administration' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Staff administration' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await signIn(page);
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Fictional new-clinician', exact: true }).click();
   await page.getByLabel('Active account', { exact: true }).uncheck();
   await page.getByLabel('Your current password').fill(password);
@@ -230,7 +230,7 @@ test('lost command response retries once, failed load recovers and dirty draft b
       });
     } else await route.continue();
   });
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable');
   fail = false;
   await page.getByRole('button', { name: 'Retry staff directory' }).click();
@@ -239,7 +239,7 @@ test('lost command response retries once, failed load recovers and dirty draft b
   ).toBeVisible();
   await createDraft(page, 'retry-clinician');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: 'Patient directory', exact: true }).click();
+  await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await expect(page.getByLabel('Staff username')).toHaveValue('retry-clinician');
   let lose = true;
   let original = '';
@@ -259,7 +259,7 @@ test('lost command response retries once, failed load recovers and dirty draft b
   });
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retry account save' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry account save' }).click();
   await expect(page.getByLabel('Temporary password', { exact: true })).toBeVisible();
   await expect(page.getByText('Account created', { exact: true })).toHaveCount(1);
@@ -294,7 +294,7 @@ test('stale revision keeps the editable draft until current details are reviewed
   await page.getByLabel('Your current password').fill(password);
   await page.getByRole('checkbox', { name: 'Apply this role' }).check();
   await page.getByRole('button', { name: 'Save account', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('account changed');
+  await expect(page.getByRole('alert')).toContainText('entry changed');
   await expect(page.getByLabel('Role', { exact: true })).toHaveValue('pharmacist');
   await expect(page.getByLabel('Role', { exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Reload current revision' }).click();
@@ -312,7 +312,7 @@ async function assertSameSurfaceNoDialog(page: Page, label: string) {
     void dialog.accept();
   };
   page.on('dialog', handler);
-  await page.getByRole('button', { name: label, exact: true }).click();
+  await page.getByRole('link', { name: label, exact: true }).click();
   page.off('dialog', handler);
   expect(dialogs).toBe(0);
 }
@@ -344,18 +344,18 @@ test('review: same visit navigation retains dirty guard and generic navigation n
     'Unsaved navigation regression note.',
   );
   const rejected = page.waitForEvent('dialog');
-  const leave = page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  const leave = page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await (await rejected).dismiss();
   await leave;
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue(
     'Unsaved navigation regression note.',
   );
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Staff administration', exact: true }).click();
+  await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Staff administration', exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Outpatient visits', exact: true }).click();
+  await page.getByRole('link', { name: 'Outpatient visits', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Outpatient visits', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   expect(checkIns).toBe(1);
@@ -368,18 +368,16 @@ test('review: same staff and password surfaces preserve dirty navigation protect
   await createDraft(page, 'dirty-review');
   await assertSameSurfaceNoDialog(page, 'Staff administration');
   const rejected = page.waitForEvent('dialog');
-  const leave = page.getByRole('button', { name: 'Patient directory', exact: true }).click();
+  const leave = page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await (await rejected).dismiss();
   await leave;
   await expect(page.getByLabel('Staff username')).toHaveValue('dirty-review');
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Change password', exact: true }).click();
+  await page.getByRole('link', { name: 'Change password', exact: true }).click();
   await page.getByLabel('Current password', { exact: true }).fill('fictional-dirty-current');
   await assertSameSurfaceNoDialog(page, 'Change password');
   const passwordRejected = page.waitForEvent('dialog');
-  const passwordLeave = page
-    .getByRole('button', { name: 'Patient directory', exact: true })
-    .click();
+  const passwordLeave = page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await (await passwordRejected).dismiss();
   await passwordLeave;
   await expect(page.getByLabel('Current password', { exact: true })).not.toHaveValue('');
@@ -429,9 +427,7 @@ for (const initialCommitted of [true, false]) {
     await page.getByRole('button', { name: 'Retry account save' }).click();
     await expect(page.getByRole('alert')).toContainText('temporarily unavailable');
     await expect(page.getByLabel('Staff username')).toBeDisabled();
-    await expect(
-      page.getByRole('button', { name: 'Patient directory', exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
     await page.getByLabel('Your current password').fill('incorrect synthetic password');
     await page.getByRole('button', { name: 'Retry account save' }).click();
     await expect(page.getByRole('alert')).toContainText('not accepted');
@@ -451,7 +447,7 @@ test('review: definitive self-password rejection releases fields after an uncert
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Change password', exact: true }).click();
+  await page.getByRole('link', { name: 'Change password', exact: true }).click();
   await page.getByLabel('Current password', { exact: true }).fill('incorrect synthetic password');
   await page.getByLabel('New password', { exact: true }).fill('Synthetic replacement password');
   await page.getByLabel('Confirm new password').fill('Synthetic replacement password');
@@ -507,7 +503,7 @@ test('review: exact reload and history pagination work beyond the fuzzy first pa
   await page.getByLabel('Your current password').fill(password);
   await page.getByRole('checkbox', { name: 'Apply this role' }).check();
   await page.getByRole('button', { name: 'Save account', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('account changed');
+  await expect(page.getByRole('alert')).toContainText('entry changed');
   await page.getByRole('button', { name: 'Reload current revision' }).click();
   await expect(page.getByRole('alert')).toContainText('Review your retained draft');
   await expect(page.getByLabel('Role', { exact: true })).toHaveValue('pharmacist');

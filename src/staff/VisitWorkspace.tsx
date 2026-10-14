@@ -1,3 +1,6 @@
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { RegisteredPatient, Session } from '../../shared/registration';
@@ -83,7 +86,8 @@ export default function VisitWorkspace({
       .catch((e) => {
         if (!cancelled) {
           if (e instanceof ApiError && e.status === 401) onSessionError(e);
-          else setQueueError(e instanceof Error ? e.message : 'Visits could not be loaded.');
+          else
+            setQueueError(e instanceof Error ? e.message : t('common:visits_could_not_be_loaded'));
         }
       })
       .finally(() => {
@@ -104,7 +108,10 @@ export default function VisitWorkspace({
   }, [checkInPatient]);
   function report(e: unknown) {
     if (e instanceof ApiError && e.status === 401) onSessionError(e);
-    else setError(e instanceof Error ? e.message : 'The visit could not be loaded. Please retry.');
+    else
+      setError(
+        e instanceof Error ? e.message : t('common:the_visit_could_not_be_loaded_please_retry'),
+      );
   }
   function abandonDetail() {
     detailGeneration.current++;
@@ -118,7 +125,8 @@ export default function VisitWorkspace({
       clinicalPending ||
       pharmacyPending ||
       busy ||
-      (dirty && !window.confirm('Discard unsaved visit drafts and return to the visit queue?'))
+      (dirty &&
+        !window.confirm(t('common:discard_unsaved_visit_drafts_and_return_to_the_visit_queue')))
     )
       return;
     abandonDetail();
@@ -183,7 +191,7 @@ export default function VisitWorkspace({
       onPending(false);
       setNeedsReload(false);
       setSaved((previous) => ({ sequence: previous.sequence + 1, command: submission.command }));
-      setNotice(submission.command ? 'Visit saved.' : 'Patient checked in.');
+      setNotice(submission.command ? t('common:visit_saved') : t('common:patient_checked_in'));
       return true;
     } catch (e) {
       if (!mounted.current) return false;
@@ -193,7 +201,9 @@ export default function VisitWorkspace({
       }
       if (e instanceof ApiError && e.status === 409 && e.code === 'STALE_REVISION' && visit) {
         setNotice(
-          'The visit changed. Your draft is still here. Review the latest visit before saving again.',
+          t(
+            'common:the_visit_changed_your_draft_is_still_here_review_the_latest_visit_before_saving_again',
+          ),
         );
         setNeedsReload(true);
         await reloadVisit(visit.id);
@@ -235,12 +245,12 @@ export default function VisitWorkspace({
       <div className="page-heading">
         <div>
           <h1 ref={heading} tabIndex={-1}>
-            {visit ? visit.patient.name : 'Outpatient visits'}
+            {visit ? visit.patient.name : t('common:outpatient_visits')}
           </h1>
           <p>
             {visit
-              ? `${visit.patient.recordNumber} · ${visit.status === 'closed' ? 'Closed historical visit' : 'Active visit'}`
-              : 'Follow each visit from check-in through completion.'}
+              ? `${visit.patient.recordNumber} · ${visit.status === 'closed' ? t('common:closed_historical_visit') : t('common:active_visit')}`
+              : t('common:follow_each_visit_from_check_in_through_completion')}
           </p>
         </div>
         {visit && (
@@ -256,7 +266,8 @@ export default function VisitWorkspace({
               }
               onClick={() => void reloadVisit(visit.id)}
             >
-              Refresh visit
+              {' '}
+              {t('common:refresh_visit')}{' '}
             </button>
             <button
               disabled={
@@ -264,14 +275,16 @@ export default function VisitWorkspace({
               }
               onClick={backToQueue}
             >
-              Back to visit queue
+              {' '}
+              {t('common:back_to_visit_queue')}{' '}
             </button>
           </div>
         )}
       </div>
       {detailLoading && (
         <p role="status" className="notice">
-          Loading latest visit…
+          {' '}
+          {t('common:loading_latest_visit')}{' '}
           {!visit && (
             <button
               onClick={() => {
@@ -279,40 +292,47 @@ export default function VisitWorkspace({
                 setError('');
               }}
             >
-              Cancel opening visit
+              {' '}
+              {t('common:cancel_opening_visit')}{' '}
             </button>
           )}
         </p>
       )}
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {notice && (
         <p className="notice success" role="status">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {pending && (
         <div className="notice warning" role="status">
           <span>
             {busy
-              ? 'Saving to the hospital workspace…'
-              : 'This save has not been confirmed. Retry the same request to find or finish the original save.'}
+              ? t('common:saving_to_the_hospital_workspace')
+              : t(
+                  'common:this_save_has_not_been_confirmed_retry_the_same_request_to_find_or_finish_the_original_save',
+                )}
           </span>
           <button disabled={busy} onClick={() => void submit(pending)}>
-            {busy ? 'Saving…' : 'Retry visit save'}
+            {busy ? t('common:saving') : t('common:retry_visit_save')}
           </button>
         </div>
       )}
       {needsReload && visit && (
         <div className="notice warning">
           <span>
-            Reload the latest visit before making another change. Your draft is preserved.
+            {' '}
+            {t(
+              'common:reload_the_latest_visit_before_making_another_change_your_draft_is_preserved',
+            )}{' '}
           </span>
           <button disabled={detailLoading} onClick={() => void reloadVisit(visit.id)}>
-            Reload latest visit
+            {' '}
+            {t('common:reload_latest_visit')}{' '}
           </button>
         </div>
       )}
@@ -337,13 +357,17 @@ export default function VisitWorkspace({
         />
       ) : pending ? (
         <section className="panel">
-          <p>Checking in {checkInPatient?.name}…</p>
+          <p>
+            {t('common:checking_in')} {checkInPatient?.name}…
+          </p>
         </section>
       ) : (
         <section className="panel staff-directory">
           <form className="staff-search" onSubmit={searchVisits}>
             <div>
-              <label htmlFor="visit-search">Search visits by patient or record number</label>
+              <label htmlFor="visit-search">
+                {t('common:search_visits_by_patient_or_record_number')}
+              </label>
               <input
                 id="visit-search"
                 type="search"
@@ -353,7 +377,7 @@ export default function VisitWorkspace({
               />
             </div>
             <div className="visit-status-filter">
-              <label htmlFor="visit-status">Visit status</label>
+              <label htmlFor="visit-status">{t('common:visit_status')}</label>
               <select
                 id="visit-status"
                 value={status}
@@ -364,15 +388,17 @@ export default function VisitWorkspace({
                   setPage(1);
                 }}
               >
-                <option value="active">Active</option>
-                <option value="closed">Closed</option>
-                <option value="all">All visits</option>
-                <option value="corrections">Corrections awaiting review · all visits</option>
+                <option value="active">{t('common:active')}</option>
+                <option value="closed">{t('common:closed_2')}</option>
+                <option value="all">{t('common:all_visits')}</option>
+                <option value="corrections">
+                  {t('common:corrections_awaiting_review_all_visits')}
+                </option>
               </select>
             </div>
             {status === 'corrections' && ['admin', 'clinician'].includes(session.user.role) && (
               <div>
-                <label htmlFor="review-assignment">Review assignment</label>
+                <label htmlFor="review-assignment">{t('common:review_assignment')}</label>
                 <select
                   id="review-assignment"
                   value={assigned}
@@ -381,12 +407,12 @@ export default function VisitWorkspace({
                     setPage(1);
                   }}
                 >
-                  <option value="all">All hospital reviews</option>
-                  <option value="me">Assigned to me</option>
+                  <option value="all">{t('common:all_hospital_reviews')}</option>
+                  <option value="me">{t('common:assigned_to_me')}</option>
                 </select>
               </div>
             )}
-            <button disabled={loading}>Search visits</button>
+            <button disabled={loading}>{t('common:search_visits')}</button>
             <button
               type="button"
               disabled={loading}
@@ -396,16 +422,18 @@ export default function VisitWorkspace({
                 setRefresh((n) => n + 1);
               }}
             >
-              Refresh
+              {' '}
+              {t('common:refresh')}{' '}
             </button>
           </form>
           {loading ? (
             <p className="empty" role="status">
-              Loading visits…
+              {' '}
+              {t('common:loading_visits')}{' '}
             </p>
           ) : queueError ? (
             <div className="empty">
-              <p role="alert">{queueError}</p>
+              <p role="alert">{interfaceMessage(queueError)}</p>
               <button
                 onClick={() => {
                   abandonDetail();
@@ -413,24 +441,25 @@ export default function VisitWorkspace({
                   setRefresh((n) => n + 1);
                 }}
               >
-                Retry loading visits
+                {' '}
+                {t('common:retry_loading_visits')}{' '}
               </button>
             </div>
           ) : records.visits.length ? (
             <>
               <div
                 role="region"
-                aria-label="Outpatient visit queue"
+                aria-label={t('common:outpatient_visit_queue')}
                 tabIndex={0}
                 className="table-region"
               >
                 <table>
                   <thead>
                     <tr>
-                      <th>Patient</th>
-                      <th>Progress</th>
-                      <th>Pending work</th>
-                      <th>Balance</th>
+                      <th>{t('common:patient')}</th>
+                      <th>{t('common:progress')}</th>
+                      <th>{t('common:pending_work')}</th>
+                      <th>{t('common:balance')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -450,27 +479,31 @@ export default function VisitWorkspace({
                         </td>
                         <td>
                           <span className={`badge ${row.status === 'closed' ? 'neutral' : 'teal'}`}>
-                            {row.stage}
+                            {presentationLabel(row.stage)}
                           </span>
                         </td>
                         <td>
-                          {row.pendingInvestigations} investigations · {row.pendingPrescriptions}{' '}
-                          prescriptions
+                          {row.pendingInvestigations} {t('common:investigations_2')}{' '}
+                          {row.pendingPrescriptions} {t('common:prescriptions_2')}{' '}
                           {row.pendingClinicalReviews > 0 && (
-                            <small>{row.pendingClinicalReviews} corrected results to review</small>
+                            <small>
+                              {row.pendingClinicalReviews} {t('common:corrected_results_to_review')}
+                            </small>
                           )}
                           {row.clinicalAssignments?.map((assignment) => (
                             <small key={assignment.subjectId}>
-                              Review: {assignment.ownerName} (@{assignment.ownerUsername}) ·
-                              Corrected {hospitalDate(assignment.correctedAt)}
+                              {' '}
+                              {t('common:review_2')} {assignment.ownerName} (@
+                              {assignment.ownerUsername}
+                              {t('common:corrected')} {hospitalDate(assignment.correctedAt)}
                             </small>
                           ))}
                         </td>
                         <td>
                           {row.billing?.state === 'unbilled'
-                            ? 'Not yet billed'
+                            ? t('common:not_yet_billed')
                             : row.billing?.state === 'settled'
-                              ? 'Settled'
+                              ? t('common:settled')
                               : money(row.balance)}
                         </td>
                       </tr>
@@ -480,7 +513,7 @@ export default function VisitWorkspace({
               </div>
               <div className="staff-pagination">
                 <p role="status">
-                  {records.total} visits · Page {records.page} of{' '}
+                  {records.total} {t('common:visits_page')} {records.page} {t('common:of')}{' '}
                   {Math.max(1, Math.ceil(records.total / records.pageSize))}
                 </p>
                 <div className="button-row">
@@ -491,7 +524,8 @@ export default function VisitWorkspace({
                       setPage((p) => p - 1);
                     }}
                   >
-                    Previous visits
+                    {' '}
+                    {t('common:previous_visits')}{' '}
                   </button>
                   <button
                     disabled={records.page * records.pageSize >= records.total}
@@ -500,24 +534,29 @@ export default function VisitWorkspace({
                       setPage((p) => p + 1);
                     }}
                   >
-                    Next visits
+                    {' '}
+                    {t('common:next_visits')}{' '}
                   </button>
                 </div>
               </div>
             </>
           ) : (
             <div className="empty">
-              <h2>No matching visits</h2>
+              <h2>{t('common:no_matching_visits')}</h2>
               <p>
                 {status === 'corrections'
                   ? query
-                    ? 'No corrected results match these filters.'
+                    ? t('common:no_corrected_results_match_these_filters')
                     : assigned === 'me'
-                      ? 'No corrected results are currently assigned to you.'
-                      : 'No corrected results are awaiting review in active or closed visits.'
+                      ? t('common:no_corrected_results_are_currently_assigned_to_you')
+                      : t(
+                          'common:no_corrected_results_are_awaiting_review_in_active_or_closed_visits',
+                        )
                   : status === 'closed'
-                    ? 'Completed visits will appear here.'
-                    : 'Check in a registered patient from the patient directory, or adjust the filters.'}
+                    ? t('common:completed_visits_will_appear_here')
+                    : t(
+                        'common:check_in_a_registered_patient_from_the_patient_directory_or_adjust_the_filters',
+                      )}
               </p>
             </div>
           )}

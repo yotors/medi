@@ -33,13 +33,13 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, username = 'admin', code = hospitalCode) {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(code);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page
-    .getByRole('button', {
+    .getByRole('link', {
       name: username === 'admin' ? 'Hospital configuration' : 'Service catalog',
       exact: true,
     })
@@ -172,7 +172,7 @@ test('load recovery, guarded draft, lost-response idempotency and session-loss c
   await page.getByLabel('Stable code').fill('RETRY');
   await page.getByLabel('Department name', { exact: true }).fill('Fictional Retry');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: 'Patient directory', exact: true }).click();
+  await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await expect(page.getByLabel('Department name', { exact: true })).toHaveValue('Fictional Retry');
   let lose = true;
   let body = '';
@@ -192,7 +192,7 @@ test('load recovery, guarded draft, lost-response idempotency and session-loss c
   });
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retry configuration save' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await expect(page.getByLabel('Department name', { exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry configuration save' }).click();
   await expect(page.getByText('Revision 1 · Fictional Retry')).toHaveCount(1);
@@ -543,4 +543,46 @@ test('active department pages retain selection through search, loading and retry
     page.getByText('Active · 123.45 ETB · Fictional picker 26 (Z26)', { exact: true }),
   ).toBeVisible();
   await expect(picker).toHaveValue(ids[26]);
+});
+
+test('Amharic catalog keeps protocol routes through history revision reload and write', async ({
+  page,
+}) => {
+  await signIn(page);
+  const code = `AM${randomUUID().slice(0, 6).toUpperCase()}`;
+  await createDepartment(page, code, 'Fictional Amharic catalog');
+  await page.getByLabel('Language', { exact: true }).selectOption('am');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'am');
+  const read = page.waitForResponse(
+    (r) => r.url().includes('/api/configuration/departments?') && r.status() === 200,
+  );
+  await page.reload();
+  await page.getByRole('button', { name: 'ክፍሎች', exact: true }).click();
+  await read;
+  await page.getByRole('button', { name: 'Fictional Amharic catalog', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'የቅንብር ታሪክ' })).toContainText(
+    'Fictional Amharic catalog',
+  );
+  const input = page.locator('#configuration-name');
+  await input.fill('Fictional retained Amharic draft');
+  const entry = (await (await page.request.get(`/api/configuration/departments?q=${code}`)).json())
+    .entries[0];
+  await apiCommand(page, {
+    type: 'department.update',
+    id: entry.id,
+    expectedRevision: entry.revision,
+    name: 'Fictional colleague revision',
+    active: true,
+  });
+  await page.getByRole('button', { name: 'ቅንብር ያስቀምጡ', exact: true }).click();
+  const revision = page.waitForResponse(
+    (r) => r.url().endsWith(`/api/configuration/departments/${entry.id}`) && r.status() === 200,
+  );
+  await page.getByRole('button', { name: 'ወቅታዊ ስሪት እንደገና ይጫኑ', exact: true }).click();
+  await revision;
+  await expect(input).toHaveValue('Fictional retained Amharic draft');
+  await page.getByRole('button', { name: 'ቅንብር ያስቀምጡ', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'የቅንብር ታሪክ' })).toContainText(
+    'Fictional retained Amharic draft',
+  );
 });

@@ -7,7 +7,7 @@ permissions:
 jobs:
   tooling:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
     steps:
@@ -22,6 +22,7 @@ jobs:
       - run: npm run test:release-recovery
       - run: npm run format:check
       - run: npm run typecheck
+      - run: npm run test:localization
       - run: npm test
       - run: npm run build
       - run: npm run test:tooling

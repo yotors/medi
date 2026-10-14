@@ -59,7 +59,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, role = 'admin', hospital = hospitalCode) {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospital);
   await page.getByLabel('Username', { exact: true }).fill(role);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -67,7 +67,7 @@ async function signIn(page: Page, role = 'admin', hospital = hospitalCode) {
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
 }
 async function open(page: Page) {
-  await page.getByRole('button', { name: 'Operational reports', exact: true }).click();
+  await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Operational reports', exact: true }),
   ).toBeFocused();
@@ -317,7 +317,7 @@ test('each role sees only its authorized sections and denied roles have no repor
     await signIn(page, role);
     if (['lab', 'receptionist'].includes(role)) {
       await expect(
-        page.getByRole('button', { name: 'Operational reports', exact: true }),
+        page.getByRole('link', { name: 'Operational reports', exact: true }),
       ).toHaveCount(0);
       expect(
         (await page.request.get('/api/reports/operational?from=2026-10-14&to=2026-10-14')).status(),
@@ -345,11 +345,11 @@ test('navigation respects an existing inventory draft and session expiry clears 
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   await page.getByLabel('Product code', { exact: true }).fill('UNSAVED');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: 'Operational reports', exact: true }).click();
+  await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
   await expect(page.getByRole('form', { name: 'Inventory change' })).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
   await open(page);
@@ -484,7 +484,7 @@ test('delayed completed report responses cannot restore results after navigation
       .poll(() => page.evaluate(() => (window as unknown as { reportReady: boolean }).reportReady))
       .toBe(true);
     if (action === 'navigate') {
-      await page.getByRole('button', { name: 'Patient directory', exact: true }).click();
+      await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
       await expect(
         page.getByRole('heading', { name: 'Patient directory', exact: true }),
       ).toBeVisible();

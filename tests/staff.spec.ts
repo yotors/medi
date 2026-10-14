@@ -78,7 +78,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 async function signIn(page: Page, username = 'reception', hospital = hospitalCode) {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await page.getByLabel('Hospital code', { exact: true }).fill(hospital);
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -94,7 +94,7 @@ async function addPatient(page: Page, name: string) {
 test('staff sign-in, duplicate confirmation, search, reload and sign-out', async ({
   page,
 }, info) => {
-  await page.goto('/staff');
+  await page.goto('/staff/patients');
   await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await mkdir('artifacts/staff-ui', { recursive: true });
@@ -172,8 +172,8 @@ test('lost registration response retries the original write exactly once', async
   await expect(page.getByLabel('Full name')).toHaveValue(name);
   await expect(page.getByLabel('Full name')).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeDisabled();
-  await page.getByRole('link', { name: 'Workspace home' }).click();
-  await expect(page).toHaveURL(/\/staff$/);
+  await page.getByRole('link', { name: 'Inside the workspace' }).click();
+  await expect(page).toHaveURL(/\/staff\/patients$/);
   await expect(page.getByRole('alert')).toContainText('pending registration');
   await page.getByRole('button', { name: 'Retry registration' }).click();
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(1);

@@ -1,3 +1,7 @@
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { formatHospitalDate, type HospitalAppearance } from '../../shared/hospital-format';
 import { useEffect, useState } from 'react';
 import type { Session, PatientPage } from '../../shared/registration';
@@ -29,7 +33,10 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
   const change = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }));
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.status === 401) onSessionError(e);
-    else setError(e instanceof Error ? e.message : 'The action could not be completed.');
+    else
+      setError(
+        e instanceof Error ? e.message : t('configuration:the_action_could_not_be_completed'),
+      );
   };
   async function load() {
     try {
@@ -69,7 +76,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
       setPatient('');
       setSearch('');
       setReason('');
-      setNotice('Saved. The action is recorded in hospital history.');
+      setNotice(uiMessage('configuration:saved_the_action_is_recorded_in_hospital_history'));
       window.dispatchEvent(new Event('hospital-appearance-changed'));
       await load();
     } catch (e) {
@@ -84,7 +91,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
     if (pending) return;
     if (
       (reason || patient || search || Object.values(fields).some(Boolean)) &&
-      !window.confirm('Discard the changes in this form?')
+      !window.confirm(t('configuration:discard_the_changes_in_this_form'))
     )
       return;
     setFields({});
@@ -98,7 +105,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
   }
   const input = (key: string, label: string, required = true, type = 'text') => (
     <div>
-      <label htmlFor={'hospital-' + key}>{label}</label>
+      <label htmlFor={'hospital-' + key}>{t(label)}</label>
       <input
         id={'hospital-' + key}
         type={type}
@@ -124,7 +131,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
   );
   const reasonField = (
     <div>
-      <label htmlFor="hospital-reason">Reason</label>
+      <label htmlFor="hospital-reason">{t('configuration:reason_2')}</label>
       <textarea
         id="hospital-reason"
         required
@@ -137,7 +144,11 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
   );
   const saveButton = (
     <button className="primary" disabled={busy}>
-      {busy ? 'Saving…' : pending ? 'Retry unchanged request' : 'Save'}
+      {busy
+        ? t('common:saving')
+        : pending
+          ? t('configuration:retry_unchanged_request')
+          : t('configuration:save')}
     </button>
   );
   function download(data: unknown, label: string) {
@@ -172,7 +183,9 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
           Object.values(data.hasMore).some(Boolean);
         next++;
       }
-      setNotice('Export downloaded. Keep it in an approved secure location.');
+      setNotice(
+        uiMessage('configuration:export_downloaded_keep_it_in_an_approved_secure_location'),
+      );
       await load();
     } catch (e) {
       fail(e);
@@ -183,22 +196,27 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
   if (!overview)
     return (
       <section className="panel">
-        <h1>Hospital management</h1>
+        <h1>{t('configuration:hospital_management')}</h1>
         {error ? (
           <>
-            <p role="alert">{error}</p>
-            <button onClick={() => void load()}>Retry loading</button>
+            <p role="alert">{interfaceMessage(error)}</p>
+            <button onClick={() => void load()}>{t('common:retry_loading')}</button>
           </>
         ) : (
-          <p role="status">Loading hospital settings…</p>
+          <p role="status">{t('configuration:loading_hospital_settings')}</p>
         )}
       </section>
     );
   return (
     <section aria-labelledby="hospital-heading">
-      <h1 id="hospital-heading">Hospital management</h1>
-      <p className="muted">Facilities, governed record requests and approved support access.</p>
-      <nav className="staff-navigation" aria-label="Hospital management sections">
+      <h1 id="hospital-heading">{t('configuration:hospital_management')}</h1>
+      <p className="muted">
+        {t('configuration:facilities_governed_record_requests_and_approved_support_access')}
+      </p>
+      <nav
+        className="staff-navigation"
+        aria-label={t('configuration:hospital_management_sections')}
+      >
         {[
           'Facilities',
           'Organization',
@@ -213,37 +231,43 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
             disabled={busy || Boolean(pending)}
             onClick={() => switchTab(t)}
           >
-            {t}
+            {interfaceMessage(t)}
           </button>
         ))}
       </nav>
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          {interfaceMessage(error)}
         </p>
       )}
       {notice && (
         <p className="notice" role="status">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {pending && !busy && (
         <div className="notice warning">
-          <p>The save is uncertain. Retry the original request before changing this form.</p>
-          <button onClick={() => void save(pending.command)}>Retry original request</button>
+          <p>
+            {t(
+              'configuration:the_save_is_uncertain_retry_the_original_request_before_changing_this_form',
+            )}
+          </p>
+          <button onClick={() => void save(pending.command)}>
+            {t('configuration:retry_original_request')}
+          </button>
         </div>
       )}
       {tab === 'Facilities' && (
         <>
           <section className="panel">
-            <h2>Facilities</h2>
+            <h2>{t('configuration:facilities')}</h2>
             {overview.facilities.length ? (
               overview.facilities.map((f) => (
                 <div className="order-card" key={f.id}>
                   <h3>{f.name}</h3>
                   <p>
-                    {f.code} · {f.address || 'Address not entered'} ·{' '}
-                    {f.active ? 'Active' : 'Inactive'}
+                    {f.code} · {f.address || t('configuration:address_not_entered')} ·{' '}
+                    {f.active ? t('common:active') : t('common:inactive')}
                   </p>
                   {admin && (
                     <button
@@ -253,13 +277,14 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                         setFields({ name: f.name, address: f.address, active: String(f.active) });
                       }}
                     >
-                      Edit facility
+                      {' '}
+                      {t('configuration:edit_facility')}{' '}
                     </button>
                   )}
                 </div>
               ))
             ) : (
-              <p className="empty-small">No facilities configured.</p>
+              <p className="empty-small">{t('configuration:no_facilities_configured')}</p>
             )}
           </section>
           {admin && (
@@ -289,24 +314,28 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 );
               }}
             >
-              <h2>{facility ? 'Edit facility' : 'Add facility'}</h2>
-              {!facility && input('code', 'Facility code')}
+              <h2>
+                {facility ? t('configuration:edit_facility') : t('configuration:add_facility')}
+              </h2>
+              {!facility && input('code', 'labels:facility_code')}
               {facility && (
                 <>
-                  <label htmlFor="hospital-facility-active">Facility availability</label>
+                  <label htmlFor="hospital-facility-active">
+                    {t('configuration:facility_availability')}
+                  </label>
                   <select
                     id="hospital-facility-active"
                     disabled={busy || Boolean(pending)}
                     value={fields.active ?? 'true'}
                     onChange={(e) => change('active', e.target.value)}
                   >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
+                    <option value="true">{t('common:active')}</option>
+                    <option value="false">{t('common:inactive')}</option>
                   </select>
                 </>
               )}
-              {input('name', 'Facility name')}
-              {input('address', 'Address', false)}
+              {input('name', 'labels:facility_name')}
+              {input('address', 'labels:address', false)}
               {reasonField}
               {saveButton}
             </form>
@@ -333,13 +362,15 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
             });
           }}
         >
-          <h2>Organization settings</h2>
-          <p>Current name: {overview.profile.name}</p>
+          <h2>{t('configuration:organization_settings')}</h2>
+          <p>
+            {t('configuration:current_name')} {overview.profile.name}
+          </p>
           {admin ? (
             <>
               {
                 <div>
-                  <label htmlFor="hospital-name">Organization name</label>
+                  <label htmlFor="hospital-name">{t('configuration:organization_name')}</label>
                   <input
                     id="hospital-name"
                     required
@@ -350,54 +381,61 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                   />
                 </div>
               }
-              {input('phone', 'Telephone', false)}
-              {input('address', 'Address', false)}
-              <label htmlFor="hospital-locale">Preferred record locale</label>
+              {input('phone', 'labels:telephone', false)}
+              {input('address', 'labels:address', false)}
+              <label htmlFor="hospital-locale">{t('configuration:preferred_record_locale')}</label>
               <select
                 disabled={busy || Boolean(pending)}
                 id="hospital-locale"
                 value={fields.locale ?? overview.profile.settings.locale ?? 'en-ET'}
                 onChange={(e) => change('locale', e.target.value)}
               >
-                <option value="en-ET">English (Ethiopia)</option>
-                <option value="am-ET">Amharic (Ethiopia)</option>
+                <option value="en-ET">{t('configuration:english_ethiopia')}</option>
+                <option value="am-ET">{t('configuration:amharic_ethiopia')}</option>
               </select>
-              <label htmlFor="hospital-calendar">Display calendar</label>
+              <label htmlFor="hospital-calendar">{t('configuration:display_calendar')}</label>
               <select
                 disabled={busy || Boolean(pending)}
                 id="hospital-calendar"
                 value={fields.calendar ?? overview.profile.settings.calendar ?? 'gregory'}
                 onChange={(e) => change('calendar', e.target.value)}
               >
-                <option value="gregory">Gregorian</option>
-                <option value="ethiopic">Ethiopian</option>
+                <option value="gregory">{t('configuration:gregorian_2')}</option>
+                <option value="ethiopic">{t('configuration:ethiopian')}</option>
               </select>
               <p className="muted">
-                Timezone: Africa/Addis_Ababa. Date-entry controls use Gregorian dates; exports keep
-                original ISO timestamps.
+                {' '}
+                {t(
+                  'configuration:timezone_africa_addis_ababa_date_entry_controls_use_gregorian_dates_exports_keep_original_iso_t',
+                )}{' '}
               </p>
               {reasonField}
               {saveButton}
             </>
           ) : (
-            <p>Organization changes require an administrator.</p>
+            <p>{t('configuration:organization_changes_require_an_administrator')}</p>
           )}
         </form>
       )}
       {['Record requests', 'Record holds'].includes(tab) && (
         <>
           <section className="panel">
-            <h2>{tab}</h2>
+            <h2>{interfaceMessage(tab)}</h2>
             {(tab === 'Record requests' ? overview.requests : overview.holds).map((r) => (
               <div className="order-card" key={r.id}>
                 {'requester' in r ? (
                   <>
                     <h3>{r.requester}</h3>
                     <p>
-                      {r.purpose} · {r.status}
+                      {r.purpose} · {presentationLabel(r.status)}
                     </p>
-                    <p>Identity and authority verification: {r.identity_verification}</p>
-                    <p>Requested {formatHospitalDate(r.created_at, appearance)}</p>
+                    <p>
+                      {t('configuration:identity_and_authority_verification')}{' '}
+                      {r.identity_verification}
+                    </p>
+                    <p>
+                      {t('configuration:requested')} {formatHospitalDate(r.created_at, appearance)}
+                    </p>
                     {admin &&
                       r.status === 'pending' &&
                       ['approved', 'denied'].map((status) => (
@@ -405,7 +443,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                           key={status}
                           disabled={busy || Boolean(pending)}
                           onClick={() => {
-                            const why = window.prompt('Reason for this decision');
+                            const why = window.prompt(t('common:decision_reason'));
                             if (why)
                               void save({
                                 type: 'record.decide',
@@ -416,7 +454,9 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                               });
                           }}
                         >
-                          {status === 'approved' ? 'Approve' : 'Deny'}
+                          {status === 'approved'
+                            ? t('configuration:approve')
+                            : t('configuration:deny')}
                         </button>
                       ))}
                     {admin && ['approved', 'fulfilled'].includes(r.status) && (
@@ -425,25 +465,31 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                         onClick={() =>
                           void exportData(
                             '/api/hospital/record-export',
-                            { requestId: r.id, reason: 'Approved record request fulfillment' },
+                            {
+                              requestId: r.id,
+                              get reason() {
+                                return t('labels:approved_record_request_fulfillment');
+                              },
+                            },
                             'patient-record',
                           )
                         }
                       >
-                        Download approved record
+                        {' '}
+                        {t('configuration:download_approved_record')}{' '}
                       </button>
                     )}
                   </>
                 ) : (
                   <>
-                    <h3>Record hold</h3>
+                    <h3>{t('configuration:record_hold')}</h3>
                     <p>
-                      {r.reason} · {r.active ? 'Active' : 'Released'}
+                      {r.reason} · {r.active ? t('common:active') : t('configuration:released')}
                     </p>
                     {admin && r.active && (
                       <button
                         onClick={() => {
-                          const why = window.prompt('Reason for releasing this hold');
+                          const why = window.prompt(t('common:release_hold_reason'));
                           if (why)
                             void save({
                               type: 'hold.release',
@@ -453,7 +499,8 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                             });
                         }}
                       >
-                        Release hold
+                        {' '}
+                        {t('configuration:release_hold')}{' '}
                       </button>
                     )}
                   </>
@@ -461,7 +508,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
               </div>
             ))}
             {!(tab === 'Record requests' ? overview.requests : overview.holds).length && (
-              <p className="empty-small">No records in this list.</p>
+              <p className="empty-small">{t('configuration:no_records_in_this_list')}</p>
             )}
           </section>
           {admin && (
@@ -483,8 +530,12 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 );
               }}
             >
-              <h2>{tab === 'Record requests' ? 'New record request' : 'Place retention hold'}</h2>
-              <label htmlFor="hospital-patient-search">Find patient</label>
+              <h2>
+                {tab === 'Record requests'
+                  ? t('configuration:new_record_request')
+                  : t('configuration:place_retention_hold')}
+              </h2>
+              <label htmlFor="hospital-patient-search">{t('configuration:find_patient')}</label>
               <div className="button-row">
                 <input
                   disabled={busy || Boolean(pending)}
@@ -505,10 +556,11 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                       .catch(fail);
                   }}
                 >
-                  Search patients
+                  {' '}
+                  {t('common:search_patients')}{' '}
                 </button>
               </div>
-              <label htmlFor="hospital-patient">Patient</label>
+              <label htmlFor="hospital-patient">{t('common:patient')}</label>
               <select
                 disabled={busy || Boolean(pending)}
                 id="hospital-patient"
@@ -516,7 +568,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 value={patient}
                 onChange={(e) => setPatient(e.target.value)}
               >
-                <option value="">Select a verified patient</option>
+                <option value="">{t('configuration:select_a_verified_patient')}</option>
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} · {p.recordNumber}
@@ -525,9 +577,12 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
               </select>
               {tab === 'Record requests' && (
                 <>
-                  {input('requester', 'Requester name')}
-                  {input('purpose', 'Purpose of request')}
-                  {input('verification', 'How requester identity and authority were verified')}
+                  {input('requester', 'labels:requester_name')}
+                  {input('purpose', 'labels:purpose_of_request')}
+                  {input(
+                    'verification',
+                    'labels:how_requester_identity_and_authority_were_verified',
+                  )}
                 </>
               )}
               {reasonField}
@@ -539,10 +594,12 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
       {tab === 'Support access' && (
         <>
           <section className="panel">
-            <h2>Approved support sessions</h2>
+            <h2>{t('configuration:approved_support_sessions')}</h2>
             <p>
-              Use a separate named auditor account. Approval is limited to four hours and requires
-              authenticator sign-in. Revocation ends current sessions.
+              {' '}
+              {t(
+                'configuration:use_a_separate_named_auditor_account_approval_is_limited_to_four_hours_and_requires_authenticat',
+              )}{' '}
             </p>
             {overview.support.map((g) => (
               <div className="order-card" key={g.user_id}>
@@ -550,19 +607,20 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 <p>
                   {g.purpose} ·{' '}
                   {g.revoked
-                    ? 'Revoked'
+                    ? t('configuration:revoked')
                     : 'Expires ' + formatHospitalDate(g.expires_at, appearance)}
                 </p>
                 {admin && !g.revoked && (
                   <button
                     disabled={busy || Boolean(pending)}
                     onClick={() => {
-                      const why = window.prompt('Reason for revoking named support access');
+                      const why = window.prompt(t('common:revoke_support_reason'));
                       if (why)
                         void save({ type: 'support.revoke', accountId: g.user_id, reason: why });
                     }}
                   >
-                    Revoke access
+                    {' '}
+                    {t('configuration:revoke_access')}{' '}
                   </button>
                 )}
               </div>
@@ -581,8 +639,8 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 });
               }}
             >
-              <h2>Approve named support access</h2>
-              <label htmlFor="hospital-support-account">Auditor account</label>
+              <h2>{t('configuration:approve_named_support_access')}</h2>
+              <label htmlFor="hospital-support-account">{t('configuration:auditor_account')}</label>
               <select
                 disabled={busy || Boolean(pending)}
                 id="hospital-support-account"
@@ -590,14 +648,14 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 value={fields.account ?? ''}
                 onChange={(e) => change('account', e.target.value)}
               >
-                <option value="">Select an account</option>
+                <option value="">{t('configuration:select_an_account')}</option>
                 {overview.staff.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.displayName} · {a.username}
                   </option>
                 ))}
               </select>
-              {input('duration', 'Minutes (5–240)', false, 'number')}
+              {input('duration', 'labels:minutes_5_240', false, 'number')}
               {reasonField}
               {saveButton}
             </form>
@@ -606,11 +664,12 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
       )}
       {tab === 'Exports' && (
         <section className="panel">
-          <h2>Organization data export</h2>
+          <h2>{t('configuration:organization_data_export')}</h2>
           <p>
-            Authorized exports contain sensitive records. Each download is audited. Download each
-            page while more records remain. These live chunks are not a point-in-time recovery
-            snapshot.
+            {' '}
+            {t(
+              'configuration:authorized_exports_contain_sensitive_records_each_download_is_audited_download_each_page_while_',
+            )}{' '}
           </p>
           {admin ? (
             <form
@@ -623,17 +682,21 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
                 );
               }}
             >
-              <label htmlFor="hospital-export-table">Record collection</label>
+              <label htmlFor="hospital-export-table">{t('common:record_collection')}</label>
               <select
                 id="hospital-export-table"
                 value={table}
                 onChange={(e) => setTable(e.target.value as typeof table)}
               >
                 {exportTables.map((t) => (
-                  <option key={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {presentationLabel(t)}
+                  </option>
                 ))}
               </select>
-              <label htmlFor="hospital-export-page">Page (250 records per page)</label>
+              <label htmlFor="hospital-export-page">
+                {t('configuration:page_250_records_per_page')}
+              </label>
               <input
                 id="hospital-export-page"
                 type="number"
@@ -645,11 +708,12 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
               />
               {reasonField}
               <button className="primary" disabled={busy}>
-                Download records
+                {' '}
+                {t('configuration:download_records')}{' '}
               </button>
             </form>
           ) : (
-            <p>Exports require an administrator.</p>
+            <p>{t('configuration:exports_require_an_administrator')}</p>
           )}
         </section>
       )}

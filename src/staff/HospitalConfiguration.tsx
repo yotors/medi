@@ -1,3 +1,7 @@
+import { uiMessage } from '../i18n';
+import { presentationLabel } from '../i18n';
+import { interfaceMessage } from '../i18n';
+import { t } from '../i18n';
 import { hospitalDate } from './date';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
@@ -93,7 +97,9 @@ export default function HospitalConfiguration({
       (error.status === 401 || error.code === 'PASSWORD_CHANGE_REQUIRED')
     )
       onSessionError(error);
-    return error instanceof Error ? error.message : 'The request failed. Please retry.';
+    return error instanceof Error
+      ? error.message
+      : t('configuration:the_request_failed_please_retry');
   }
   useEffect(() => {
     let cancelled = false;
@@ -197,7 +203,11 @@ export default function HospitalConfiguration({
     setTimeout(() => heading.current?.focus(), 0);
   }
   function close() {
-    if (locked || (dirty && !window.confirm('Discard unsaved configuration details?'))) return;
+    if (
+      locked ||
+      (dirty && !window.confirm(t('configuration:discard_unsaved_configuration_details')))
+    )
+      return;
     setEditing(false);
     setSelected(null);
     setError('');
@@ -215,14 +225,18 @@ export default function HospitalConfiguration({
         const conflicts: string[] = [];
         if (name === baseline.name) setName(entry.name);
         else if (entry.name !== baseline.name && name !== entry.name)
-          conflicts.push(`Name: ${entry.name}`);
+          conflicts.push(uiMessage('dynamic:conflict_name', { name: entry.name }));
         if (active === baseline.active) setActive(entry.active);
         else if (entry.active !== baseline.active && active !== entry.active)
-          conflicts.push(`Availability: ${entry.active ? 'Active' : 'Inactive'}`);
+          conflicts.push(
+            uiMessage(entry.active ? 'dynamic:conflict_active' : 'dynamic:conflict_inactive'),
+          );
         if ('priceMinor' in baseline && 'priceMinor' in entry) {
           if (parseETB(price) === baseline.priceMinor) setPrice(formatETB(entry.priceMinor));
           else if (entry.priceMinor !== baseline.priceMinor && parseETB(price) !== entry.priceMinor)
-            conflicts.push(`Price: ${formatETB(entry.priceMinor)} ETB`);
+            conflicts.push(
+              uiMessage('dynamic:conflict_price', { amount: formatETB(entry.priceMinor) }),
+            );
           if (departmentId === baseline.departmentId) {
             setDepartmentId(entry.departmentId);
             setChosenDepartment({
@@ -236,12 +250,19 @@ export default function HospitalConfiguration({
             entry.departmentId !== baseline.departmentId &&
             departmentId !== entry.departmentId
           )
-            conflicts.push(`Department: ${entry.departmentName} (${entry.departmentCode})`);
+            conflicts.push(
+              uiMessage('dynamic:conflict_department', {
+                name: entry.departmentName,
+                code: entry.departmentCode,
+              }),
+            );
         }
         setOverlaps(conflicts);
         setSelected(entry);
         setError(
-          'Current revision loaded. Your draft is retained; untouched fields now use current values. Review before saving.',
+          t(
+            'configuration:current_revision_loaded_your_draft_is_retained_untouched_fields_now_use_current_values_review_b',
+          ),
         );
       }
     } catch (error) {
@@ -257,7 +278,11 @@ export default function HospitalConfiguration({
     setNotice('');
     const amount = parseETB(price);
     if (!pending && kind === 'services' && amount === null) {
-      setError('Enter an ETB amount from 0.00 to 9999999.99 with at most two decimal places.');
+      setError(
+        uiMessage(
+          'configuration:enter_an_etb_amount_from_0_00_to_9999999_99_with_at_most_two_decimal_places',
+        ),
+      );
       return;
     }
     const candidate =
@@ -285,7 +310,9 @@ export default function HospitalConfiguration({
     const parsed = configurationCommandSchema.safeParse(pending?.command ?? candidate);
     if (!parsed.success) {
       setError(
-        'Check the name, department and code. Codes use 2–32 uppercase letters, digits, hyphens or underscores and start with a letter.',
+        t(
+          'configuration:check_the_name_department_and_code_codes_use_2_32_uppercase_letters_digits_hyphens_or_underscor',
+        ),
       );
       return;
     }
@@ -300,7 +327,7 @@ export default function HospitalConfiguration({
       });
       if (!alive.current) return;
       open(result.entry);
-      setNotice('Configuration saved. Earlier versions remain in history.');
+      setNotice(uiMessage('configuration:configuration_saved_earlier_versions_remain_in_history'));
       setRefresh((value) => value + 1);
     } catch (error) {
       if (!alive.current) return;
@@ -315,51 +342,73 @@ export default function HospitalConfiguration({
       <div className="staff-section-heading">
         <div>
           <h1 ref={listHeading} tabIndex={-1}>
-            {admin ? 'Hospital configuration' : 'Service catalog'}
+            {admin ? t('configuration:hospital_configuration') : t('configuration:service_catalog')}
           </h1>
-          <p className="muted">{session.user.hospital.name} · Departments and ETB services</p>
+          <p className="muted">
+            {session.user.hospital.name} {t('configuration:departments_and_etb_services')}
+          </p>
         </div>
         {admin && !editing && (
           <button className="primary" onClick={() => open(null)}>
-            Add {kind === 'departments' ? 'department' : 'service'}
+            {' '}
+            {t(
+              kind === 'departments' ? 'configuration:add_department' : 'configuration:add_service',
+            )}
           </button>
         )}
       </div>
       <p className="notice configuration-scope">
-        Prices apply to new invoices. Existing invoices keep their recorded prices.
+        {' '}
+        {t(
+          'configuration:prices_apply_to_new_invoices_existing_invoices_keep_their_recorded_prices',
+        )}{' '}
       </p>
       {notice && (
         <p role="status" className="notice">
-          {notice}
+          {interfaceMessage(notice)}
         </p>
       )}
       {editing ? (
         <div className="configuration-editor">
           <form className="panel configuration-form" onSubmit={save}>
             <h2 ref={heading} tabIndex={-1}>
-              {selected ? 'Edit' : 'Add'} {kind === 'departments' ? 'department' : 'service'}
+              {t(
+                selected
+                  ? kind === 'departments'
+                    ? 'configuration:edit_department'
+                    : 'configuration:edit_service'
+                  : kind === 'departments'
+                    ? 'configuration:add_department'
+                    : 'configuration:add_service',
+              )}
             </h2>
             {error && (
               <p role="alert" className="notice error">
-                {error}
+                {interfaceMessage(error)}
               </p>
             )}
             {overlaps.length > 0 && (
-              <section aria-label="Current values for overlapping edits" className="notice warning">
-                <h3>Current values for overlapping edits</h3>
+              <section
+                aria-label={t('configuration:current_values_for_overlapping_edits')}
+                className="notice warning"
+              >
+                <h3>{t('configuration:current_values_for_overlapping_edits')}</h3>
                 <p>
-                  Your edited fields are retained below. Compare these current values before saving.
+                  {' '}
+                  {t(
+                    'configuration:your_edited_fields_are_retained_below_compare_these_current_values_before_saving',
+                  )}{' '}
                 </p>
                 <ul>
                   {overlaps.map((value) => (
-                    <li key={value}>{value}</li>
+                    <li key={value}>{interfaceMessage(value)}</li>
                   ))}
                 </ul>
               </section>
             )}
             <fieldset disabled={locked}>
-              <legend className="sr-only">Configuration details</legend>
-              <label htmlFor="configuration-code">Stable code</label>
+              <legend className="sr-only">{t('configuration:configuration_details')}</legend>
+              <label htmlFor="configuration-code">{t('configuration:stable_code')}</label>
               <input
                 id="configuration-code"
                 value={code}
@@ -371,11 +420,14 @@ export default function HospitalConfiguration({
                 aria-describedby="configuration-code-help"
               />
               <p id="configuration-code-help" className="muted">
-                Start with a letter; use uppercase letters, digits, hyphens or underscores. A saved
-                code cannot change.
+                {' '}
+                {t(
+                  'configuration:start_with_a_letter_use_uppercase_letters_digits_hyphens_or_underscores_a_saved_code_cannot_cha',
+                )}{' '}
               </p>
               <label htmlFor="configuration-name">
-                {kind === 'departments' ? 'Department' : 'Service'} name
+                {kind === 'departments' ? t('configuration:department') : t('common:service')}{' '}
+                {t('configuration:name')}{' '}
               </label>
               <input
                 id="configuration-name"
@@ -386,7 +438,9 @@ export default function HospitalConfiguration({
               />
               {kind === 'services' && (
                 <>
-                  <label htmlFor="configuration-department-search">Find department</label>
+                  <label htmlFor="configuration-department-search">
+                    {t('configuration:find_department')}
+                  </label>
                   <input
                     id="configuration-department-search"
                     type="search"
@@ -399,18 +453,21 @@ export default function HospitalConfiguration({
                     aria-describedby="department-search-help"
                   />
                   <p id="department-search-help" className="muted">
-                    Search active departments by name or code. Browse 25 results per page; your
-                    selected department stays selected.
+                    {' '}
+                    {t(
+                      'configuration:search_active_departments_by_name_or_code_browse_25_results_per_page_your_selected_department_s',
+                    )}{' '}
                   </p>
                   {departmentError && (
                     <p role="alert">
-                      {departmentError}{' '}
+                      {interfaceMessage(departmentError)}{' '}
                       <button type="button" onClick={() => setRefresh((value) => value + 1)}>
-                        Retry departments
+                        {' '}
+                        {t('configuration:retry_departments')}{' '}
                       </button>
                     </p>
                   )}
-                  <label htmlFor="configuration-department">Department</label>
+                  <label htmlFor="configuration-department">{t('configuration:department')}</label>
                   <select
                     id="configuration-department"
                     value={departmentId}
@@ -426,12 +483,12 @@ export default function HospitalConfiguration({
                       );
                     }}
                   >
-                    <option value="">Choose a department</option>
+                    <option value="">{t('configuration:choose_a_department')}</option>
                     {chosenDepartment &&
                       !departments.some((row) => row.id === chosenDepartment.id) && (
                         <option value={chosenDepartment.id}>
                           {chosenDepartment.name} · {chosenDepartment.code}
-                          {!chosenDepartment.active ? ' (inactive)' : ''}
+                          {!chosenDepartment.active ? t('configuration:inactive_2') : ''}
                         </option>
                       )}
                     {departments.map((row) => (
@@ -443,14 +500,20 @@ export default function HospitalConfiguration({
                   <div className="configuration-department-pages">
                     <p role="status" className="muted">
                       {departmentLoading
-                        ? 'Loading departments…'
+                        ? t('configuration:loading_departments')
                         : departmentError
-                          ? 'Department results unavailable.'
+                          ? t('configuration:department_results_unavailable')
                           : departmentTotal
-                            ? `${departmentTotal} active department${departmentTotal === 1 ? '' : 's'} · Page ${departmentPage} of ${Math.ceil(departmentTotal / 25)}`
+                            ? t('dynamic:active_departments', {
+                                count: departmentTotal,
+                                page: departmentPage,
+                                pages: Math.ceil(departmentTotal / 25),
+                              })
                             : departmentSearch
-                              ? 'No active departments match this search.'
-                              : 'No active departments are available. Add or reactivate a department first.'}
+                              ? t('configuration:no_active_departments_match_this_search')
+                              : t(
+                                  'configuration:no_active_departments_are_available_add_or_reactivate_a_department_first',
+                                )}
                     </p>
                     <div className="button-row">
                       <button
@@ -458,7 +521,8 @@ export default function HospitalConfiguration({
                         disabled={departmentLoading || departmentPage === 1}
                         onClick={() => setDepartmentPage((value) => value - 1)}
                       >
-                        Previous departments
+                        {' '}
+                        {t('configuration:previous_departments')}{' '}
                       </button>
                       <button
                         type="button"
@@ -469,11 +533,12 @@ export default function HospitalConfiguration({
                         }
                         onClick={() => setDepartmentPage((value) => value + 1)}
                       >
-                        Next departments
+                        {' '}
+                        {t('configuration:next_departments')}{' '}
                       </button>
                     </div>
                   </div>
-                  <label htmlFor="configuration-price">Price (ETB)</label>
+                  <label htmlFor="configuration-price">{t('configuration:price_etb')}</label>
                   <input
                     id="configuration-price"
                     inputMode="decimal"
@@ -484,7 +549,8 @@ export default function HospitalConfiguration({
                     aria-describedby="configuration-price-help"
                   />
                   <p id="configuration-price-help" className="muted">
-                    0.00–9999999.99 ETB, with at most two decimal places.
+                    {' '}
+                    {t('configuration:0_00_9999999_99_etb_with_at_most_two_decimal_places')}{' '}
                   </p>
                 </>
               )}
@@ -494,62 +560,78 @@ export default function HospitalConfiguration({
                     type="checkbox"
                     checked={active}
                     onChange={(event) => setActive(event.target.checked)}
-                  />
-                  Active {kind === 'departments' ? 'department' : 'service'}
+                  />{' '}
+                  {t(
+                    kind === 'departments'
+                      ? 'configuration:active_department'
+                      : 'configuration:active_service',
+                  )}
                 </label>
               )}
               {kind === 'departments' && selected && (
                 <p className="muted">
-                  An inactive department hides its services from the active catalog. History is
-                  retained.
+                  {' '}
+                  {t(
+                    'configuration:an_inactive_department_hides_its_services_from_the_active_catalog_history_is_retained',
+                  )}{' '}
                 </p>
               )}
             </fieldset>
             {pending && !busy && (
               <p className="notice warning" role="status">
-                The save is unconfirmed. Retry the same details and request key before leaving.
+                {' '}
+                {t(
+                  'configuration:the_save_is_unconfirmed_retry_the_same_details_and_request_key_before_leaving',
+                )}{' '}
               </p>
             )}
             <div className="button-row">
               <button className="primary" disabled={busy}>
                 {busy
-                  ? 'Saving configuration…'
+                  ? t('configuration:saving_configuration')
                   : pending
-                    ? 'Retry configuration save'
-                    : 'Save configuration'}
+                    ? t('configuration:retry_configuration_save')
+                    : t('configuration:save_configuration')}
               </button>
               <button type="button" disabled={locked} onClick={close}>
-                Back to catalog
+                {' '}
+                {t('configuration:back_to_catalog')}{' '}
               </button>
               {error && selected && !locked && (
                 <button type="button" onClick={() => void reloadRevision()}>
-                  Reload current revision
+                  {' '}
+                  {t('common:reload_current_revision')}{' '}
                 </button>
               )}
             </div>
           </form>
           {selected && (
-            <section className="panel configuration-history" aria-label="Configuration history">
-              <h2>Change history</h2>
+            <section
+              className="panel configuration-history"
+              aria-label={t('configuration:configuration_history')}
+            >
+              <h2>{t('configuration:change_history')}</h2>
               {historyError ? (
                 <>
-                  <p role="alert">{historyError}</p>
+                  <p role="alert">{interfaceMessage(historyError)}</p>
                   <button onClick={() => setHistoryRefresh((value) => value + 1)}>
-                    Retry history
+                    {' '}
+                    {t('common:retry_history')}{' '}
                   </button>
                 </>
               ) : !history ? (
-                <p role="status">Loading history…</p>
+                <p role="status">{t('common:loading_history')}</p>
               ) : (
                 <>
                   <ol>
                     {history.events.map((event) => (
                       <li key={event.id}>
                         <strong>
-                          Revision {event.revision} · {event.snapshot.name}
+                          {' '}
+                          {t('common:revision_2')} {event.revision} · {event.snapshot.name}
                         </strong>
                         <p>
-                          {event.snapshot.active ? 'Active' : 'Inactive'}
+                          {event.snapshot.active ? t('common:active') : t('common:inactive')}
                           {'priceMinor' in event.snapshot &&
                             ` · ${formatETB(event.snapshot.priceMinor)} ETB · ${event.snapshot.departmentName} (${event.snapshot.departmentCode})`}
                         </p>
@@ -565,13 +647,15 @@ export default function HospitalConfiguration({
                       disabled={historyPage === 1 || locked}
                       onClick={() => setHistoryPage((value) => value - 1)}
                     >
-                      Newer history
+                      {' '}
+                      {t('common:newer_history')}{' '}
                     </button>
                     <button
                       disabled={historyPage * 25 >= history.total || locked}
                       onClick={() => setHistoryPage((value) => value + 1)}
                     >
-                      Older history
+                      {' '}
+                      {t('common:older_history')}{' '}
                     </button>
                   </div>
                 </>
@@ -581,7 +665,7 @@ export default function HospitalConfiguration({
         </div>
       ) : (
         <section className="panel configuration-directory">
-          <nav className="button-row" aria-label="Catalog sections">
+          <nav className="button-row" aria-label={t('configuration:catalog_sections')}>
             <button
               aria-current={kind === 'services' ? 'page' : undefined}
               onClick={() => {
@@ -591,7 +675,8 @@ export default function HospitalConfiguration({
                 setSearch('');
               }}
             >
-              Services
+              {' '}
+              {t('configuration:services')}{' '}
             </button>
             <button
               aria-current={kind === 'departments' ? 'page' : undefined}
@@ -602,7 +687,8 @@ export default function HospitalConfiguration({
                 setSearch('');
               }}
             >
-              Departments
+              {' '}
+              {t('configuration:departments')}{' '}
             </button>
           </nav>
           <form
@@ -615,7 +701,9 @@ export default function HospitalConfiguration({
             }}
           >
             <div>
-              <label htmlFor="configuration-search">Search {kind} by name or code</label>
+              <label htmlFor="configuration-search">
+                {t('common:search')} {presentationLabel(kind)} {t('configuration:by_name_or_code')}
+              </label>
               <input
                 id="configuration-search"
                 type="search"
@@ -624,25 +712,28 @@ export default function HospitalConfiguration({
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <button disabled={loading}>Search catalog</button>
+            <button disabled={loading}>{t('configuration:search_catalog')}</button>
           </form>
           {loading ? (
-            <p role="status">Loading catalog…</p>
+            <p role="status">{t('configuration:loading_catalog')}</p>
           ) : loadError ? (
             <>
-              <p role="alert">{loadError}</p>
-              <button onClick={() => setRefresh((value) => value + 1)}>Retry catalog</button>
+              <p role="alert">{interfaceMessage(loadError)}</p>
+              <button onClick={() => setRefresh((value) => value + 1)}>
+                {t('configuration:retry_catalog')}
+              </button>
             </>
           ) : !list?.entries.length ? (
             <p>
-              No {kind}{' '}
+              {' '}
+              {t('common:no')} {presentationLabel(kind)}{' '}
               {query
-                ? 'match this search.'
+                ? t('configuration:match_this_search')
                 : admin
-                  ? 'have been configured yet.'
-                  : 'are currently available.'}
+                  ? t('configuration:have_been_configured_yet')
+                  : t('configuration:are_currently_available')}
               {admin && kind === 'services' && !query
-                ? ' Add a department first, then add its services.'
+                ? t('configuration:add_a_department_first_then_add_its_services')
                 : ''}
             </p>
           ) : (
@@ -650,21 +741,21 @@ export default function HospitalConfiguration({
               <div
                 className="table-region"
                 role="region"
-                aria-label={`${kind} catalog`}
+                aria-label={t('dynamic:catalog_label', { kind: presentationLabel(kind) })}
                 tabIndex={0}
               >
                 <table>
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Code</th>
+                      <th>{t('configuration:name_2')}</th>
+                      <th>{t('configuration:code')}</th>
                       {kind === 'services' && (
                         <>
-                          <th>Department</th>
-                          <th>Price (ETB)</th>
+                          <th>{t('configuration:department')}</th>
+                          <th>{t('configuration:price_etb')}</th>
                         </>
                       )}
-                      <th>Status</th>
+                      <th>{t('common:status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -689,9 +780,9 @@ export default function HospitalConfiguration({
                         <td>
                           {entry.active
                             ? 'departmentActive' in entry && !entry.departmentActive
-                              ? 'Department inactive'
-                              : 'Active'
-                            : 'Inactive'}
+                              ? t('configuration:department_inactive')
+                              : t('common:active')
+                            : t('common:inactive')}
                         </td>
                       </tr>
                     ))}
@@ -700,17 +791,19 @@ export default function HospitalConfiguration({
               </div>
               <div className="staff-pagination">
                 <p role="status">
-                  {list.total} {kind} · Page {page}
+                  {list.total} {presentationLabel(kind)} {t('common:page_2')} {page}
                 </p>
                 <div className="button-row">
                   <button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
-                    Previous
+                    {' '}
+                    {t('common:previous')}{' '}
                   </button>
                   <button
                     disabled={page * 25 >= list.total}
                     onClick={() => setPage((value) => value + 1)}
                   >
-                    Next
+                    {' '}
+                    {t('common:next')}{' '}
                   </button>
                 </div>
               </div>

@@ -1044,6 +1044,48 @@ test('search sources are bounded, searchable in POST bodies and hospital/role sc
   assert.match(payments.entries[0].label, /RCT-/);
   const cash = await ok(users.cashier, '/api/departments/sources', { kind: 'cashEntries' });
   assert.equal(cash.entries[0].values.paymentId, i.paymentId);
+  assert.equal(cash.entries[0].presentation.values.amountMinor, '10000');
+  await department({
+    type: 'invoice.credit',
+    invoiceId: i.invoiceId,
+    expectedRevision: 2,
+    amountMinor: 4000,
+    kind: 'discount',
+    reason: 'Fictional source refund allowance',
+  });
+  await department({
+    type: 'payment.refund',
+    invoiceId: i.invoiceId,
+    paymentId: i.paymentId,
+    expectedRevision: 3,
+    amountMinor: 1000,
+    kind: 'refund',
+    method: 'cash',
+    reason: 'Fictional real refund',
+  });
+  await department({
+    type: 'payment.refund',
+    invoiceId: i.invoiceId,
+    paymentId: i.paymentId,
+    expectedRevision: 4,
+    amountMinor: 1000,
+    kind: 'reversal',
+    method: 'cash',
+    reason: 'Fictional real reversal',
+  });
+  const adjusted = await ok(users.cashier, '/api/departments/sources', { kind: 'cashEntries' });
+  const adjustments = adjusted.entries.filter((entry: any) => entry.data.kind === 'refund');
+  assert.deepEqual(adjustments.map((entry: any) => entry.presentation.values.financeKind).sort(), [
+    'refund',
+    'reversal',
+  ]);
+  for (const entry of adjustments) {
+    assert.equal(entry.values.refundId, entry.id);
+    assert.equal(entry.presentation.values.kind, 'refund');
+    assert.equal(entry.presentation.values.amountMinor, '1000');
+    assert.match(entry.label, new RegExp(`Recorded ${entry.presentation.values.financeKind}`));
+  }
+
   assert.equal(
     (await ok(other, '/api/departments/sources', { kind: 'invoices', q: 'Fictional Department' }))
       .entries.length,

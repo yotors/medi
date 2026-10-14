@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { choiceLabel } from './choice-label';
+import { interfaceMessage } from '../i18n';
+import { t, formatNumber } from '../i18n';
+import { useEffect, useState, useId } from 'react';
 import type {
   DepartmentChoice,
   DepartmentSourceQuery,
@@ -40,7 +43,7 @@ export default function DepartmentPicker({
     [loading, setLoading] = useState(true),
     [error, setError] = useState('');
   const contextKey = JSON.stringify(context);
-  const ident = `pick-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  const ident = useId();
   useEffect(() => {
     setPage(1);
     setQuery('');
@@ -79,14 +82,15 @@ export default function DepartmentPicker({
       <legend>{label}</legend>
       <div className="department-choice-search">
         <label htmlFor={`${ident}-search`}>
-          Find {label.toLowerCase()}
+          {' '}
+          {t('departments:find_label', { label: label.toLowerCase() })}
           <input
             id={`${ident}-search`}
             maxLength={100}
             disabled={disabled}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name, MRN, code or reference"
+            placeholder={t('departments:name_mrn_code_or_reference')}
           />
         </label>
         <button
@@ -98,7 +102,8 @@ export default function DepartmentPicker({
             setRetry((n) => n + 1);
           }}
         >
-          Find choices for {label.toLowerCase()}
+          {' '}
+          {t('departments:find_choices_label', { label: label.toLowerCase() })}
         </button>
       </div>
       <label htmlFor={ident}>{label}</label>
@@ -112,43 +117,52 @@ export default function DepartmentPicker({
           if (choice) onChoose(choice);
         }}
       >
-        <option value="">Choose {label.toLowerCase()}</option>
+        <option value="">{t('departments:choose_label', { label: label.toLowerCase() })}</option>
         {value && !data?.entries.some((c) => c.id === value) && (
           <option value={value}>
-            {selectedLabel ?? 'Previously selected record — refresh and review'}
+            {selectedLabel ?? t('departments:previously_selected_record_refresh_and_review')}
           </option>
         )}
         {data?.entries.map((choice) => (
           <option key={choice.id} value={choice.id}>
-            {choice.label}
+            {choiceLabel(choice)}
           </option>
         ))}
       </select>
-      {loading && <p role="status">Loading {label.toLowerCase()} choices…</p>}
-      {error && <p role="alert">{error}</p>}
+      {loading && (
+        <p role="status">{t('departments:loading_label', { label: label.toLowerCase() })}</p>
+      )}
+      {error && <p role="alert">{interfaceMessage(error)}</p>}
       {!loading && !error && !data?.entries.length && (
-        <p>No eligible matching {label.toLowerCase()} found.</p>
+        <p>{t('departments:no_choices_label', { label: label.toLowerCase() })}</p>
       )}
       <div className="button-row">
         <span>
-          Page {page} · {data?.total ?? 0} choices
+          {' '}
+          {t('departments:choices_page', {
+            page: formatNumber(page),
+            total: formatNumber(data?.total ?? 0),
+          })}{' '}
         </span>
         <button
           type="button"
           disabled={disabled || loading || page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Previous {label.toLowerCase()} choices
+          {' '}
+          {t('departments:previous_label', { label: label.toLowerCase() })}{' '}
         </button>
         <button
           type="button"
           disabled={disabled || loading || !data || page * 25 >= data.total}
           onClick={() => setPage((p) => p + 1)}
         >
-          Next {label.toLowerCase()} choices
+          {' '}
+          {t('departments:next_label', { label: label.toLowerCase() })}{' '}
         </button>
         <button type="button" disabled={disabled || loading} onClick={() => setRetry((n) => n + 1)}>
-          Refresh {label.toLowerCase()} choices
+          {' '}
+          {t('departments:refresh_label', { label: label.toLowerCase() })}{' '}
         </button>
       </div>
     </fieldset>

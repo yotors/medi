@@ -229,6 +229,7 @@ export const departmentSourceSchema = z.strictObject({
 });
 export type DepartmentSourceQuery = z.infer<typeof departmentSourceSchema>;
 export type DepartmentChoice = {
+  presentation?: { kind: string; values: Record<string, string | number | boolean | null> };
   id: string;
   label: string;
   values: Record<string, string>;

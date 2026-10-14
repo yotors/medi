@@ -444,3 +444,131 @@
 .staff-mfa form > .button-row {
   margin-top: 16px;
 }
+.staff-routed .staff-main {
+  margin-left: 250px;
+  max-width: none;
+  padding: 32px clamp(20px, 4vw, 64px);
+}
+.staff-routed .staff-primary-navigation {
+  position: absolute;
+  left: 0;
+  top: 140px;
+  width: 250px;
+  display: block;
+  padding: 20px;
+  min-height: calc(100vh - 140px);
+  background: #fff;
+  border-right: 1px solid #dce5e4;
+}
+.navigation-group {
+  margin-bottom: 24px;
+}
+.navigation-group h2 {
+  font-size: 12px;
+  color: #52686d;
+  margin: 0 12px 8px;
+  font-weight: 650;
+}
+.navigation-group a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 7px;
+  color: #244d48;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.navigation-group a:hover {
+  background: #f4f7f7;
+}
+.navigation-group a[aria-current='page'] {
+  background: #e6f2ee;
+  color: #0b574c;
+  font-weight: 750;
+}
+.navigation-group a[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: wait;
+}
+.staff-breadcrumb {
+  font-size: 13px;
+  color: #52686d;
+  margin-bottom: 26px;
+}
+.staff-header .language-control {
+  color: white;
+}
+.staff-header .language-control select {
+  color: #162d32;
+  background: white;
+}
+.home-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+  margin: 24px 0 40px;
+}
+.home-tasks a {
+  display: block;
+  background: #e6f2ee;
+  padding: 14px 18px;
+  border-radius: 8px;
+  color: #0b574c;
+}
+.home-queue {
+  list-style: none;
+  padding: 0;
+}
+.home-queue li {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-top: 1px solid #dce5e4;
+  overflow-wrap: anywhere;
+}
+.workspace-home > p {
+  max-width: 70ch;
+}
+.mfa-qr svg {
+  max-width: 100%;
+  height: auto;
+  background: white;
+}
+.staff-main {
+  min-width: 0;
+}
+.staff-breadcrumb a {
+  color: #12695d;
+}
+@media (max-width: 900px) {
+  .staff-routed .staff-main {
+    margin-left: 0;
+    padding: 24px 16px;
+  }
+  .staff-routed .staff-primary-navigation {
+    position: static;
+    width: auto;
+    min-height: 0;
+    border: 1px solid #dce5e4;
+    padding: 12px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .navigation-group {
+    flex: 1 1 180px;
+    margin: 0;
+  }
+  .staff-header {
+    flex-wrap: wrap;
+    padding: 20px;
+    gap: 16px;
+  }
+  .home-queue li {
+    flex-wrap: wrap;
+  }
+}
