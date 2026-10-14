@@ -1,6 +1,6 @@
-import { test,expect,type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { randomBytes,randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { loadEnvFile } from 'node:process';
 import { mkdir } from 'node:fs/promises';
 import { createPool } from '../server/db';
@@ -8,92 +8,789 @@ import { digest } from '../server/auth';
 import { provisionStaff } from '../server/setup';
 import { prepareBrowserFixture } from './browser-fixture';
 import type { VisitView } from '../shared/outpatient';
-try{loadEnvFile('.env');}catch{/* CI environment. */}
-const pool=createPool();const hospitalCode=`stock-${randomUUID().slice(0,8)}`;const password=randomBytes(24).toString('hex');const origin='http://127.0.0.1:5173';
-test.beforeAll(async()=>{test.setTimeout(120000);await prepareBrowserFixture(pool);for(const role of ['admin','clinician','pharmacist']as const)await provisionStaff(pool,{hospitalCode,hospitalName:'Fictional Stock Center',username:role,displayName:`Fictional ${role}`,role,password});});
-test.beforeEach(async()=>{await pool.query('DELETE FROM login_buckets WHERE bucket_hash=ANY($1::text[])',[['admin','clinician','pharmacist'].map(role=>digest(`account:${hospitalCode}:${role}`))]);});
-test.afterAll(async()=>{await pool.end();});
-async function signIn(page:Page,role='admin'){await page.goto('/staff');await page.getByLabel('Hospital code',{exact:true}).fill(hospitalCode);await page.getByLabel('Username',{exact:true}).fill(role);await page.getByLabel('Password',{exact:true}).fill(password);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('heading',{name:'Patient directory',exact:true})).toBeVisible();}
-async function post(page:Page,path:string,data:object){const session=await(await page.request.get('/api/auth/session')).json();const response=await page.request.post(path,{headers:{Origin:origin,'X-CSRF-Token':session.csrfToken,'Idempotency-Key':randomUUID()},data});expect(response.ok(),await response.text()).toBe(true);return response.json();}
-async function current(page:Page,id:string):Promise<VisitView>{return(await(await page.request.get(`/api/visits/${id}`)).json()).visit;}
-async function seed(page:Page){const code=`P${randomUUID().slice(0,8).toUpperCase()}`;const name=`Fictional ${code}`;const p=await post(page,'/api/inventory/commands',{type:'product.create',code,name,unit:'tablet'});const b=await post(page,'/api/inventory/commands',{type:'batch.create',productId:p.productId,lot:code,expiry:'2099-12-31'});await post(page,'/api/inventory/commands',{type:'stock.receive',batchId:b.batchId,expectedRevision:1,quantity:10,reference:'Fictional opening stock'});const patient=await post(page,'/api/patients',{name:`Stock Fiction ${randomUUID().slice(0,8)}`,contact:''});let v:VisitView=(await post(page,`/api/patients/${patient.patient.id}/visits`,{})).visit;for(const command of [{type:'note',body:'Fictional note'},{type:'prescribe',instruction:'Fictional instructions for quantity authorization.'}])v=(await post(page,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command})).visit;return{code,name,productId:p.productId,batchId:b.batchId,v};}
-async function openVisit(page:Page,v:VisitView){await page.getByRole('navigation',{name:'Staff workspace'}).getByRole('button',{name:'Outpatient visits',exact:true}).click();await page.getByRole('button',{name:v.patient.name,exact:true}).click();await page.getByRole('navigation',{name:'Visit sections'}).getByRole('button',{name:'Pharmacy',exact:true}).click();}
-async function confirmInventory(page:Page){await page.getByLabel('I checked the product, quantities and details.',{exact:true}).check();await page.getByRole('button',{name:'Save inventory change',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Inventory saved.'})).toBeVisible();}
-async function authorize(page:Page,code:string,quantity='4'){await page.getByRole('button',{name:'Authorize product for prescription 1',exact:true}).click();await page.getByLabel('Search active products',{exact:true}).fill(code);await page.getByRole('button',{name:'Find products',exact:true}).click();await page.getByRole('button',{name:`Choose ${code}`,exact:true}).click();await page.getByLabel(/Authorized quantity/).fill(quantity);await page.getByLabel('I checked this prescription, product and quantity.',{exact:true}).check();await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeVisible();}
-async function supplyDraft(page:Page,lot:string,quantity:string){await page.getByRole('button',{name:'Record supply for prescription 1',exact:true}).click();await page.getByRole('button',{name:`Choose lot ${lot}`,exact:true}).click();await page.getByLabel(/Quantity supplied/).fill(quantity);await page.getByLabel('I checked this prescription, product and quantity.',{exact:true}).check();}
-
-async function captureInventory(page:Page,path:string){
-  await mkdir('artifacts/inventory-ui',{recursive:true});
-  await page.getByRole('heading',{level:1}).evaluate(heading=>(heading as HTMLElement).focus({preventScroll:true}));
-  await page.evaluate(async()=>{window.scrollTo(0,0);await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));});
-  await page.screenshot({path,fullPage:true});
+try {
+  loadEnvFile('.env');
+} catch {
+  /* CI environment. */
+}
+const pool = createPool();
+const hospitalCode = `stock-${randomUUID().slice(0, 8)}`;
+const password = randomBytes(24).toString('hex');
+const origin = 'http://127.0.0.1:5173';
+test.beforeAll(async () => {
+  test.setTimeout(120000);
+  await prepareBrowserFixture(pool);
+  for (const role of ['admin', 'clinician', 'pharmacist'] as const)
+    await provisionStaff(pool, {
+      hospitalCode,
+      hospitalName: 'Fictional Stock Center',
+      username: role,
+      displayName: `Fictional ${role}`,
+      role,
+      password,
+    });
+});
+test.beforeEach(async () => {
+  await pool.query('DELETE FROM login_buckets WHERE bucket_hash=ANY($1::text[])', [
+    ['admin', 'clinician', 'pharmacist'].map((role) => digest(`account:${hospitalCode}:${role}`)),
+  ]);
+});
+test.afterAll(async () => {
+  await pool.end();
+});
+async function signIn(page: Page, role = 'admin') {
+  await page.goto('/staff');
+  await page.getByLabel('Hospital code', { exact: true }).fill(hospitalCode);
+  await page.getByLabel('Username', { exact: true }).fill(role);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
+}
+async function post(page: Page, path: string, data: object) {
+  const session = await (await page.request.get('/api/auth/session')).json();
+  const response = await page.request.post(path, {
+    headers: { Origin: origin, 'X-CSRF-Token': session.csrfToken, 'Idempotency-Key': randomUUID() },
+    data,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  return response.json();
+}
+async function current(page: Page, id: string): Promise<VisitView> {
+  return (await (await page.request.get(`/api/visits/${id}`)).json()).visit;
+}
+async function seed(page: Page) {
+  const code = `P${randomUUID().slice(0, 8).toUpperCase()}`;
+  const name = `Fictional ${code}`;
+  const p = await post(page, '/api/inventory/commands', {
+    type: 'product.create',
+    code,
+    name,
+    unit: 'tablet',
+  });
+  const b = await post(page, '/api/inventory/commands', {
+    type: 'batch.create',
+    productId: p.productId,
+    lot: code,
+    expiry: '2099-12-31',
+  });
+  await post(page, '/api/inventory/commands', {
+    type: 'stock.receive',
+    batchId: b.batchId,
+    expectedRevision: 1,
+    quantity: 10,
+    reference: 'Fictional opening stock',
+  });
+  const patient = await post(page, '/api/patients', {
+    name: `Stock Fiction ${randomUUID().slice(0, 8)}`,
+    contact: '',
+  });
+  let v: VisitView = (await post(page, `/api/patients/${patient.patient.id}/visits`, {})).visit;
+  for (const command of [
+    { type: 'note', body: 'Fictional note' },
+    { type: 'prescribe', instruction: 'Fictional instructions for quantity authorization.' },
+  ])
+    v = (
+      await post(page, `/api/visits/${v.id}/commands`, { expectedRevision: v.revision, command })
+    ).visit;
+  return { code, name, productId: p.productId, batchId: b.batchId, v };
+}
+async function openVisit(page: Page, v: VisitView) {
+  await page
+    .getByRole('navigation', { name: 'Staff workspace' })
+    .getByRole('button', { name: 'Outpatient visits', exact: true })
+    .click();
+  await page.getByRole('button', { name: v.patient.name, exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Visit sections' })
+    .getByRole('button', { name: 'Pharmacy', exact: true })
+    .click();
+}
+async function confirmInventory(page: Page) {
+  await page.getByLabel('I checked the product, quantities and details.', { exact: true }).check();
+  await page.getByRole('button', { name: 'Save inventory change', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Inventory saved.' })).toBeVisible();
+}
+async function authorize(page: Page, code: string, quantity = '4') {
+  await page
+    .getByRole('button', { name: 'Authorize product for prescription 1', exact: true })
+    .click();
+  await page.getByLabel('Search active products', { exact: true }).fill(code);
+  await page.getByRole('button', { name: 'Find products', exact: true }).click();
+  await page.getByRole('button', { name: `Choose ${code}`, exact: true }).click();
+  await page.getByLabel(/Authorized quantity/).fill(quantity);
+  await page
+    .getByLabel('I checked this prescription, product and quantity.', { exact: true })
+    .check();
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+  ).toBeVisible();
+}
+async function supplyDraft(page: Page, lot: string, quantity: string) {
+  await page.getByRole('button', { name: 'Record supply for prescription 1', exact: true }).click();
+  await page.getByRole('button', { name: `Choose lot ${lot}`, exact: true }).click();
+  await page.getByLabel(/Quantity supplied/).fill(quantity);
+  await page
+    .getByLabel('I checked this prescription, product and quantity.', { exact: true })
+    .check();
 }
 
-test('catalog and batch receive, adjustment and quarantine use explicit units with accessible responsive history',async({page},info)=>{
-  await signIn(page,'pharmacist');await page.getByRole('button',{name:'Pharmacy inventory',exact:true}).click();const code=`U${randomUUID().slice(0,8).toUpperCase()}`,name=`Fictional catalog ${code}`;
-  await page.getByRole('button',{name:'Add product',exact:true}).click();await page.getByLabel('Product code',{exact:true}).fill(code);await page.getByLabel('Product name, strength and form',{exact:true}).fill(name);await page.getByLabel('Base dispensing unit',{exact:true}).fill('tablet');await confirmInventory(page);
-  await page.getByRole('button',{name,exact:true}).click();await expect(page.getByText('No batches yet.',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Add batch',exact:true}).click();await page.getByLabel('Lot number',{exact:true}).fill('LOT-UI');await page.getByLabel('Expiry date',{exact:true}).fill('2099-12-31');await confirmInventory(page);
-  await page.getByRole('button',{name:'Receive stock',exact:true}).click();await page.getByLabel(/Quantity received/).fill('10');await page.getByLabel('Receipt reference',{exact:true}).fill('Fictional delivery');await confirmInventory(page);await expect(page.getByRole('region',{name:'Product batches'})).toContainText('10 tablet');
-  await page.getByRole('button',{name:'Adjust stock',exact:true}).click();await page.getByLabel(/Stock change/).fill('-2');await page.getByLabel('Reason for inventory change',{exact:true}).fill('Fictional count discrepancy');await confirmInventory(page);await expect(page.getByRole('region',{name:'Product batches'})).toContainText('8 tablet');
-  await page.getByRole('button',{name:'Quarantine batch',exact:true}).click();await page.getByLabel('Reason for inventory change',{exact:true}).fill('Fictional inspection');await confirmInventory(page);await expect(page.getByRole('region',{name:'Product batches'})).toContainText('Quarantined');
-  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true);await captureInventory(page,`artifacts/inventory-ui/${info.project.name}-stock.png`);await page.getByRole('region',{name:'Product batches'}).evaluate(region=>{region.scrollLeft=region.scrollWidth;});await captureInventory(page,`artifacts/inventory-ui/${info.project.name}-stock-actions.png`);
+async function captureInventory(page: Page, path: string) {
+  await mkdir('artifacts/inventory-ui', { recursive: true });
+  await page
+    .getByRole('heading', { level: 1 })
+    .evaluate((heading) => (heading as HTMLElement).focus({ preventScroll: true }));
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  });
+  await page.screenshot({ path, fullPage: true });
+}
+
+test('catalog and batch receive, adjustment and quarantine use explicit units with accessible responsive history', async ({
+  page,
+}, info) => {
+  await signIn(page, 'pharmacist');
+  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  const code = `U${randomUUID().slice(0, 8).toUpperCase()}`,
+    name = `Fictional catalog ${code}`;
+  await page.getByRole('button', { name: 'Add product', exact: true }).click();
+  await page.getByLabel('Product code', { exact: true }).fill(code);
+  await page.getByLabel('Product name, strength and form', { exact: true }).fill(name);
+  await page.getByLabel('Base dispensing unit', { exact: true }).fill('tablet');
+  await confirmInventory(page);
+  await page.getByRole('button', { name, exact: true }).click();
+  await expect(page.getByText('No batches yet.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Add batch', exact: true }).click();
+  await page.getByLabel('Lot number', { exact: true }).fill('LOT-UI');
+  await page.getByLabel('Expiry date', { exact: true }).fill('2099-12-31');
+  await confirmInventory(page);
+  await page.getByRole('button', { name: 'Receive stock', exact: true }).click();
+  await page.getByLabel(/Quantity received/).fill('10');
+  await page.getByLabel('Receipt reference', { exact: true }).fill('Fictional delivery');
+  await confirmInventory(page);
+  await expect(page.getByRole('region', { name: 'Product batches' })).toContainText('10 tablet');
+  await page.getByRole('button', { name: 'Adjust stock', exact: true }).click();
+  await page.getByLabel(/Stock change/).fill('-2');
+  await page
+    .getByLabel('Reason for inventory change', { exact: true })
+    .fill('Fictional count discrepancy');
+  await confirmInventory(page);
+  await expect(page.getByRole('region', { name: 'Product batches' })).toContainText('8 tablet');
+  await page.getByRole('button', { name: 'Quarantine batch', exact: true }).click();
+  await page
+    .getByLabel('Reason for inventory change', { exact: true })
+    .fill('Fictional inspection');
+  await confirmInventory(page);
+  await expect(page.getByRole('region', { name: 'Product batches' })).toContainText('Quarantined');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await captureInventory(page, `artifacts/inventory-ui/${info.project.name}-stock.png`);
+  await page.getByRole('region', { name: 'Product batches' }).evaluate((region) => {
+    region.scrollLeft = region.scrollWidth;
+  });
+  await captureInventory(page, `artifacts/inventory-ui/${info.project.name}-stock-actions.png`);
 });
-test('clinician authorizes quantity and pharmacy supplies partial then full across separate sessions',async({page,browser},info)=>{
-  await signIn(page);const fixture=await seed(page);const clinicianContext=await browser.newContext({baseURL:origin,viewport:page.viewportSize()});const pharmacistContext=await browser.newContext({baseURL:origin,viewport:page.viewportSize()});
-  try{const clinician=await clinicianContext.newPage();await signIn(clinician,'clinician');await openVisit(clinician,fixture.v);await expect(clinician.getByRole('button',{name:'Pharmacy inventory',exact:true})).toHaveCount(0);await authorize(clinician,fixture.code);await expect(clinician.getByRole('button',{name:'Record supply for prescription 1',exact:true})).toHaveCount(0);
-    const pharmacist=await pharmacistContext.newPage();await signIn(pharmacist,'pharmacist');await openVisit(pharmacist,fixture.v);await expect(pharmacist.getByRole('button',{name:'Authorize product for prescription 1',exact:true})).toHaveCount(0);await supplyDraft(pharmacist,fixture.code,'1');await pharmacist.getByRole('button',{name:'Save pharmacy change',exact:true}).focus();await pharmacist.keyboard.press('Enter');await expect(pharmacist.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeVisible();expect((await current(page,fixture.v.id)).pharmacy![0].remaining).toBe(3);
-    expect((await new AxeBuilder({page:pharmacist}).analyze()).violations).toEqual([]);await captureInventory(pharmacist,`artifacts/inventory-ui/${info.project.name}-partial.png`);
-    await supplyDraft(pharmacist,fixture.code,'3');await pharmacist.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(pharmacist.getByRole('article',{name:'Prescription 1',exact:true})).toContainText('fulfilled');expect((await current(page,fixture.v.id)).pharmacy![0].supplied).toBe(4);
-    const stock=await(await page.request.get(`/api/inventory/products/${fixture.productId}/batches`)).json();expect(stock.entries[0].balance).toBe(6);await captureInventory(pharmacist,`artifacts/inventory-ui/${info.project.name}-fulfilled.png`);
-  }finally{await clinicianContext.close();await pharmacistContext.close();}
+test('clinician authorizes quantity and pharmacy supplies partial then full across separate sessions', async ({
+  page,
+  browser,
+}, info) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  const clinicianContext = await browser.newContext({
+    baseURL: origin,
+    viewport: page.viewportSize(),
+  });
+  const pharmacistContext = await browser.newContext({
+    baseURL: origin,
+    viewport: page.viewportSize(),
+  });
+  try {
+    const clinician = await clinicianContext.newPage();
+    await signIn(clinician, 'clinician');
+    await openVisit(clinician, fixture.v);
+    await expect(
+      clinician.getByRole('button', { name: 'Pharmacy inventory', exact: true }),
+    ).toHaveCount(0);
+    await authorize(clinician, fixture.code);
+    await expect(
+      clinician.getByRole('button', { name: 'Record supply for prescription 1', exact: true }),
+    ).toHaveCount(0);
+    const pharmacist = await pharmacistContext.newPage();
+    await signIn(pharmacist, 'pharmacist');
+    await openVisit(pharmacist, fixture.v);
+    await expect(
+      pharmacist.getByRole('button', { name: 'Authorize product for prescription 1', exact: true }),
+    ).toHaveCount(0);
+    await supplyDraft(pharmacist, fixture.code, '1');
+    await pharmacist.getByRole('button', { name: 'Save pharmacy change', exact: true }).focus();
+    await pharmacist.keyboard.press('Enter');
+    await expect(
+      pharmacist.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+    ).toBeVisible();
+    expect((await current(page, fixture.v.id)).pharmacy![0].remaining).toBe(3);
+    expect((await new AxeBuilder({ page: pharmacist }).analyze()).violations).toEqual([]);
+    await captureInventory(pharmacist, `artifacts/inventory-ui/${info.project.name}-partial.png`);
+    await supplyDraft(pharmacist, fixture.code, '3');
+    await pharmacist.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+    await expect(
+      pharmacist.getByRole('article', { name: 'Prescription 1', exact: true }),
+    ).toContainText('fulfilled');
+    expect((await current(page, fixture.v.id)).pharmacy![0].supplied).toBe(4);
+    const stock = await (
+      await page.request.get(`/api/inventory/products/${fixture.productId}/batches`)
+    ).json();
+    expect(stock.entries[0].balance).toBe(6);
+    await captureInventory(pharmacist, `artifacts/inventory-ui/${info.project.name}-fulfilled.png`);
+  } finally {
+    await clinicianContext.close();
+    await pharmacistContext.close();
+  }
 });
-test('lost supply response preserves exact retry and guards navigation, then cancellation retains supplied stock',async({page})=>{
-  await signIn(page);const fixture=await seed(page);await openVisit(page,fixture.v);await authorize(page,fixture.code);await supplyDraft(page,fixture.code,'1');const requests:{key?:string;body:string|null}[]=[];let lose=true;
-  await page.route('**/api/visits/*/inventory/commands',async route=>{requests.push({key:route.request().headers()['idempotency-key'],body:route.request().postData()});const response=await route.fetch();expect(response.ok()).toBe(true);if(lose){lose=false;await route.abort('failed');}else await route.fulfill({response});});
-  await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('button',{name:'Retry pharmacy save',exact:true})).toBeEnabled();await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('1');for(const name of ['Sign out','Back to visit queue','Refresh visit'])await expect(page.getByRole('button',{name,exact:true})).toBeDisabled();await page.getByRole('button',{name:'Retry pharmacy save',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeVisible();expect(requests[0]).toEqual(requests[1]);expect((await current(page,fixture.v.id)).pharmacy![0].supplied).toBe(1);await page.unroute('**/api/visits/*/inventory/commands');
-  await page.getByRole('button',{name:'Cancel remaining prescription 1',exact:true}).click();await page.getByLabel('Reason for cancelling remainder',{exact:true}).fill('Fictional remainder cancelled');await page.getByLabel('I checked this prescription, product and quantity.',{exact:true}).check();await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByText('Remaining 3 tablet cancelled.',{exact:false})).toBeVisible();expect((await(await page.request.get(`/api/inventory/products/${fixture.productId}/batches`)).json()).entries[0].balance).toBe(9);
+test('lost supply response preserves exact retry and guards navigation, then cancellation retains supplied stock', async ({
+  page,
+}) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await openVisit(page, fixture.v);
+  await authorize(page, fixture.code);
+  await supplyDraft(page, fixture.code, '1');
+  const requests: { key?: string; body: string | null }[] = [];
+  let lose = true;
+  await page.route('**/api/visits/*/inventory/commands', async (route) => {
+    requests.push({
+      key: route.request().headers()['idempotency-key'],
+      body: route.request().postData(),
+    });
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    if (lose) {
+      lose = false;
+      await route.abort('failed');
+    } else await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Retry pharmacy save', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('1');
+  for (const name of ['Sign out', 'Back to visit queue', 'Refresh visit'])
+    await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Retry pharmacy save', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+  ).toBeVisible();
+  expect(requests[0]).toEqual(requests[1]);
+  expect((await current(page, fixture.v.id)).pharmacy![0].supplied).toBe(1);
+  await page.unroute('**/api/visits/*/inventory/commands');
+  await page.getByRole('button', { name: 'Cancel remaining prescription 1', exact: true }).click();
+  await page
+    .getByLabel('Reason for cancelling remainder', { exact: true })
+    .fill('Fictional remainder cancelled');
+  await page
+    .getByLabel('I checked this prescription, product and quantity.', { exact: true })
+    .check();
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(page.getByText('Remaining 3 tablet cancelled.', { exact: false })).toBeVisible();
+  expect(
+    (await (await page.request.get(`/api/inventory/products/${fixture.productId}/batches`)).json())
+      .entries[0].balance,
+  ).toBe(9);
 });
-test('inventory uncertain retry preserves product creation and blocks navigation until confirmed',async({page})=>{
-  await signIn(page);await page.getByRole('button',{name:'Pharmacy inventory',exact:true}).click();await page.getByRole('button',{name:'Add product',exact:true}).click();const code=`R${randomUUID().slice(0,8).toUpperCase()}`;await page.getByLabel('Product code',{exact:true}).fill(code);await page.getByLabel('Product name, strength and form',{exact:true}).fill(`Fictional retry ${code}`);await page.getByLabel('Base dispensing unit',{exact:true}).fill('unit');await page.getByLabel('I checked the product, quantities and details.',{exact:true}).check();const sent:{key?:string;body:string|null}[]=[];let lose=true;
-  await page.route('**/api/inventory/commands',async route=>{sent.push({key:route.request().headers()['idempotency-key'],body:route.request().postData()});const response=await route.fetch();expect(response.ok()).toBe(true);if(lose){lose=false;await route.abort('failed');}else await route.fulfill({response});});await page.getByRole('button',{name:'Save inventory change',exact:true}).click();await expect(page.getByRole('button',{name:'Retry inventory save',exact:true})).toBeEnabled();await expect(page.getByRole('button',{name:'Patient directory',exact:true})).toBeDisabled();await expect(page.getByLabel('Product code',{exact:true})).toHaveValue(code);await page.getByRole('button',{name:'Retry inventory save',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Inventory saved.'})).toBeVisible();expect(sent[0]).toEqual(sent[1]);expect((await(await page.request.get(`/api/inventory/products?q=${code}`)).json()).total).toBe(1);
+test('inventory uncertain retry preserves product creation and blocks navigation until confirmed', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('button', { name: 'Add product', exact: true }).click();
+  const code = `R${randomUUID().slice(0, 8).toUpperCase()}`;
+  await page.getByLabel('Product code', { exact: true }).fill(code);
+  await page
+    .getByLabel('Product name, strength and form', { exact: true })
+    .fill(`Fictional retry ${code}`);
+  await page.getByLabel('Base dispensing unit', { exact: true }).fill('unit');
+  await page.getByLabel('I checked the product, quantities and details.', { exact: true }).check();
+  const sent: { key?: string; body: string | null }[] = [];
+  let lose = true;
+  await page.route('**/api/inventory/commands', async (route) => {
+    sent.push({
+      key: route.request().headers()['idempotency-key'],
+      body: route.request().postData(),
+    });
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    if (lose) {
+      lose = false;
+      await route.abort('failed');
+    } else await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Save inventory change', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Retry inventory save', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Patient directory', exact: true })).toBeDisabled();
+  await expect(page.getByLabel('Product code', { exact: true })).toHaveValue(code);
+  await page.getByRole('button', { name: 'Retry inventory save', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Inventory saved.' })).toBeVisible();
+  expect(sent[0]).toEqual(sent[1]);
+  expect((await (await page.request.get(`/api/inventory/products?q=${code}`)).json()).total).toBe(
+    1,
+  );
 });
-test('stock conflict preserves supply draft and requires current version; drafts survive tabs and guard leaving',async({page},info)=>{
-  await signIn(page);const fixture=await seed(page);await openVisit(page,fixture.v);await authorize(page,fixture.code);await supplyDraft(page,fixture.code,'2');await page.getByRole('navigation',{name:'Visit sections'}).getByRole('button',{name:'Consultation',exact:true}).click();await page.getByRole('navigation',{name:'Visit sections'}).getByRole('button',{name:'Pharmacy',exact:true}).click();await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Back to visit queue',exact:true}).click();await expect(page.getByLabel(/Quantity supplied/)).toBeVisible();
-  await post(page,'/api/inventory/commands',{type:'stock.adjust',batchId:fixture.batchId,expectedRevision:2,quantity:-1,reason:'Fictional concurrent count'});await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('button',{name:'Use latest pharmacy version',exact:true})).toBeEnabled();await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');await expect(page.getByRole('button',{name:'Save pharmacy change',exact:true})).toBeDisabled();await page.getByRole('button',{name:'Use latest pharmacy version',exact:true}).click();await expect(page.getByText('Selected lot:',{exact:false})).toContainText('Stock 9 tablet');await page.getByLabel('I checked this prescription, product and quantity.',{exact:true}).check();expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);await captureInventory(page,`artifacts/inventory-ui/${info.project.name}-draft.png`);await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeVisible();
+test('stock conflict preserves supply draft and requires current version; drafts survive tabs and guard leaving', async ({
+  page,
+}, info) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await openVisit(page, fixture.v);
+  await authorize(page, fixture.code);
+  await supplyDraft(page, fixture.code, '2');
+  await page
+    .getByRole('navigation', { name: 'Visit sections' })
+    .getByRole('button', { name: 'Consultation', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Visit sections' })
+    .getByRole('button', { name: 'Pharmacy', exact: true })
+    .click();
+  await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('button', { name: 'Back to visit queue', exact: true }).click();
+  await expect(page.getByLabel(/Quantity supplied/)).toBeVisible();
+  await post(page, '/api/inventory/commands', {
+    type: 'stock.adjust',
+    batchId: fixture.batchId,
+    expectedRevision: 2,
+    quantity: -1,
+    reason: 'Fictional concurrent count',
+  });
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');
+  await expect(
+    page.getByRole('button', { name: 'Save pharmacy change', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }).click();
+  await expect(page.getByText('Selected lot:', { exact: false })).toContainText('Stock 9 tablet');
+  await page
+    .getByLabel('I checked this prescription, product and quantity.', { exact: true })
+    .check();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await captureInventory(page, `artifacts/inventory-ui/${info.project.name}-draft.png`);
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+  ).toBeVisible();
 });
-test('loading, unavailable choices and empty results have recovery without losing draft',async({page})=>{
-  await signIn(page);const fixture=await seed(page);await openVisit(page,fixture.v);let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});await page.route('**/api/inventory/products?*',async route=>{await held;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Fictional outage'})});});await page.getByRole('button',{name:'Authorize product for prescription 1',exact:true}).click();await expect(page.getByText('Loading pharmacy choices…',{exact:true})).toBeVisible();release();await expect(page.getByRole('button',{name:'Retry pharmacy choices',exact:true})).toBeVisible();await page.unroute('**/api/inventory/products?*');await page.getByRole('button',{name:'Retry pharmacy choices',exact:true}).click();await page.getByLabel('Search active products',{exact:true}).fill('NONEXISTENT-FICTION');await page.getByRole('button',{name:'Find products',exact:true}).click();await expect(page.getByText('No active products match.',{exact:false})).toBeVisible();await page.getByLabel('Search active products',{exact:true}).fill(fixture.code);await page.getByRole('button',{name:'Find products',exact:true}).click();await expect(page.getByRole('button',{name:`Choose ${fixture.code}`,exact:true})).toBeVisible();
+test('loading, unavailable choices and empty results have recovery without losing draft', async ({
+  page,
+}) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await openVisit(page, fixture.v);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/inventory/products?*', async (route) => {
+    await held;
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Fictional outage' }),
+    });
+  });
+  await page
+    .getByRole('button', { name: 'Authorize product for prescription 1', exact: true })
+    .click();
+  await expect(page.getByText('Loading pharmacy choices…', { exact: true })).toBeVisible();
+  release();
+  await expect(
+    page.getByRole('button', { name: 'Retry pharmacy choices', exact: true }),
+  ).toBeVisible();
+  await page.unroute('**/api/inventory/products?*');
+  await page.getByRole('button', { name: 'Retry pharmacy choices', exact: true }).click();
+  await page.getByLabel('Search active products', { exact: true }).fill('NONEXISTENT-FICTION');
+  await page.getByRole('button', { name: 'Find products', exact: true }).click();
+  await expect(page.getByText('No active products match.', { exact: false })).toBeVisible();
+  await page.getByLabel('Search active products', { exact: true }).fill(fixture.code);
+  await page.getByRole('button', { name: 'Find products', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: `Choose ${fixture.code}`, exact: true }),
+  ).toBeVisible();
 });
 
-test('multiple prescriptions retain editor context, recorded expiry and distinct identities with duplicate staff names',async({page,browser},info)=>{
-  await signIn(page);const fixture=await seed(page);await pool.query("UPDATE staff_users SET display_name='Duplicate Fictional Staff' WHERE hospital_id=(SELECT id FROM hospitals WHERE code=$1) AND username IN ('admin','pharmacist')",[hospitalCode]);
-  let v=(await post(page,`/api/visits/${fixture.v.id}/commands`,{expectedRevision:fixture.v.revision,command:{type:'prescribe',instruction:'Second distinct fictional instruction.'}})).visit as VisitView;
-  await openVisit(page,v);await page.getByRole('button',{name:'Authorize product for prescription 2',exact:true}).click();const editor=page.getByRole('form',{name:'Pharmacy change'});await expect(editor).toContainText('Prescription 2');await expect(editor).toContainText('Second distinct fictional instruction.');await expect(editor).not.toContainText('Fictional instructions for quantity authorization.');
-  await page.getByLabel('Search active products',{exact:true}).fill(fixture.code);await page.getByRole('button',{name:'Find products',exact:true}).click();await page.getByRole('button',{name:`Choose ${fixture.code}`,exact:true}).click();await page.getByLabel(/Authorized quantity/).fill('4');await page.getByLabel('I checked this prescription, product and quantity.').check();await page.getByRole('button',{name:'Save pharmacy change',exact:true}).focus();await page.keyboard.press('Enter');await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeFocused();
-  const context=await browser.newContext({baseURL:origin,viewport:page.viewportSize()});try{const pharmacist=await context.newPage();await signIn(pharmacist,'pharmacist');await openVisit(pharmacist,v);await pharmacist.getByRole('button',{name:'Record supply for prescription 2',exact:true}).click();const supply=pharmacist.getByRole('form',{name:'Pharmacy change'});await expect(supply).toContainText('Prescription 2');await expect(supply).toContainText('Second distinct fictional instruction.');await pharmacist.getByRole('button',{name:`Choose lot ${fixture.code}`,exact:true}).click();await pharmacist.getByLabel(/Quantity supplied/).fill('1');await pharmacist.getByLabel('I checked this prescription, product and quantity.').check();await captureInventory(pharmacist,`artifacts/inventory-ui/${info.project.name}-subject-editor.png`);await pharmacist.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(pharmacist.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeFocused();
-    const history=pharmacist.getByRole('region',{name:'Inventory history'});await expect(history.getByText('Prescription 2',{exact:true})).toHaveCount(2);await expect(history.getByText('Second distinct fictional instruction.',{exact:true})).toHaveCount(2);await expect(history).toContainText('Recorded expiry 2099-12-31');await expect(history.getByText(/Duplicate Fictional Staff/)).toHaveCount(2);
-    const auth=(await current(page,v.id)).pharmacy![0];await pharmacist.getByRole('article',{name:'Prescription 2'}).getByText('Authorizing staff identity',{exact:true}).click();await expect(pharmacist.getByRole('article',{name:'Prescription 2'})).toContainText(auth.actorId);
-    const staff=(await(await pharmacist.request.get('/api/auth/session')).json()).user;for(const detail of await history.locator('details').all())await detail.locator('summary').click();await expect(history).toContainText(auth.actorId);await expect(history).toContainText(staff.id);expect(auth.actorId).not.toBe(staff.id);expect((await new AxeBuilder({page:pharmacist}).analyze()).violations).toEqual([]);await captureInventory(pharmacist,`artifacts/inventory-ui/${info.project.name}-subject-history.png`);
-    await pharmacist.getByRole('button',{name:'Cancel remaining prescription 2',exact:true}).click();await expect(pharmacist.getByRole('form',{name:'Pharmacy change'})).toContainText('Second distinct fictional instruction.');await pharmacist.getByRole('button',{name:'Discard pharmacy draft'}).click();
-    await pharmacist.getByRole('button',{name:'Pharmacy inventory',exact:true}).click();await pharmacist.getByLabel('Search product name or code').fill(fixture.code);await pharmacist.getByRole('button',{name:'Search products',exact:true}).click();await pharmacist.getByRole('button',{name:fixture.name,exact:true}).click();await expect(pharmacist.getByRole('heading',{level:1})).toBeFocused();const global=pharmacist.getByRole('region',{name:'Inventory history'});for(const detail of await global.locator('details').filter({hasText:'Visit and prescription identity'}).all())await detail.locator('summary').click();await expect(global).toContainText(v.id);await expect(global).toContainText(v.prescriptions![1].id);
-  }finally{await context.close();}
+test('multiple prescriptions retain editor context, recorded expiry and distinct identities with duplicate staff names', async ({
+  page,
+  browser,
+}, info) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await pool.query(
+    "UPDATE staff_users SET display_name='Duplicate Fictional Staff' WHERE hospital_id=(SELECT id FROM hospitals WHERE code=$1) AND username IN ('admin','pharmacist')",
+    [hospitalCode],
+  );
+  let v = (
+    await post(page, `/api/visits/${fixture.v.id}/commands`, {
+      expectedRevision: fixture.v.revision,
+      command: { type: 'prescribe', instruction: 'Second distinct fictional instruction.' },
+    })
+  ).visit as VisitView;
+  await openVisit(page, v);
+  await page
+    .getByRole('button', { name: 'Authorize product for prescription 2', exact: true })
+    .click();
+  const editor = page.getByRole('form', { name: 'Pharmacy change' });
+  await expect(editor).toContainText('Prescription 2');
+  await expect(editor).toContainText('Second distinct fictional instruction.');
+  await expect(editor).not.toContainText('Fictional instructions for quantity authorization.');
+  await page.getByLabel('Search active products', { exact: true }).fill(fixture.code);
+  await page.getByRole('button', { name: 'Find products', exact: true }).click();
+  await page.getByRole('button', { name: `Choose ${fixture.code}`, exact: true }).click();
+  await page.getByLabel(/Authorized quantity/).fill('4');
+  await page.getByLabel('I checked this prescription, product and quantity.').check();
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+  ).toBeFocused();
+  const context = await browser.newContext({ baseURL: origin, viewport: page.viewportSize() });
+  try {
+    const pharmacist = await context.newPage();
+    await signIn(pharmacist, 'pharmacist');
+    await openVisit(pharmacist, v);
+    await pharmacist
+      .getByRole('button', { name: 'Record supply for prescription 2', exact: true })
+      .click();
+    const supply = pharmacist.getByRole('form', { name: 'Pharmacy change' });
+    await expect(supply).toContainText('Prescription 2');
+    await expect(supply).toContainText('Second distinct fictional instruction.');
+    await pharmacist
+      .getByRole('button', { name: `Choose lot ${fixture.code}`, exact: true })
+      .click();
+    await pharmacist.getByLabel(/Quantity supplied/).fill('1');
+    await pharmacist.getByLabel('I checked this prescription, product and quantity.').check();
+    await captureInventory(
+      pharmacist,
+      `artifacts/inventory-ui/${info.project.name}-subject-editor.png`,
+    );
+    await pharmacist.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+    await expect(
+      pharmacist.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+    ).toBeFocused();
+    const history = pharmacist.getByRole('region', { name: 'Inventory history' });
+    await expect(history.getByText('Prescription 2', { exact: true })).toHaveCount(2);
+    await expect(
+      history.getByText('Second distinct fictional instruction.', { exact: true }),
+    ).toHaveCount(2);
+    await expect(history).toContainText('Recorded expiry 2099-12-31');
+    await expect(history.getByText(/Duplicate Fictional Staff/)).toHaveCount(2);
+    const auth = (await current(page, v.id)).pharmacy![0];
+    await pharmacist
+      .getByRole('article', { name: 'Prescription 2' })
+      .getByText('Authorizing staff identity', { exact: true })
+      .click();
+    await expect(pharmacist.getByRole('article', { name: 'Prescription 2' })).toContainText(
+      auth.actorId,
+    );
+    const staff = (await (await pharmacist.request.get('/api/auth/session')).json()).user;
+    for (const detail of await history.locator('details').all())
+      await detail.locator('summary').click();
+    await expect(history).toContainText(auth.actorId);
+    await expect(history).toContainText(staff.id);
+    expect(auth.actorId).not.toBe(staff.id);
+    expect((await new AxeBuilder({ page: pharmacist }).analyze()).violations).toEqual([]);
+    await captureInventory(
+      pharmacist,
+      `artifacts/inventory-ui/${info.project.name}-subject-history.png`,
+    );
+    await pharmacist
+      .getByRole('button', { name: 'Cancel remaining prescription 2', exact: true })
+      .click();
+    await expect(pharmacist.getByRole('form', { name: 'Pharmacy change' })).toContainText(
+      'Second distinct fictional instruction.',
+    );
+    await pharmacist.getByRole('button', { name: 'Discard pharmacy draft' }).click();
+    await pharmacist.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+    await pharmacist.getByLabel('Search product name or code').fill(fixture.code);
+    await pharmacist.getByRole('button', { name: 'Search products', exact: true }).click();
+    await pharmacist.getByRole('button', { name: fixture.name, exact: true }).click();
+    await expect(pharmacist.getByRole('heading', { level: 1 })).toBeFocused();
+    const global = pharmacist.getByRole('region', { name: 'Inventory history' });
+    for (const detail of await global
+      .locator('details')
+      .filter({ hasText: 'Visit and prescription identity' })
+      .all())
+      await detail.locator('summary').click();
+    await expect(global).toContainText(v.id);
+    await expect(global).toContainText(v.prescriptions![1].id);
+  } finally {
+    await context.close();
+  }
 });
-test('refresh invalidates selected stock until explicit adoption and does not claim a failed refresh succeeded',async({page},info)=>{
-  await signIn(page);const fixture=await seed(page);await openVisit(page,fixture.v);await authorize(page,fixture.code);await supplyDraft(page,fixture.code,'2');await post(page,'/api/inventory/commands',{type:'stock.adjust',batchId:fixture.batchId,expectedRevision:2,quantity:-1,reason:'Fictional revised stock'});await page.getByRole('button',{name:'Refresh pharmacy choices',exact:true}).click();await expect(page.getByRole('button',{name:'Use latest pharmacy version',exact:true})).toBeEnabled();await expect(page.getByLabel('I checked this prescription, product and quantity.')).not.toBeChecked();await expect(page.getByRole('button',{name:'Save pharmacy change',exact:true})).toBeDisabled();await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');await page.getByRole('button',{name:'Use latest pharmacy version',exact:true}).click();await expect(page.getByText('Selected lot:',{exact:false})).toContainText('Stock 9 tablet');
-  await page.getByLabel('I checked this prescription, product and quantity.').check();await post(page,'/api/inventory/commands',{type:'batch.status',batchId:fixture.batchId,expectedRevision:3,quarantined:true,reason:'Fictional hold'});await page.getByRole('button',{name:'Refresh pharmacy choices',exact:true}).click();await expect(page.getByRole('button',{name:'Use latest pharmacy version',exact:true})).toBeDisabled();await expect(page.getByRole('button',{name:`Choose lot ${fixture.code}`,exact:true})).toBeDisabled();await expect(page.getByLabel('I checked this prescription, product and quantity.')).not.toBeChecked();await captureInventory(page,`artifacts/inventory-ui/${info.project.name}-stale-stock.png`);
-  await post(page,'/api/inventory/commands',{type:'batch.status',batchId:fixture.batchId,expectedRevision:4,quarantined:false,reason:'Fictional release'});await page.getByRole('button',{name:'Refresh pharmacy choices',exact:true}).click();await page.getByRole('button',{name:'Use latest pharmacy version',exact:true}).click();await page.getByLabel('I checked this prescription, product and quantity.').check();await page.route(`**/api/visits/${fixture.v.id}`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Fictional refresh unavailable'})}));await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toHaveText('Pharmacy change saved.');await expect(page.getByRole('button',{name:'Reload latest visit',exact:true})).toBeVisible();await expect(page.getByRole('alert')).toContainText('Fictional refresh unavailable');await page.unroute(`**/api/visits/${fixture.v.id}`);await page.getByRole('button',{name:'Reload latest visit',exact:true}).click();await expect(page.getByRole('article',{name:'Prescription 1'})).toContainText('Supplied2');
+test('refresh invalidates selected stock until explicit adoption and does not claim a failed refresh succeeded', async ({
+  page,
+}, info) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await openVisit(page, fixture.v);
+  await authorize(page, fixture.code);
+  await supplyDraft(page, fixture.code, '2');
+  await post(page, '/api/inventory/commands', {
+    type: 'stock.adjust',
+    batchId: fixture.batchId,
+    expectedRevision: 2,
+    quantity: -1,
+    reason: 'Fictional revised stock',
+  });
+  await page.getByRole('button', { name: 'Refresh pharmacy choices', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByLabel('I checked this prescription, product and quantity.'),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Save pharmacy change', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');
+  await page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }).click();
+  await expect(page.getByText('Selected lot:', { exact: false })).toContainText('Stock 9 tablet');
+  await page.getByLabel('I checked this prescription, product and quantity.').check();
+  await post(page, '/api/inventory/commands', {
+    type: 'batch.status',
+    batchId: fixture.batchId,
+    expectedRevision: 3,
+    quarantined: true,
+    reason: 'Fictional hold',
+  });
+  await page.getByRole('button', { name: 'Refresh pharmacy choices', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: `Choose lot ${fixture.code}`, exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByLabel('I checked this prescription, product and quantity.'),
+  ).not.toBeChecked();
+  await captureInventory(page, `artifacts/inventory-ui/${info.project.name}-stale-stock.png`);
+  await post(page, '/api/inventory/commands', {
+    type: 'batch.status',
+    batchId: fixture.batchId,
+    expectedRevision: 4,
+    quarantined: false,
+    reason: 'Fictional release',
+  });
+  await page.getByRole('button', { name: 'Refresh pharmacy choices', exact: true }).click();
+  await page.getByRole('button', { name: 'Use latest pharmacy version', exact: true }).click();
+  await page.getByLabel('I checked this prescription, product and quantity.').check();
+  await page.route(`**/api/visits/${fixture.v.id}`, (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Fictional refresh unavailable' }),
+    }),
+  );
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' })).toHaveText(
+    'Pharmacy change saved.',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Reload latest visit', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Fictional refresh unavailable');
+  await page.unroute(`**/api/visits/${fixture.v.id}`);
+  await page.getByRole('button', { name: 'Reload latest visit', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Prescription 1' })).toContainText('Supplied2');
 });
-test('inventory stale refresh and status conflict keep the intended action and reason',async({page},info)=>{
-  await signIn(page);const fixture=await seed(page);await page.getByRole('button',{name:'Pharmacy inventory',exact:true}).click();await page.getByLabel('Search product name or code').fill(fixture.code);await page.getByRole('button',{name:'Search products',exact:true}).click();await page.getByRole('button',{name:fixture.name,exact:true}).click();await expect(page.getByRole('heading',{level:1})).toBeFocused();
-  await page.getByRole('button',{name:'Receive stock',exact:true}).click();await page.getByLabel(/Quantity received/).fill('2');await page.getByLabel('Receipt reference',{exact:true}).fill('Retained fictional receipt');await page.getByLabel('I checked the product, quantities and details.').check();await post(page,'/api/inventory/commands',{type:'stock.adjust',batchId:fixture.batchId,expectedRevision:2,quantity:-1,reason:'Concurrent count'});await page.getByRole('button',{name:'Refresh inventory',exact:true}).click();await expect(page.getByRole('button',{name:'Use latest inventory version',exact:true})).toBeEnabled();await expect(page.getByLabel('I checked the product, quantities and details.')).not.toBeChecked();await expect(page.getByRole('button',{name:'Save inventory change',exact:true})).toBeDisabled();await expect(page.getByLabel(/Quantity received/)).toHaveValue('2');await page.getByRole('button',{name:'Use latest inventory version',exact:true}).click();await expect(page.getByRole('form',{name:'Inventory change'})).toContainText('Current stock 9 tablet');
-  await page.route(`**/api/inventory/products/${fixture.productId}/batches?*`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Fictional outage'})}));await confirmInventory(page);await expect(page.getByRole('status').filter({hasText:'Inventory saved.'})).toBeFocused();await expect(page.getByRole('status').filter({hasText:'Inventory saved.'})).toHaveText('Inventory saved.');await expect(page.getByRole('alert')).toContainText('Inventory could not be loaded');await page.unroute(`**/api/inventory/products/${fixture.productId}/batches?*`);await page.getByRole('button',{name:'Retry loading inventory',exact:true}).click();await expect(page.getByRole('region',{name:'Product batches'})).toContainText('11 tablet');
-  for(const kind of ['product','batch']){const reason=`Keep ${kind} intent`;await page.getByRole('button',{name:kind==='product'?'Deactivate product':'Quarantine batch',exact:true}).click();await page.getByLabel('Reason for inventory change').fill(reason);await page.getByLabel('I checked the product, quantities and details.').check();await post(page,'/api/inventory/commands',kind==='product'?{type:'product.status',productId:fixture.productId,expectedRevision:1,active:false,reason:'Concurrent same action'}:{type:'batch.status',batchId:fixture.batchId,expectedRevision:4,quarantined:true,reason:'Concurrent same action'});await page.getByRole('button',{name:'Save inventory change',exact:true}).click();await page.getByRole('button',{name:'Use latest inventory version',exact:true}).click();await expect(page.getByRole('form',{name:'Inventory change'}).getByRole('heading')).toHaveText(kind==='product'?'Deactivate product':'Quarantine batch');await expect(page.getByLabel('Reason for inventory change')).toHaveValue(reason);await expect(page.getByLabel('I checked the product, quantities and details.')).not.toBeChecked();await page.getByLabel('I checked the product, quantities and details.').check();const request=page.waitForRequest('**/api/inventory/commands');await page.getByRole('button',{name:'Save inventory change',exact:true}).click();const command=(await request).postDataJSON();expect(command[kind==='product'?'active':'quarantined']).toBe(kind==='batch');expect(command.reason).toBe(reason);await expect(page.getByRole('alert')).toContainText('already has this status');if(kind==='batch'){await expect(page.getByRole('button',{name:'Use latest inventory version',exact:true})).toBeEnabled();await expect(page.getByLabel('Reason for inventory change')).toHaveValue(reason);await captureInventory(page,`artifacts/inventory-ui/${info.project.name}-status-conflict.png`);}await page.getByRole('button',{name:'Discard inventory draft',exact:true}).click();}
-  await page.getByRole('button',{name:'Back to products',exact:true}).click();await expect(page.getByRole('heading',{name:'Pharmacy inventory',exact:true})).toBeFocused();
+test('inventory stale refresh and status conflict keep the intended action and reason', async ({
+  page,
+}, info) => {
+  await signIn(page);
+  const fixture = await seed(page);
+  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByLabel('Search product name or code').fill(fixture.code);
+  await page.getByRole('button', { name: 'Search products', exact: true }).click();
+  await page.getByRole('button', { name: fixture.name, exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+  await page.getByRole('button', { name: 'Receive stock', exact: true }).click();
+  await page.getByLabel(/Quantity received/).fill('2');
+  await page.getByLabel('Receipt reference', { exact: true }).fill('Retained fictional receipt');
+  await page.getByLabel('I checked the product, quantities and details.').check();
+  await post(page, '/api/inventory/commands', {
+    type: 'stock.adjust',
+    batchId: fixture.batchId,
+    expectedRevision: 2,
+    quantity: -1,
+    reason: 'Concurrent count',
+  });
+  await page.getByRole('button', { name: 'Refresh inventory', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Use latest inventory version', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel('I checked the product, quantities and details.')).not.toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Save inventory change', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel(/Quantity received/)).toHaveValue('2');
+  await page.getByRole('button', { name: 'Use latest inventory version', exact: true }).click();
+  await expect(page.getByRole('form', { name: 'Inventory change' })).toContainText(
+    'Current stock 9 tablet',
+  );
+  await page.route(`**/api/inventory/products/${fixture.productId}/batches?*`, (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Fictional outage' }),
+    }),
+  );
+  await confirmInventory(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Inventory saved.' })).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Inventory saved.' })).toHaveText(
+    'Inventory saved.',
+  );
+  await expect(page.getByRole('alert')).toContainText('Inventory could not be loaded');
+  await page.unroute(`**/api/inventory/products/${fixture.productId}/batches?*`);
+  await page.getByRole('button', { name: 'Retry loading inventory', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Product batches' })).toContainText('11 tablet');
+  for (const kind of ['product', 'batch']) {
+    const reason = `Keep ${kind} intent`;
+    await page
+      .getByRole('button', {
+        name: kind === 'product' ? 'Deactivate product' : 'Quarantine batch',
+        exact: true,
+      })
+      .click();
+    await page.getByLabel('Reason for inventory change').fill(reason);
+    await page.getByLabel('I checked the product, quantities and details.').check();
+    await post(
+      page,
+      '/api/inventory/commands',
+      kind === 'product'
+        ? {
+            type: 'product.status',
+            productId: fixture.productId,
+            expectedRevision: 1,
+            active: false,
+            reason: 'Concurrent same action',
+          }
+        : {
+            type: 'batch.status',
+            batchId: fixture.batchId,
+            expectedRevision: 4,
+            quarantined: true,
+            reason: 'Concurrent same action',
+          },
+    );
+    await page.getByRole('button', { name: 'Save inventory change', exact: true }).click();
+    await page.getByRole('button', { name: 'Use latest inventory version', exact: true }).click();
+    await expect(
+      page.getByRole('form', { name: 'Inventory change' }).getByRole('heading'),
+    ).toHaveText(kind === 'product' ? 'Deactivate product' : 'Quarantine batch');
+    await expect(page.getByLabel('Reason for inventory change')).toHaveValue(reason);
+    await expect(
+      page.getByLabel('I checked the product, quantities and details.'),
+    ).not.toBeChecked();
+    await page.getByLabel('I checked the product, quantities and details.').check();
+    const request = page.waitForRequest('**/api/inventory/commands');
+    await page.getByRole('button', { name: 'Save inventory change', exact: true }).click();
+    const command = (await request).postDataJSON();
+    expect(command[kind === 'product' ? 'active' : 'quarantined']).toBe(kind === 'batch');
+    expect(command.reason).toBe(reason);
+    await expect(page.getByRole('alert')).toContainText('already has this status');
+    if (kind === 'batch') {
+      await expect(
+        page.getByRole('button', { name: 'Use latest inventory version', exact: true }),
+      ).toBeEnabled();
+      await expect(page.getByLabel('Reason for inventory change')).toHaveValue(reason);
+      await captureInventory(
+        page,
+        `artifacts/inventory-ui/${info.project.name}-status-conflict.png`,
+      );
+    }
+    await page.getByRole('button', { name: 'Discard inventory draft', exact: true }).click();
+  }
+  await page.getByRole('button', { name: 'Back to products', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Pharmacy inventory', exact: true }),
+  ).toBeFocused();
 });
-test('catalog and history pagination, search reset and later-page batch supply remain reachable',async({page})=>{
-  test.setTimeout(120000);await signIn(page);const fixture=await seed(page);for(let index=0;index<26;index++)await post(page,'/api/inventory/commands',{type:'product.create',code:`A${randomUUID().slice(0,8)}${String(index).padStart(2,'0')}`,name:`Paged unrelated fictional product ${index}`,unit:'unit'});
-  for(let index=0;index<25;index++)await post(page,'/api/inventory/commands',{type:'batch.create',productId:fixture.productId,lot:`EMPTY-${index}`,expiry:'2000-01-01'});
-  await page.getByRole('button',{name:'Pharmacy inventory',exact:true}).click();await page.getByRole('button',{name:'Next products',exact:true}).click();await expect(page.getByText(/products · Page 2/)).toBeVisible();await page.getByRole('button',{name:'Previous products',exact:true}).click();await expect(page.getByText(/products · Page 1/)).toBeVisible();await page.getByRole('button',{name:'Next products',exact:true}).click();await page.getByLabel('Search product name or code').fill(fixture.code);await page.getByRole('button',{name:'Search products',exact:true}).click();await expect(page.getByText(/products · Page 1/)).toBeVisible();await page.getByLabel('Search product name or code').fill(fixture.name);await page.getByRole('button',{name:'Search products',exact:true}).click();await page.getByRole('button',{name:fixture.name,exact:true}).click();await page.getByRole('button',{name:'Next batches',exact:true}).click();await expect(page.getByRole('region',{name:'Product batches'})).toContainText(fixture.code);await page.getByRole('button',{name:'Previous batches',exact:true}).click();await expect(page.getByRole('region',{name:'Product batches'})).not.toContainText(fixture.code);
-  const history=page.getByRole('region',{name:'Inventory history'});await page.getByRole('button',{name:'Next inventory history',exact:true}).click();await expect(history).toContainText('Page 2 of 2');await expect(history).toContainText('Product created');await page.getByRole('button',{name:'Previous inventory history',exact:true}).click();await expect(history).toContainText('Page 1 of 2');await expect(history.getByText('Product created',{exact:true})).toHaveCount(0);
-  await openVisit(page,fixture.v);await authorize(page,fixture.code);await page.getByRole('button',{name:'Record supply for prescription 1',exact:true}).click();await expect(page.getByRole('button',{name:`Choose lot ${fixture.code}`,exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Next pharmacy choices',exact:true}).click();await page.getByRole('button',{name:`Choose lot ${fixture.code}`,exact:true}).click();await page.getByLabel(/Quantity supplied/).fill('1');await page.getByLabel('I checked this prescription, product and quantity.').check();await page.getByRole('button',{name:'Previous pharmacy choices',exact:true}).click();await expect(page.getByLabel('I checked this prescription, product and quantity.')).toBeChecked();await expect(page.getByRole('button',{name:'Save pharmacy change',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Refresh pharmacy choices',exact:true}).click();await expect(page.getByRole('button',{name:'Save pharmacy change',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Save pharmacy change',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Pharmacy change saved.'})).toBeVisible();expect((await current(page,fixture.v.id)).pharmacy![0].supplied).toBe(1);
+test('catalog and history pagination, search reset and later-page batch supply remain reachable', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await signIn(page);
+  const fixture = await seed(page);
+  for (let index = 0; index < 26; index++)
+    await post(page, '/api/inventory/commands', {
+      type: 'product.create',
+      code: `A${randomUUID().slice(0, 8)}${String(index).padStart(2, '0')}`,
+      name: `Paged unrelated fictional product ${index}`,
+      unit: 'unit',
+    });
+  for (let index = 0; index < 25; index++)
+    await post(page, '/api/inventory/commands', {
+      type: 'batch.create',
+      productId: fixture.productId,
+      lot: `EMPTY-${index}`,
+      expiry: '2000-01-01',
+    });
+  await page.getByRole('button', { name: 'Pharmacy inventory', exact: true }).click();
+  await page.getByRole('button', { name: 'Next products', exact: true }).click();
+  await expect(page.getByText(/products · Page 2/)).toBeVisible();
+  await page.getByRole('button', { name: 'Previous products', exact: true }).click();
+  await expect(page.getByText(/products · Page 1/)).toBeVisible();
+  await page.getByRole('button', { name: 'Next products', exact: true }).click();
+  await page.getByLabel('Search product name or code').fill(fixture.code);
+  await page.getByRole('button', { name: 'Search products', exact: true }).click();
+  await expect(page.getByText(/products · Page 1/)).toBeVisible();
+  await page.getByLabel('Search product name or code').fill(fixture.name);
+  await page.getByRole('button', { name: 'Search products', exact: true }).click();
+  await page.getByRole('button', { name: fixture.name, exact: true }).click();
+  await page.getByRole('button', { name: 'Next batches', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Product batches' })).toContainText(fixture.code);
+  await page.getByRole('button', { name: 'Previous batches', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Product batches' })).not.toContainText(
+    fixture.code,
+  );
+  const history = page.getByRole('region', { name: 'Inventory history' });
+  await page.getByRole('button', { name: 'Next inventory history', exact: true }).click();
+  await expect(history).toContainText('Page 2 of 2');
+  await expect(history).toContainText('Product created');
+  await page.getByRole('button', { name: 'Previous inventory history', exact: true }).click();
+  await expect(history).toContainText('Page 1 of 2');
+  await expect(history.getByText('Product created', { exact: true })).toHaveCount(0);
+  await openVisit(page, fixture.v);
+  await authorize(page, fixture.code);
+  await page.getByRole('button', { name: 'Record supply for prescription 1', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: `Choose lot ${fixture.code}`, exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next pharmacy choices', exact: true }).click();
+  await page.getByRole('button', { name: `Choose lot ${fixture.code}`, exact: true }).click();
+  await page.getByLabel(/Quantity supplied/).fill('1');
+  await page.getByLabel('I checked this prescription, product and quantity.').check();
+  await page.getByRole('button', { name: 'Previous pharmacy choices', exact: true }).click();
+  await expect(page.getByLabel('I checked this prescription, product and quantity.')).toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Save pharmacy change', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Refresh pharmacy choices', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Save pharmacy change', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Save pharmacy change', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Pharmacy change saved.' }),
+  ).toBeVisible();
+  expect((await current(page, fixture.v.id)).pharmacy![0].supplied).toBe(1);
 });

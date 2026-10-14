@@ -7,7 +7,7 @@ permissions:
 jobs:
   tooling:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
     steps:
@@ -20,17 +20,18 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run test:release-recovery
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: npm run test:tooling
-      - run: npm run test:app
       - run: npm run db:local
       - run: npm run db:migrate
       - run: npm run typecheck:server
       - run: npm run test:server
       - run: npm run test:operations
       - run: npm run test:operations:tooling
+      - run: npm run test:production
       - run: node --test tooling/ci-legacy-fixture.test.mjs
       - run: npm run test:staff
       - run: npm run test:mfa:browser
@@ -59,7 +60,7 @@ jobs:
           retention-days: 7
   local-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: current
@@ -82,6 +83,7 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: node tooling/ci-legacy-fixture.mjs
       - run: npm run release:local
+      - run: npm run production:verify
       - run: npm run test:mfa:runtime
       - run: npm run release:verify
       - run: npm run release:stop
@@ -97,3 +99,9 @@ jobs:
       - run: npm run release:preflight -- .local/recovery.key .local/release-backups/ci.medi
       - run: npm run release:stop
         if: always()
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: production-installation-evidence
+          path: current/docs/production-installation-evidence.json
+          retention-days: 7

@@ -13,8 +13,8 @@ Requirement references: [ASVS V8, pinned version](https://github.com/OWASP/ASVS/
 | --- | --- | --- |
 | 8.1.1, 8.1.2: function/data/field rules | `shared/outpatient.ts` role actions and sections; clinical spec and `server/clinical.ts` projections | Hospital approval of roles and minimum necessary patient-directory access |
 | 8.2.1, 8.3.1: trusted permission enforcement | Server routes enforce roles independently of UI; API role-denial tests | Endpoint inventory and independent assessment |
-| 8.2.2, 8.4.1: object and tenant boundaries | Hospital-scoped predicates and composite foreign keys; two-hospital API cases in registration/outpatient/administration/configuration/billing/clinical/inventory/reports suites | Review vendor support access and chosen tenancy model; database row policies are absent |
-| 8.2.3: field permissions | Populated seven-role clinical projection test, including metadata-only auditor history | Review every patient, financial and report projection against approved policy |
+| 8.2.2, 8.4.1: object and tenant boundaries | Hospital-scoped predicates, composite foreign keys and migration019 row policies; transaction-local hospital context, invoker patient directory and two-hospital API cases | Review the chosen deployment and hospital-approved support permissions; support grants are expiring, auditor-only and MFA-gated |
+| 8.2.3: field permissions | Role-scoped clinical projections including the nurse role; populated clinical projection tests, including metadata-only auditor history | Review every patient, financial and report projection against approved policy |
 
 Patient directory/detail, clinical, inventory and report tests also exercise authority changes while waiting
 for a hospital lock; mutation suites cover denied replay after revocation. These
@@ -41,7 +41,7 @@ Requirement references: [ASVS V14, pinned version](https://github.com/OWASP/ASVS
 | 14.1.1, 14.1.2, 14.2.4: protection policy | Synthetic-data restriction, pilot governance workbook and authenticated encrypted packaged-release recovery with private external key | Data classification, retention, production key custody, offsite storage and approved data location remain unresolved |
 | 14.2.1: sensitive request placement | Credentials and patient-directory/visit-queue searches use authenticated JSON bodies; search POSTs require exact Origin and session CSRF; legacy GET q is rejected; API/browser transport cases | Review production proxy, monitoring and diagnostic redaction end to end |
 | 14.2.2, 14.3.2: caching controls | API and release gateway send `Cache-Control: no-store` | Verify chosen production proxies/CDN and browser behavior |
-| 14.3.1, 14.3.3: client cleanup/storage | Staff UI clears identity/drafts on expiry/logout; state remains in memory; browser expiry/logout cases | Independent browser storage and offline-sign-out assessment; `/` is a separate synthetic local-storage demo |
+| 14.3.1, 14.3.3: client cleanup/storage | Staff UI clears identity/drafts on expiry/logout; state remains in memory; browser expiry/logout cases | Independent browser storage and offline-sign-out assessment; `/` and `/staff` use the same authenticated application |
 
 ## Security logging and errors
 
@@ -144,3 +144,12 @@ Final operations implementation65bb78c passed source-security, tooling and
 local-release in [delivery CI](https://github.com/yotors/medi/actions/runs/38584302746),
 including the final gateway/scanner compatibility changes and full application
 regression. This does not remove the passive-scan warnings or external review gates.
+
+## Product completion changes
+
+The abandoned local-storage prototype and Radix dependencies were removed. Both
+release gateways now use `style-src self` and COOP/COEP/CORP headers. The public
+production gateway includes HSTS; the internal-CA local rehearsal intentionally
+does not. The older scanner triage above describes its dated baseline and does
+not describe these changed headers. Final scan and exact revision CI evidence
+will be recorded after their completion.

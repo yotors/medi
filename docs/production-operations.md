@@ -214,3 +214,28 @@ the genuine old fixture, restart/recovery, alert, upgrade/replacement, capacity 
 preflight rehearsals. The final evidence-only documentation commit skips another
 run of unchanged application code. This completes the scoped engineering work,
 without changing the explicit external launch gates or missing product modules.
+
+## Archive compatibility after tenant RLS
+
+New local release archives use authenticated format4. The schema inventory now
+records public policies (roles, command, permissive/restrictive mode, USING and
+WITH CHECK expressions), table RLS/forced-RLS flags and view reloptions, including
+`security_invoker`. Replacement recovery compares that complete inventory and
+retains mandatory MFA key provisioning. Unsupported objects and policies outside
+public remain refused; enabling RLS is no longer incorrectly treated as an
+unsupported database object.
+
+Original authenticated release formats1/2 retain their original inventory
+projection and exact record-hash comparison. They are never rewritten. Recovery
+refuses policies or nonempty view options that these old archives could not have
+recorded. Dedicated production format3 remains separate: new archives record view
+options, while original format3 archives retain the view projection they actually
+authenticated. Policy metadata, table RLS flags and recorded view options are
+compared on production replacement checks too.
+
+Focused compatibility verification passed25 existing/new tests plus3 new fake
+recovery integration cases: format4 successful comparison/MFA provisioning, changed
+policy refusal and changed security-invoker option refusal, all with owned target
+cleanup and source archive preservation. This is static/fake-process evidence;
+root's real Docker recovery drill supplies runtime evidence. Original private
+archives, keys, images and database contents were untouched.

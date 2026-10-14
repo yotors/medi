@@ -1,0 +1,202 @@
+.department-workspace {
+  max-width: 1120px;
+  margin: auto;
+  padding: 24px;
+}
+.department-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0;
+}
+.department-tabs [aria-current='page'] {
+  background: var(--teal, #12685d);
+  color: white;
+}
+.department-form,
+.department-detail {
+  padding: 24px;
+  margin: 24px 0;
+  border: 1px solid var(--border, #d5e2df);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.department-form > label {
+  display: block;
+  max-width: 520px;
+}
+.department-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 18px 0;
+}
+.department-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-weight: 600;
+}
+.department-fields input,
+.department-fields select,
+.department-fields textarea,
+.department-form > select {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid #a9bbb5;
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+  color: #153b34;
+}
+.department-fields input[type='checkbox'] {
+  width: 24px;
+  min-height: 24px;
+  align-self: start;
+}
+.department-fields textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.department-facts {
+  margin: 12px 0;
+  display: grid;
+  gap: 10px;
+}
+.department-facts > div {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(0, 3fr);
+  gap: 16px;
+}
+.department-facts dt {
+  text-transform: capitalize;
+  color: #46645d;
+}
+.department-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.department-workspace small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.department-review {
+  display: block;
+  color: #874415;
+}
+.department-workspace fieldset {
+  border: 1px solid #bdcfca;
+  border-radius: 8px;
+  margin: 16px 0;
+}
+.department-workspace code {
+  overflow-wrap: anywhere;
+}
+.department-workspace button:focus-visible,
+.department-workspace input:focus-visible,
+.department-workspace select:focus-visible,
+.department-workspace textarea:focus-visible {
+  outline: 3px solid #157565;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .department-workspace {
+    padding: 16px;
+  }
+  .department-fields {
+    grid-template-columns: 1fr;
+  }
+  .department-form,
+  .department-detail {
+    padding: 16px;
+  }
+  .department-facts > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .department-tabs button {
+    flex: 1 1 45%;
+  }
+}
+@media print {
+  .department-tabs,
+  .department-form,
+  .department-workspace button,
+  .department-workspace > .section-heading {
+    display: none;
+  }
+  .department-detail {
+    border: 0;
+    padding: 0;
+  }
+  .department-facts {
+    font-size: 11pt;
+  }
+}
+.department-picker {
+  min-width: 0;
+  padding: 16px;
+  margin: 0 !important;
+}
+.department-picker legend {
+  font-weight: 700;
+  padding: 0 4px;
+}
+.department-picker label {
+  font-weight: 500;
+}
+.department-picker .button-row {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.department-choice-search {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.department-picker select {
+  max-width: 100%;
+}
+.department-fields > div {
+  min-width: 0;
+}
+.department-picker .button-row span {
+  font-size: 0.85rem;
+  color: #46645d;
+}
+.department-picker button {
+  font-size: 0.85rem;
+}
+.department-detail details {
+  margin: 8px 0;
+}
+.department-detail summary {
+  cursor: pointer;
+  color: #295d51;
+}
+@media (max-width: 640px) {
+  .department-picker {
+    padding: 12px;
+  }
+  .department-picker .button-row button {
+    flex: 1 1 45%;
+  }
+}
+
+.department-control {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.department-control label {
+  margin: 0;
+}
+.department-picker > select {
+  margin-top: 7px;
+}
+
+.department-workspace .eyebrow {
+  color: #46645d;
+}

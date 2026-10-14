@@ -1,11 +1,26 @@
 name: medi-release-local
 x-bounded-logs: &bounded-logs
   driver: local
-  options: {max-size: 10m, max-file: '3'}
+  options: { max-size: 10m, max-file: '3' }
 services:
   database:
-    logging: {driver: none}
-    command: [postgres, -c, log_statement=none, -c, log_min_error_statement=panic, -c, log_parameter_max_length=0, -c, log_parameter_max_length_on_error=0, -c, log_error_verbosity=terse, -c, logging_collector=off]
+    logging: { driver: none }
+    command:
+      [
+        postgres,
+        -c,
+        log_statement=none,
+        -c,
+        log_min_error_statement=panic,
+        -c,
+        log_parameter_max_length=0,
+        -c,
+        log_parameter_max_length_on_error=0,
+        -c,
+        log_error_verbosity=terse,
+        -c,
+        logging_collector=off,
+      ]
     image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
     environment:
       POSTGRES_USER: medi_migrator
@@ -71,7 +86,13 @@ services:
     init: true
     stop_grace_period: 25s
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -102,7 +123,12 @@ services:
   collector-storage:
     image: medi-local-api:${MEDI_RELEASE_TAG:?Missing local release tag}
     user: '0:0'
-    command: [node, -e, "require('fs').chownSync('/data',10001,10001);require('fs').chmodSync('/data',0o700)"]
+    command:
+      [
+        node,
+        -e,
+        "require('fs').chownSync('/data',10001,10001);require('fs').chmodSync('/data',0o700)",
+      ]
     volumes: ['release-telemetry:/data']
     network_mode: none
     read_only: true
@@ -113,9 +139,13 @@ services:
   collector:
     image: otel/opentelemetry-collector-contrib:0.123.0@sha256:e39311df1f3d941923c00da79ac7ba6269124a870ee87e3c3ad24d60f8aee4d2
     command: [--config=/etc/otelcol/config.yaml]
-    volumes: ['./deploy/observability/collector.yaml:/etc/otelcol/config.yaml:ro', 'release-telemetry:/data']
+    volumes:
+      [
+        './deploy/observability/collector.yaml:/etc/otelcol/config.yaml:ro',
+        'release-telemetry:/data',
+      ]
     depends_on:
-      collector-storage: {condition: service_completed_successfully}
+      collector-storage: { condition: service_completed_successfully }
     networks: [data]
     mem_limit: 128m
     logging: *bounded-logs
@@ -124,8 +154,17 @@ services:
     restart: unless-stopped
   prometheus:
     image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
-    command: [--config.file=/etc/prometheus/prometheus.yaml, --storage.tsdb.retention.time=24h, --storage.tsdb.retention.size=128MB]
-    volumes: ['./deploy/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro', './deploy/observability/rules.yaml:/etc/prometheus/rules.yaml:ro']
+    command:
+      [
+        --config.file=/etc/prometheus/prometheus.yaml,
+        --storage.tsdb.retention.time=24h,
+        --storage.tsdb.retention.size=128MB,
+      ]
+    volumes:
+      [
+        './deploy/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro',
+        './deploy/observability/rules.yaml:/etc/prometheus/rules.yaml:ro',
+      ]
     tmpfs: ['/prometheus:uid=65534,gid=65534,mode=0700,size=160m']
     networks: [data]
     mem_limit: 256m

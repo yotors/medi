@@ -1,299 +1,184 @@
-# Database and deployment plan
+# Portable production installation
 
-Updated: 2026-10-14. This records the current development environment and the
-decisions needed before deployment. It does not describe an existing production
-installation.
+This tooling prepares an installation; live hosting, DNS, data location, hospital
+acceptance and named incident ownership remain operator decisions. No paid host,
+external domain registration or real patient deployment was performed.
 
-## What is set up now
+Use Linux, Docker Engine with Compose v2, Node 24, a named operator with controlled
+Docker access, a dedicated host, and reviewed immutable API/web image identities.
+Docker access grants host administration; restrict that operator account. Keep the
+repository tooling at `/opt/medi` and pin its reviewed revision. Image digests must
+be registry `name@sha256:…` references or already loaded full `sha256:…` image IDs;
+tags are refused. Load/pull the exact reviewed images before starting.
 
-Medi is a responsive browser application. Locally, Vite serves the UI at
-`http://127.0.0.1:5173/staff` and proxies `/api` to Fastify on loopback port 3100.
-The API connects to PostgreSQL 16 in the dedicated Docker Compose project
-`hospital-product-studio`, on loopback port 15432. The browser has no database
-credentials and does not connect directly to PostgreSQL.
+The verified application images are already loaded on this workstation as
+`medi-local-api:local` and `medi-local-web:local`. Read their full IDs with
+`docker image inspect --format '{{.Id}}' IMAGE`; compare them with the
+installation evidence before using them in configuration. Transfer these images
+with `docker image save --output /secure/medi-app-images.tar medi-local-api:local
+medi-local-web:local`, record `sha256sum` of that private file, and verify it on
+the destination before `docker image load --input /secure/medi-app-images.tar`.
+The installer uses the immutable IDs, rather than the transfer tags. The pinned
+PostgreSQL/monitoring images in Compose must also be available on the host.
 
-The named volume `hospital-product-studio_hospital-dev-data` persists database
-files across ordinary container restarts. Ignored `.env` and `.local/` files hold
-local credentials and backup artifacts. Migrations 001–011 create the staff, patient, outpatient, configuration, billing,
-clinical correction, pharmacy inventory and report-access audit data model.
-Migrations 012–014 add MFA, identity events, session-family revocation and bounded
-MFA rejection aggregates. Hospital isolation is enforced by the
-application and relational constraints; the release rehearsal separates schema migration privileges from restricted
-runtime grants. Per-hospital database row policies remain unimplemented.
+To build a new application revision, run `npm ci --ignore-scripts`, then
+`docker build --target api --tag medi-api:build .` and
+`docker build --target web --tag medi-web:build .` from that reviewed checkout.
+A new build produces new identities and needs release verification; it does not
+inherit the recorded evidence of another image. No database credentials are
+required merely to build the images.
 
-On 2026-10-13, `docker compose ps` reported the database healthy and
-`GET http://127.0.0.1:5173/api/health` returned `{"status":"ok"}`. The completed
-[application CI run](https://github.com/yotors/medi/actions/runs/38390211322)
-includes server/browser tests and a disposable-database restore check. This
-evidence applies to the development implementation, not a production deployment.
+Create a private installation parent and independently mounted encrypted/offsite
+backup destination. Supply a chmod600 JSON configuration outside Git:
 
-The [pilot acceptance workbook](hospital-pilot-acceptance.md) records concrete
-walkthroughs, installation choices and evidence owners before a live pilot.
-The [security evidence index](security-evidence.md) maps selected ASVS requirements
-to implementation evidence and unresolved gaps; the full assessment is open.
-
-No database account, cloud subscription or hosting purchase is needed from the
-founder now. Continue using synthetic records while building the product.
-
-## PostgreSQL and the Supabase option
-
-Keep the existing PostgreSQL Docker environment for current work. The user's
-offer to use local Supabase is an available option, not a requirement to replace
-a working database. Supabase supports both a local CLI/Docker environment and a
-self-hosted Docker stack; the latter includes services beyond PostgreSQL. See
-the official [local development guide](https://supabase.com/docs/guides/local-development)
-and [self-hosting guide](https://supabase.com/docs/guides/self-hosting/docker),
-checked 2026-10-13.
-
-Revisit this choice if requirements justify adopting its Auth, Storage or other
-services. That would require an explicit architecture/migration decision:
-current authentication belongs to the Medi API, and its migration runner allows
-only dedicated database names and refuses unrelated existing schemas. Pointing
-`DATABASE_URL` at a Supabase project alone is not a supported migration. Review
-identity mapping, row access, service credentials, file authorization and backup
-coverage before adopting any new service. No Supabase/cloud project has been
-created, and no database replacement has been performed.
-
-## When the founder needs to act
-
-| Trigger | What will be prepared first | Founder input needed then |
-| --- | --- | --- |
-| Current local development | Working app, migrations, synthetic fixtures, tests and local restore checks | None for infrastructure |
-| Ready to share a private staging demonstration | Deployable release artifact, configuration list, hosting options/cost estimate, HTTPS and access plan, test/rollback procedure | Hosting budget/account and desired URL or domain, after reviewing the concrete plan |
-| Selecting the first hospital pilot | Department coverage, connectivity/power questionnaire, data-flow inventory, rollout/recovery plan and acceptance scenarios | Pilot counterpart, hosted versus hospital-local choice, responsible operators, approved data location and service commitments |
-| Before the first real patient record | Validated workflows, security evidence, backup/restore and incident drills, training and migration rehearsal | Hospital acceptance and appropriate clinical/legal/operational review; production credentials supplied through a private secret mechanism |
-| Adding an external integration | A specific integration contract, data fields, failure behavior and synthetic test plan | Relevant provider account/access, agreements and costs only when the integration is in scope |
-
-The agent should raise these decisions when their trigger is reached, before
-spending money, exposing a service or moving patient data. Do not ask the founder
-to buy hosting merely to continue local feature development. Do not request
-secrets in chat or commit them to the public repository.
-
-## Deployment work still required
-
-`compose.yaml` runs the development database. The separate `compose.release.yaml`
-now packages the compiled application, HTTPS gateway and PostgreSQL, using its own
-project and volumes. It is a **local synthetic release rehearsal**. It does not
-select cloud hosting, establish a hospital installation or configure live backups.
-
-The API runs as an unprivileged container user with a read-only filesystem and a
-restricted database role. A separate migration job owns schema changes. Runtime
-grants cannot change schema, migration records or existing audit entries. Hospital
-boundaries are still application-enforced, not PostgreSQL row-level policies.
-Only HTTPS port 8443 binds host loopback; neither API nor database publishes a
-host port. Database health and successful migrations gate API startup. The proxy
-trusts one internal hop; this setting is safe only with that network boundary.
-
-The rehearsal intentionally discards gateway logs to avoid sensitive request
-headers in diagnostics. Production requires useful redacted monitoring, alerting
-and retention before rollout. The development fixtures and their local CA must
-never become production credentials or production certificate infrastructure.
-
-Before a live pilot, complete scoped authentication/authorization review,
-redacted monitoring and tested alerts, encrypted offsite backup/restore,
-retention/access controls, incident ownership and measured recovery objectives.
-Development backup commands remain limited to their dedicated local database.
-The encrypted packaged-release recovery tooling below is a separate rehearsal;
-neither constitutes an operated production backup service. See
-[release evidence](readiness.md).
-
-The earlier [deployment comparison](../_bmad-output/planning-artifacts/briefs/brief-product-studio-2026-10-12/addendum.md)
-compares hosted, hospital-local and hybrid operation. Its legal observations need
-current local specialist confirmation before selecting a live-data location.
-Deployment and hospital tenancy are separate decisions: either operating model
-still needs explicit customer boundaries and controlled vendor support.
-
-## Local operations
-
-Run these from the repository root:
-
-```sh
-npm run db:local          # Create config only if absent; start/wait for local DB
-npm run db:migrate        # Apply pending migrations to the dedicated database
-STAFF_MFA_POLICY=synthetic npm run dev:api  # Fictional development accounts only
-# In another terminal:
-npm run dev              # Browser app; keep running
+```json
+{
+  "project": "medi-prod-hospital",
+  "apiImage": "registry.example.org/medi/api@sha256:REPLACE_WITH_64_HEX",
+  "webImage": "registry.example.org/medi/web@sha256:REPLACE_WITH_64_HEX",
+  "domain": "hospital.example.org",
+  "tlsEmail": "named.operator@example.org",
+  "webhook": "https://approved-alert-service.example.org/protected-destination",
+  "backupDirectory": "/mnt/medi-offsite",
+  "hospitalCode": "named-hospital",
+  "hospitalName": "Named hospital",
+  "username": "named.admin",
+  "operator": "named-operator"
+}
 ```
 
-Existing installations retain their accounts. For a new checkout, follow
-[staff provisioning](staff-workspace.md#run-locally); passwords are not in Git.
+Replace every example with approved inputs. The HTTPS webhook is a protected
+credential: keep configuration private, do not put it in command arguments or Git.
+The offsite mount and remote credentials must be configured by its custodian;
+these tools never invent a remote account, destination or credential. Configuration
+rejects extra fields, mutable images, unsafe names, symlinks and public modes.
 
 ```sh
-npm run db:backup         # Private local logical backup
-npm run db:restore-check  # New backup, restore to disposable DB, compare schema/data
-docker compose stop      # Stop the database while preserving its named volume
+umask 077
+mkdir -m 700 /var/lib/medi-install-parent /var/lib/medi-backup-custody
+chmod 700 /mnt/medi-offsite
+node /opt/medi/tooling/production-install.mjs prepare /secure/install-config.json /var/lib/medi-install-parent/hospital
+node /opt/medi/tooling/production-install.mjs validate /var/lib/medi-install-parent/hospital
+node /opt/medi/tooling/production-install.mjs start /var/lib/medi-install-parent/hospital
+node /opt/medi/tooling/production-install.mjs bootstrap /var/lib/medi-install-parent/hospital /secure/admin-enrollment.json
+node /opt/medi/tooling/production-install.mjs status /var/lib/medi-install-parent/hospital
 ```
 
-Do not remove the named volume to restart the app. Local restoration tests do
-not replace an independently stored production backup or a downtime procedure.
+`prepare` creates credentials only in a fresh directory and removes its own partial
+installation on failure. It does not overwrite an existing directory, occupied Docker project or bootstrap
+an existing hospital. No patients or demonstration accounts are created. Hand the
+private bootstrap password and expiring enrollment grant to the named admin through
+a separately approved private channel. The admin signs in, uses the grant to enroll
+an authenticator, and records recovery codes privately. Delete the transfer artifact
+after verified handoff; use the established MFA operator recovery ceremony if the
+grant expires. Check MFA readiness before opening access.
 
-## Built release rehearsal
+Only the gateway publishes ports80/443. Configure DNS to the host and firewall;
+Caddy obtains TLS with the supplied contact. APP_ORIGIN exactly matches the HTTPS
+domain. Database, collector, API and monitoring ports remain private. Runtime API
+uses nonroot/read-only settings and sees only runtime/MFA credentials; migration
+and admin provisioning use a separate owner secret volume. Database credentials
+use a third volume. API, collector and monitoring logs/storage are bounded; SQL
+statement/error parameter logging is discarded. Mandatory MFA cannot be replaced
+by synthetic policy in production.
 
-Prerequisites: Docker Engine with Compose, the repository's supported Node version,
-`npm ci --ignore-scripts`, and Playwright Chromium (`PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright
-npx --no-install playwright install chromium`). From the repository root:
+Use `restart INSTALLATION` for service restart with volumes preserved. There is no
+production `down --volumes` operation and no automatic upgrade. Keep independently
+held backup and MFA key custody: `/private/secrets.json` contains the runtime MFA
+keyring; the backup encryption key is a separate randomly generated 32-byte file.
+The encrypted archive also holds the keyring needed to restore enrolled factors;
+protect backup-key custody accordingly. Preserve historical archives, their keys,
+and pinned image references, including pre-MFA archives, without rewriting them.
 
 ```sh
-npm run release:local     # Build, migrate and start an isolated installation
-npm run release:verify    # Create/reuse a synthetic admin; verify HTTPS/API/browser
-npm run release:status
-npm run release:stop      # Preserve configuration, certificates and database
-npm run release:local
-npm run release:verify    # Check previous records, histories and retry receipts
+node /opt/medi/tooling/production-backup.mjs key-init /var/lib/medi-backup-custody/backup.key
+node /opt/medi/tooling/production-backup.mjs backup /var/lib/medi-install-parent/hospital /var/lib/medi-backup-custody/backup.key /mnt/medi-offsite/first.medibak
+node /opt/medi/tooling/production-backup.mjs recover-check /var/lib/medi-backup-custody/backup.key /mnt/medi-offsite/first.medibak
 ```
 
-Open `https://localhost:8443/staff`. Caddy issues a certificate from its private
-local CA; no host trust store is changed. Verification checks that CA directly and
-uses a disposable browser context. For manual browsing, explicitly accept/trust
-the local rehearsal certificate only. Public staging must use a real hostname
-and certificate configuration, after its access plan is approved.
+Backup holds a PostgreSQL repeatable-read snapshot and streams custom `pg_dump`
+directly into AES256GCM authenticated encryption. Publication is private, atomic,
+non-overwriting and occurs only after dump success. The version3 encrypted header
+records actual running image IDs, PostgreSQL version, migration versions, schema
+inventory, record hashes and recovery credentials. No release verification fixture
+or synthetic login is required. Retain the exact recorded images in an independently
+protected registry/export; local image references are pinned as backup tags.
 
-The runner generates `.local/release.env` with private permissions and never
-prints its credentials. The verifier provisions only a synthetic hospital and
-administrator, storing login fields in `.local/release-verification.json` (mode
-600). These are automated verification fixtures with harness-owned authenticators;
-the password alone cannot open the production-policy workspace. Do not reuse the
-verifier identity as a person's account or copy its authenticator. For manual
-release testing, provision a separate named synthetic account and follow the
-[private operator enrollment procedure](staff-mfa.md), using its `release:mfa`
-command for the packaged installation and an authenticator controlled by that
-person. The packaged command verifies its local release target; generic checkout
-setup commands can instead select the development database. Existing accounts
-are never overwritten. Do not paste
-private credentials into chat, CI artifacts or issues. Hospital administrators
-can subsequently provision named staff through the UI. Operator identity
-verification and key custody still need acceptance for a real installation.
+`recover-check` authenticates the entire bounded archive before interpreting its
+metadata or starting a target. Archives are bounded to 1 GiB and encrypted metadata
+to 4 MiB; plan a reviewed limit change before a hospital exceeds these bounds. Decrypted temporary material stays in an owned 0700
+scratch directory adjacent to the private archive. It generates an isolated target,
+refuses existing containers/volumes/networks, restores with a single transaction,
+applies explicit runtime grants, compares all restored table hashes/migration
+versions and checks API schema/MFA health. It deletes only its owned generated
+target and fails if cleanup fails. Source data, credentials, archives and images
+are preserved. Recovery checks measure engineering success, not an agreed RTO.
 
-Verification replaces its private fixture file atomically after syncing the new
-contents. Each subsequent run compares saved row digests for the prior patient's
-visit and note, staff account/history, department and service versions, audit
-events, clinical corrections/reviews, pharmacy stock/dispensing, and idempotency
-receipts before creating new fixtures. These checks use
-the restricted runtime account. The gateway has its own HTTPS readiness probe;
-the verifier separately validates the local CA and built page contents.
-
-The Docker project is `medi-release-local`; volumes are
-`medi-release-local_release-database`, `medi-release-local_release-certificates`
-and `medi-release-local_release-web-config`. They are separate from development.
-Do not delete them for a restart, regenerate the credential file against an
-existing database, or use `down -v` to upgrade. If the private configuration is
-lost, restore it from its protected backup before restarting.
-
-The runtime images contain compiled code/static assets and production packages.
-Build context exclusions prevent `.env`, `.local`, keys, agent tooling and
-workstation dependencies from entering the build; test source is used for the
-build's type checks but is absent from runtime images. Base image digests are
-pinned and need a deliberate security-update process.
-
-## Upgrade and rollback procedure
-
-For a rehearsal update, preserve `.local/release.env`, record the current Git
-revision and image IDs, and verify a restorable backup before upgrading any
-valuable dataset. `npm run release:local` rebuilds code, applies additive pending
-migrations through the schema-owner job, then recreates healthy services. Run
-`npm run release:verify` after every update. Verification briefly stops and
-restarts only the rehearsal database to check readiness and recovery; run it
-while no one is using this synthetic installation. Do not run the development backup
-helper against this separate release database: it intentionally refuses other
-databases.
-
-Reverting application code does **not** revert a migrated database. Roll back
-application images only when compatibility with the new schema has been tested;
-otherwise restore a verified full database/configuration backup into an isolated
-replacement and verify it before switching traffic. Never erase a failed database
-as a recovery shortcut. Encrypted release backup and isolated restoration are exercised by the tooling
-below. Immutable published artifacts, upgrade compatibility rehearsal and an
-operator-run rollback drill remain necessary before live patient records.
-
-Implementation references: [Compose startup dependencies](https://docs.docker.com/compose/how-tos/startup-order/),
-[Caddy local HTTPS](https://caddyserver.com/docs/automatic-https),
-[Fastify proxy trust](https://fastify.dev/docs/latest/Reference/Server/), and
-[PostgreSQL privileges](https://www.postgresql.org/docs/16/sql-grant.html).
-
-Build note: npm treats platform compiler packages as optional. The image build
-checks TypeScript and Vite immediately after the locked installation, so an
-incomplete download fails its install layer instead of being cached as usable.
-See [npm dependency semantics](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/)
-and [locked installation behavior](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
-
-
-## Encrypted packaged-release recovery
-
-The recovery tools target only the owned `medi-release-local` rehearsal. They do
-not expand the development database helper's scope and do not restore over a
-running source installation. Verification status is tracked in the
-[recovery specification](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md).
-
-Create a private archive directory and a separate key file once:
+For scheduling, install the templates in `deploy/systemd`, changing **all** paths,
+operator/group and `RequiresMountsFor`/`ReadWritePaths` to your actual mount and
+installation. `ExecStart` must use the reviewed repository revision, the actual
+installation directory and independent key path. Mount credentials remain in the
+operator's protected mount configuration.
 
 ```sh
-install -d -m 700 .local/release-backups
-npm run release:key-init -- .local/recovery.key
+sudo install -m 644 /opt/medi/deploy/systemd/medi-backup.service /etc/systemd/system/
+sudo install -m 644 /opt/medi/deploy/systemd/medi-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start medi-backup.service
+sudo journalctl -u medi-backup.service
+sudo systemctl enable --now medi-backup.timer
+sudo systemctl list-timers medi-backup.timer
 ```
 
-Key initialization refuses an existing file. Retain that original key; generating
-a different key does not recover an older archive. The local example is a
-rehearsal, not independent key custody. Before live use, an operator must choose
-protected independent storage and test access to both the archives and their
-matching key. Do not put the key into an archive, Git, a support ticket or chat.
+The schedule refuses an unmounted destination, publishes only encrypted archives,
+and sends a generic failure event to the configured protected webhook. Test alert
+routing with your approved local synthetic receiver first, then deliberately verify
+human delivery as a separate operator action. A failed notification is separately
+reported in the journal. On failure, inspect service status, disk/mount availability,
+key permissions, image availability and source readiness; repair and rerun the
+service, then authenticate a recovery check. Existing backups are retained.
 
-Back up the healthy local release to a new filename, then check recovery:
+Retention is deliberate and manual: maintain at least two independently verified
+archives across separately held destinations and perform a fresh recovery check
+before retiring any older archive. Never delete the sole verified copy. Record
+custodian approval, retention period and deletion inventory; no automated deletion
+is installed. Measure restore elapsed time on actual replacement hardware before
+agreeing any recovery commitment.
 
-```sh
-npm run release:backup -- .local/recovery.key .local/release-backups/manual-001.medi
-npm run release:recover-check -- .local/recovery.key .local/release-backups/manual-001.medi
-```
+For maintenance, stop admissions/clinical writes, take and recover-check a fresh
+backup, retain old image IDs and keys, and document the cutover window. Update the
+private installation configuration to explicitly reviewed immutable images and run
+`validate`, then `maintenance-migrate INSTALLATION`. That command stops API, runs
+migration through the owner image and starts the restricted API. If migration fails,
+the API remains stopped for operator inspection. Never downgrade a migrated database.
+For replacement, authenticate the archive first on isolated hardware using
+`recover-check`, provision a fresh dedicated installation from retained images and
+credentials, repeat integrity/MFA checks, then deliberately switch DNS/traffic.
+The current command intentionally offers verification only; production traffic
+cutover and permanent replacement destination remain operator-controlled actions.
 
-The archive encrypts a consistent PostgreSQL snapshot and its schema/data/grant
-inventory, private release configuration, available synthetic verification fixture,
-and exact running image identities. The backup uses a PostgreSQL exported
-snapshot shared with `pg_dump`; the inventory does not compare the dump to a
-later state. Archive encryption uses AES-256-GCM with a fresh nonce and
-an authenticated format header. Recovery verifies the whole authentication tag
-before using metadata or starting database restoration. See the official
-[PostgreSQL snapshot documentation](https://www.postgresql.org/docs/16/functions-admin.html)
-and [pg_dump snapshot option](https://www.postgresql.org/docs/16/app-pgdump.html).
+Remaining inputs: host/equipment and budget, actual domain/DNS/TLS contact, approved
+data location and healthcare obligations, hospital acceptance, named admin/operator
+and incident escalation, protected human webhook, independently mounted/offsite
+storage and remote credentials, independent backup/MFA custody, retention approval,
+replacement hardware and measured restore commitment. Engineering rehearsal does
+not grant blanket legal or clinical readiness.
 
-Recovery uses a generated isolated Compose project with fresh volumes and no
-published ports. It requires the recorded images to be available locally and
-checks the restored baseline before sign-in can create session rows. It removes
-only its generated target resources afterwards. The source project need not be
-running. A successful check is a recovery rehearsal; it does not route hospital
-traffic to a replacement or alter the original database.
+## Local rehearsal evidence,2026-10-14
 
-Key, archive and scratch paths must be private real paths without symlink
-components: directories mode 700, files mode 600. The initial format limits an
-archive to 1 GiB and its encrypted manifest to 4 MiB. Streaming operations and
-snapshot holding are bounded to 240 seconds; other Docker operations are bounded
-to 180 seconds. These are guardrails for this rehearsal, not measured limits for
-a hospital. Larger datasets need a reviewed backup design and an appropriate
-recovery test. Failures must leave no accepted partial archive; diagnostics must
-not expose database content, configuration or credentials.
+The single final image build and isolated installation passed in 89s on schema 1–19
+with 58 table hashes verified after replacement restore. The fresh database had no
+hospitals, patients or staff before explicit named admin bootstrap. Real mandatory
+MFA enrollment, tenant-scoped supplier write/read with a foreign supplier excluded,
+TLS security headers and restart persistence passed. Wrong keys, tampered archives,
+occupied directories and occupied Docker projects were refused. The generated
+installation/recovery targets were cleaned. Five actual networkless container
+checks refused public-mode, oversized, malformed, symlink and nonregular secret
+sources without private diagnostics. Four focused tests passed, including failure
+alert delivery to a local synthetic receiver and preservation of the sole prior
+archive when the destination is unmounted.
 
-The stronger synthetic drill creates a new archive while exercising concurrent
-source activity, then checks isolated recovery with the source stopped and
-restores source availability:
-
-```sh
-npm run release:recovery-drill -- .local/recovery.key .local/release-backups/drill-001.medi
-```
-
-Run the drill only when no one is using the synthetic release. Preserve the
-successful archive and referenced images for subsequent upgrade verification.
-Do not prune those images or replace the key. Moving recovery to another host
-also requires supplying the recorded image artifacts; the encrypted database
-archive is not a container-image export.
-
-Offsite transfer, scheduled execution, retention/deletion policy, key custody,
-backup failure alerts, recovery objectives, operator acceptance and any
-point-in-time recovery remain installation decisions. No tested local duration
-establishes a production recovery SLA.
-
-## Production operations engineering
-
-See [the operations runbook](production-operations.md) for the exact telemetry
-allowlist, private monitoring/retention, schema admission, replacement upgrade drill,
-capacity contract and versioned dedicated-hosted/hospital-local inputs. Migration015
-extends identity events and bounded failure aggregates; schema manifests now require
-checksums. Live ingress, human notifications, independent backup custody and hospital
-acceptance remain external decisions.
+The scheduler function published the encrypted archive with a synthetic mounted
+path; real systemd activation and independently mounted offsite custody require
+operator setup. No real webhook was contacted. Exact actual Docker image identities
+and bounded evidence are in [production-installation-evidence.json](production-installation-evidence.json).

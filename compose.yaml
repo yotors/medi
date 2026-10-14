@@ -7,11 +7,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run npm run db:local first}
       POSTGRES_DB: hospital_dev
     ports:
-      - "127.0.0.1:15432:5432"
+      - '127.0.0.1:15432:5432'
     volumes:
       - hospital-dev-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hospital_dev -d hospital_dev"]
+      test: ['CMD-SHELL', 'pg_isready -U hospital_dev -d hospital_dev']
       interval: 2s
       timeout: 3s
       retries: 20

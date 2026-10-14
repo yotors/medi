@@ -1,0 +1,156 @@
+{
+  "result": "PASS",
+  "at": "2026-10-14T17:59:42.375Z",
+  "images": {
+    "api": "sha256:649e78a0d84ddebfa2e2536d0c4075bb99ea0c589263e49e4b4ccddfd7de1224",
+    "web": "sha256:edba53d2227ee643c56d4b98de0a40f79d798afa80f9cce81b8fee53131c79c6"
+  },
+  "backup": {
+    "format": 3,
+    "images": {
+      "api": "sha256:649e78a0d84ddebfa2e2536d0c4075bb99ea0c589263e49e4b4ccddfd7de1224",
+      "database": "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+      "web": "sha256:edba53d2227ee643c56d4b98de0a40f79d798afa80f9cce81b8fee53131c79c6"
+    },
+    "schema": [
+      {
+        "version": 1
+      },
+      {
+        "version": 2
+      },
+      {
+        "version": 3
+      },
+      {
+        "version": 4
+      },
+      {
+        "version": 5
+      },
+      {
+        "version": 6
+      },
+      {
+        "version": 7
+      },
+      {
+        "version": 8
+      },
+      {
+        "version": 9
+      },
+      {
+        "version": 10
+      },
+      {
+        "version": 11
+      },
+      {
+        "version": 12
+      },
+      {
+        "version": 13
+      },
+      {
+        "version": 14
+      },
+      {
+        "version": 15
+      },
+      {
+        "version": 16
+      },
+      {
+        "version": 17
+      },
+      {
+        "version": 18
+      },
+      {
+        "version": 19
+      }
+    ],
+    "tables": 58
+  },
+  "recovered": {
+    "result": "PASS",
+    "images": {
+      "api": "sha256:649e78a0d84ddebfa2e2536d0c4075bb99ea0c589263e49e4b4ccddfd7de1224",
+      "database": "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+      "web": "sha256:edba53d2227ee643c56d4b98de0a40f79d798afa80f9cce81b8fee53131c79c6"
+    },
+    "schema": [
+      {
+        "version": 1
+      },
+      {
+        "version": 2
+      },
+      {
+        "version": 3
+      },
+      {
+        "version": 4
+      },
+      {
+        "version": 5
+      },
+      {
+        "version": 6
+      },
+      {
+        "version": 7
+      },
+      {
+        "version": 8
+      },
+      {
+        "version": 9
+      },
+      {
+        "version": 10
+      },
+      {
+        "version": 11
+      },
+      {
+        "version": 12
+      },
+      {
+        "version": 13
+      },
+      {
+        "version": 14
+      },
+      {
+        "version": 15
+      },
+      {
+        "version": 16
+      },
+      {
+        "version": 17
+      },
+      {
+        "version": 18
+      },
+      {
+        "version": 19
+      }
+    ],
+    "tables": 58,
+    "integrity": "restored record hashes, explicit grants, schema and MFA readiness"
+  },
+  "scheduleInvocation": "same scheduler function with synthetic mounted destination; systemd host activation remains operator input",
+  "emptyBootstrap": true,
+  "mfaEnrollment": true,
+  "moduleWriteRead": true,
+  "foreignTenantExcluded": true,
+  "restartPersistence": true,
+  "wrongKeyRejected": true,
+  "tamperRejected": true,
+  "occupiedDirectoryRejected": true,
+  "occupiedProjectRejected": true,
+  "durationSeconds": 89
+}

@@ -61,7 +61,7 @@ def main():
         if url.hostname == 'localhost':
             command += ['-e', 'JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true']
         command += ['-v', f'{reports}:/zap/wrk:rw', image, 'zap-baseline.py',
-                    '-t', target, '-m', '1', '-J', 'results.json', '-r', 'report.html']
+                    '-t', target, '-m', '1', '-z', '-silent', '-J', 'results.json', '-r', 'report.html']
     else:
         command += ['-v', f'{ROOT / "tooling"}:/scripts:ro', '-v', f'{reports}:/reports', '-e', 'BASE_URL']
         for name in ['VUS', 'DURATION', 'P95_MS']:

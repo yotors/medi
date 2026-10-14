@@ -14,6 +14,6 @@ export const options = {
 };
 export default function () {
   const response = http.get(__ENV.BASE_URL, { redirects: 0 });
-  check(response, { 'returns 2xx': r => r.status >= 200 && r.status < 300 });
+  check(response, { 'returns 2xx': (r) => r.status >= 200 && r.status < 300 });
   sleep(1);
 }

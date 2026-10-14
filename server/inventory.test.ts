@@ -1,147 +1,1121 @@
 import assert from 'node:assert/strict';
-import { randomBytes,randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { after,before,beforeEach,test } from 'node:test';
+import { after, before, beforeEach, test } from 'node:test';
 import pg from 'pg';
 import { buildApp } from './app.ts';
 import { digest } from './auth.ts';
 import { migrate } from './db.ts';
 import type { StaffRole } from '../shared/registration.ts';
 import type { VisitView } from '../shared/outpatient.ts';
-const connectionString=process.env.TEST_DATABASE_URL??process.env.DATABASE_URL;if(!connectionString)throw Error('Inventory tests require a database.');
-const schema=`inventory_test_${randomUUID().replaceAll('-','')}`;const database=new pg.Pool({connectionString});const pool=new pg.Pool({connectionString,options:`-c search_path=${schema} -c application_name=${schema}`});const origin='http://127.0.0.1:5173';let app=buildApp({pool,origin});
-type Auth={id:string;hospital:string;cookie:string;csrf:string};let users:Record<StaffRole,Auth>;let other:Auth;const roles:StaffRole[]=['admin','clinician','pharmacist','cashier','auditor','lab','receptionist'];
-async function actor(hospital:string,role:StaffRole):Promise<Auth>{const id=randomUUID(),token=randomBytes(32).toString('base64url'),csrf=randomBytes(32).toString('base64url');await pool.query('INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$6,$3,$4,$5)',[id,hospital,`Fictional ${role}`,role,'unused-test-hash',id]);await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour','complete')",[digest(token),id,csrf]);return{id,hospital,cookie:`staff_session=${token}`,csrf};}
-const headers=(user:Auth,key:string=randomUUID())=>({origin,cookie:user.cookie,'x-csrf-token':user.csrf,'idempotency-key':key});
-const get=(user:Auth,path:string)=>app.inject({url:path,headers:{cookie:user.cookie}});
-const post=(user:Auth,path:string,value:object,key:string=randomUUID())=>app.inject({method:'POST',url:path,headers:headers(user,key),payload:value});
-async function ok(user:Auth,path:string,value:object,key?:string){const response=await post(user,path,value,key);assert.equal(response.statusCode,200,response.body);return response.json();}
-const stock=(value:object,user?:Auth,key?:string)=>ok(user??users.pharmacist,'/api/inventory/commands',value,key);
-const supply=(v:VisitView,value:object,user?:Auth,key?:string)=>ok(user??users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value,key);
-async function current(v:Pick<VisitView,'id'>):Promise<VisitView>{return(await get(users.admin,`/api/visits/${v.id}`)).json().visit;}
-async function visit(){const p=await post(users.admin,'/api/patients',{name:`Fictional inventory ${randomUUID()}`,contact:''});assert.equal(p.statusCode,201,p.body);const response=await post(users.admin,`/api/patients/${p.json().patient.id}/visits`,{});assert.equal(response.statusCode,201,response.body);let v:VisitView=response.json().visit;v=(await ok(users.clinician,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command:{type:'note',body:'Fictional note'}})).visit;v=(await ok(users.clinician,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command:{type:'prescribe',instruction:'Fictional instructions; explicit authorization follows.'}})).visit;return current(v);}
-async function dates(){return(await pool.query("SELECT to_char((clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa')::date-1,'YYYY-MM-DD') AS yesterday,to_char(clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa','YYYY-MM-DD') AS today,to_char((clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa')::date+1,'YYYY-MM-DD') AS tomorrow")).rows[0];}
-async function catalog(quantity=10,expiry?:string){const product=await stock({type:'product.create',code:'FICTION',name:'Fictional item tablet',unit:'tablet'});const batch=await stock({type:'batch.create',productId:product.productId,lot:'LOT-A',expiry:expiry??(await dates()).tomorrow});if(quantity)await stock({type:'stock.receive',batchId:batch.batchId,expectedRevision:1,quantity,reference:'Fictional receipt'});return{productId:product.productId,batchId:batch.batchId};}
-async function batches(productId:string){const response=await get(users.pharmacist,`/api/inventory/products/${productId}/batches`);assert.equal(response.statusCode,200,response.body);return response.json();}
-async function allocated(quantity=4,stockQuantity=10){const c=await catalog(stockQuantity);let v=await visit();await supply(v,{type:'authorize',prescriptionId:v.prescriptions![0].id,expectedVisitRevision:v.revision,productId:c.productId,quantity},users.clinician);v=await current(v);return{...c,v,prescriptionId:v.prescriptions![0].id};}
-before(async()=>{await database.query(`CREATE SCHEMA ${schema}`);await migrate(pool);});
-beforeEach(async()=>{await pool.query('TRUNCATE hospitals CASCADE');const alpha=randomUUID(),beta=randomUUID();await pool.query("INSERT INTO hospitals(id,code,name) VALUES($1,'alpha','Fictional Alpha'),($2,'beta','Fictional Beta')",[alpha,beta]);users={}as Record<StaffRole,Auth>;for(const role of roles)users[role]=await actor(alpha,role);other=await actor(beta,'admin');});
-after(async()=>{await app.close();await pool.end();await database.query(`DROP SCHEMA ${schema} CASCADE`);await database.end();});
+const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!connectionString) throw Error('Inventory tests require a database.');
+const schema = `inventory_test_${randomUUID().replaceAll('-', '')}`;
+const database = new pg.Pool({ connectionString });
+const pool = new pg.Pool({
+  connectionString,
+  options: `-c search_path=${schema} -c application_name=${schema}`,
+});
+const origin = 'http://127.0.0.1:5173';
+let app = buildApp({ pool, origin });
+type Auth = { id: string; hospital: string; cookie: string; csrf: string };
+let users: Record<StaffRole, Auth>;
+let other: Auth;
+const roles: StaffRole[] = [
+  'admin',
+  'clinician',
+  'pharmacist',
+  'cashier',
+  'auditor',
+  'lab',
+  'receptionist',
+];
+async function actor(hospital: string, role: StaffRole): Promise<Auth> {
+  const id = randomUUID(),
+    token = randomBytes(32).toString('base64url'),
+    csrf = randomBytes(32).toString('base64url');
+  await pool.query(
+    'INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$6,$3,$4,$5)',
+    [id, hospital, `Fictional ${role}`, role, 'unused-test-hash', id],
+  );
+  await pool.query(
+    "INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour','complete')",
+    [digest(token), id, csrf],
+  );
+  return { id, hospital, cookie: `staff_session=${token}`, csrf };
+}
+const headers = (user: Auth, key: string = randomUUID()) => ({
+  origin,
+  cookie: user.cookie,
+  'x-csrf-token': user.csrf,
+  'idempotency-key': key,
+});
+const get = (user: Auth, path: string) =>
+  app.inject({ url: path, headers: { cookie: user.cookie } });
+const post = (user: Auth, path: string, value: object, key: string = randomUUID()) =>
+  app.inject({ method: 'POST', url: path, headers: headers(user, key), payload: value });
+async function ok(user: Auth, path: string, value: object, key?: string) {
+  const response = await post(user, path, value, key);
+  assert.equal(response.statusCode, 200, response.body);
+  return response.json();
+}
+const stock = (value: object, user?: Auth, key?: string) =>
+  ok(user ?? users.pharmacist, '/api/inventory/commands', value, key);
+const supply = (v: VisitView, value: object, user?: Auth, key?: string) =>
+  ok(user ?? users.pharmacist, `/api/visits/${v.id}/inventory/commands`, value, key);
+async function current(v: Pick<VisitView, 'id'>): Promise<VisitView> {
+  return (await get(users.admin, `/api/visits/${v.id}`)).json().visit;
+}
+async function visit() {
+  const p = await post(users.admin, '/api/patients', {
+    name: `Fictional inventory ${randomUUID()}`,
+    contact: '',
+  });
+  assert.equal(p.statusCode, 201, p.body);
+  const response = await post(users.admin, `/api/patients/${p.json().patient.id}/visits`, {});
+  assert.equal(response.statusCode, 201, response.body);
+  let v: VisitView = response.json().visit;
+  v = (
+    await ok(users.clinician, `/api/visits/${v.id}/commands`, {
+      expectedRevision: v.revision,
+      command: { type: 'note', body: 'Fictional note' },
+    })
+  ).visit;
+  v = (
+    await ok(users.clinician, `/api/visits/${v.id}/commands`, {
+      expectedRevision: v.revision,
+      command: {
+        type: 'prescribe',
+        instruction: 'Fictional instructions; explicit authorization follows.',
+      },
+    })
+  ).visit;
+  return current(v);
+}
+async function dates() {
+  return (
+    await pool.query(
+      "SELECT to_char((clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa')::date-1,'YYYY-MM-DD') AS yesterday,to_char(clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa','YYYY-MM-DD') AS today,to_char((clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa')::date+1,'YYYY-MM-DD') AS tomorrow",
+    )
+  ).rows[0];
+}
+async function catalog(quantity = 10, expiry?: string) {
+  const product = await stock({
+    type: 'product.create',
+    code: 'FICTION',
+    name: 'Fictional item tablet',
+    unit: 'tablet',
+  });
+  const batch = await stock({
+    type: 'batch.create',
+    productId: product.productId,
+    lot: 'LOT-A',
+    expiry: expiry ?? (await dates()).tomorrow,
+  });
+  if (quantity)
+    await stock({
+      type: 'stock.receive',
+      batchId: batch.batchId,
+      expectedRevision: 1,
+      quantity,
+      reference: 'Fictional receipt',
+    });
+  return { productId: product.productId, batchId: batch.batchId };
+}
+async function batches(productId: string) {
+  const response = await get(users.pharmacist, `/api/inventory/products/${productId}/batches`);
+  assert.equal(response.statusCode, 200, response.body);
+  return response.json();
+}
+async function allocated(quantity = 4, stockQuantity = 10) {
+  const c = await catalog(stockQuantity);
+  let v = await visit();
+  await supply(
+    v,
+    {
+      type: 'authorize',
+      prescriptionId: v.prescriptions![0].id,
+      expectedVisitRevision: v.revision,
+      productId: c.productId,
+      quantity,
+    },
+    users.clinician,
+  );
+  v = await current(v);
+  return { ...c, v, prescriptionId: v.prescriptions![0].id };
+}
+before(async () => {
+  await database.query(`CREATE SCHEMA ${schema}`);
+  await migrate(pool);
+});
+beforeEach(async () => {
+  await pool.query('TRUNCATE hospitals CASCADE');
+  const alpha = randomUUID(),
+    beta = randomUUID();
+  await pool.query(
+    "INSERT INTO hospitals(id,code,name) VALUES($1,'alpha','Fictional Alpha'),($2,'beta','Fictional Beta')",
+    [alpha, beta],
+  );
+  users = {} as Record<StaffRole, Auth>;
+  for (const role of roles) users[role] = await actor(alpha, role);
+  other = await actor(beta, 'admin');
+});
+after(async () => {
+  await app.close();
+  await pool.end();
+  await database.query(`DROP SCHEMA ${schema} CASCADE`);
+  await database.end();
+});
 
-test('empty hospital catalog, immutable identities, duplicate codes/lots and strict quantity validation',async()=>{
-  assert.equal((await get(users.admin,'/api/inventory/products')).json().total,0);const {productId,batchId}=await catalog();
-  for(const value of [{type:'product.create',code:'fiction',name:'Changed',unit:'box'},{type:'batch.create',productId,lot:'LOT-A',expiry:'2099-01-01'}])assert.equal((await post(users.admin,'/api/inventory/commands',value)).statusCode,409);
-  for(const value of [{type:'stock.receive',batchId,expectedRevision:2,quantity:1,reference:''},{type:'stock.adjust',batchId,expectedRevision:2,quantity:0,reason:'x'},{type:'stock.adjust',batchId,expectedRevision:2,quantity:1.1,reason:'x'},{type:'stock.receive',batchId,expectedRevision:2,quantity:1000001,reference:'x'},{type:'batch.create',productId,lot:'Other',expiry:'2026-02-30'},{type:'product.create',code:'NUL',name:'bad\0',unit:'unit'}])assert.equal((await post(users.admin,'/api/inventory/commands',value)).statusCode,400);
-  await assert.rejects(pool.query("UPDATE inventory_products SET unit='box',revision=revision+1 WHERE id=$1",[productId]),/immutable/);await assert.rejects(pool.query("UPDATE inventory_batches SET expiry=expiry+1,revision=revision+1 WHERE id=$1",[batchId]),/immutable/);
+test('empty hospital catalog, immutable identities, duplicate codes/lots and strict quantity validation', async () => {
+  assert.equal((await get(users.admin, '/api/inventory/products')).json().total, 0);
+  const { productId, batchId } = await catalog();
+  for (const value of [
+    { type: 'product.create', code: 'fiction', name: 'Changed', unit: 'box' },
+    { type: 'batch.create', productId, lot: 'LOT-A', expiry: '2099-01-01' },
+  ])
+    assert.equal((await post(users.admin, '/api/inventory/commands', value)).statusCode, 409);
+  for (const value of [
+    { type: 'stock.receive', batchId, expectedRevision: 2, quantity: 1, reference: '' },
+    { type: 'stock.adjust', batchId, expectedRevision: 2, quantity: 0, reason: 'x' },
+    { type: 'stock.adjust', batchId, expectedRevision: 2, quantity: 1.1, reason: 'x' },
+    { type: 'stock.receive', batchId, expectedRevision: 2, quantity: 1000001, reference: 'x' },
+    { type: 'batch.create', productId, lot: 'Other', expiry: '2026-02-30' },
+    { type: 'product.create', code: 'NUL', name: 'bad\0', unit: 'unit' },
+  ])
+    assert.equal((await post(users.admin, '/api/inventory/commands', value)).statusCode, 400);
+  await assert.rejects(
+    pool.query("UPDATE inventory_products SET unit='box',revision=revision+1 WHERE id=$1", [
+      productId,
+    ]),
+    /immutable/,
+  );
+  await assert.rejects(
+    pool.query('UPDATE inventory_batches SET expiry=expiry+1,revision=revision+1 WHERE id=$1', [
+      batchId,
+    ]),
+    /immutable/,
+  );
 });
-test('partial and full supply reconcile ledger, visit revision, original instruction and closure',async()=>{
-  let {v,productId,batchId,prescriptionId}=await allocated();const original=v.prescriptions![0].instruction;
-  assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command:{type:'fulfill',prescriptionId,next:'fulfilled'}})).json().code,'STOCK_ACCOUNTED');
-  await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1});v=await current(v);assert.equal(v.pharmacy![0].remaining,3);assert.equal(v.prescriptions![0].status,'pending');assert.ok(v.blockers.some(value=>value.includes('prescription')));
-  assert.equal((await post(users.clinician,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command:{type:'close'}})).statusCode,409);
-  await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:3,quantity:3});v=await current(v);assert.equal(v.prescriptions![0].status,'fulfilled');assert.equal(v.prescriptions![0].instruction,original);assert.equal(v.pharmacy![0].remaining,0);assert.equal((await batches(productId)).entries[0].balance,6);
-  assert.equal((await pool.query("SELECT sum(quantity)::integer AS q FROM inventory_movements WHERE kind='dispense'")).rows[0].q,-4);assert.equal((await pool.query('SELECT count(*)::integer AS c FROM inventory_dispenses')).rows[0].c,2);
-  const closed=(await ok(users.clinician,`/api/visits/${v.id}/commands`,{expectedRevision:v.revision,command:{type:'close'}})).visit;assert.equal(closed.status,'closed');await app.close();app=buildApp({pool,origin});assert.equal((await current(v)).pharmacy![0].supplied,4);
+test('partial and full supply reconcile ledger, visit revision, original instruction and closure', async () => {
+  let { v, productId, batchId, prescriptionId } = await allocated();
+  const original = v.prescriptions![0].instruction;
+  assert.equal(
+    (
+      await post(users.pharmacist, `/api/visits/${v.id}/commands`, {
+        expectedRevision: v.revision,
+        command: { type: 'fulfill', prescriptionId, next: 'fulfilled' },
+      })
+    ).json().code,
+    'STOCK_ACCOUNTED',
+  );
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  });
+  v = await current(v);
+  assert.equal(v.pharmacy![0].remaining, 3);
+  assert.equal(v.prescriptions![0].status, 'pending');
+  assert.ok(v.blockers.some((value) => value.includes('prescription')));
+  assert.equal(
+    (
+      await post(users.clinician, `/api/visits/${v.id}/commands`, {
+        expectedRevision: v.revision,
+        command: { type: 'close' },
+      })
+    ).statusCode,
+    409,
+  );
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 3,
+    quantity: 3,
+  });
+  v = await current(v);
+  assert.equal(v.prescriptions![0].status, 'fulfilled');
+  assert.equal(v.prescriptions![0].instruction, original);
+  assert.equal(v.pharmacy![0].remaining, 0);
+  assert.equal((await batches(productId)).entries[0].balance, 6);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT sum(quantity)::integer AS q FROM inventory_movements WHERE kind='dispense'",
+      )
+    ).rows[0].q,
+    -4,
+  );
+  assert.equal(
+    (await pool.query('SELECT count(*)::integer AS c FROM inventory_dispenses')).rows[0].c,
+    2,
+  );
+  const closed = (
+    await ok(users.clinician, `/api/visits/${v.id}/commands`, {
+      expectedRevision: v.revision,
+      command: { type: 'close' },
+    })
+  ).visit;
+  assert.equal(closed.status, 'closed');
+  await app.close();
+  app = buildApp({ pool, origin });
+  assert.equal((await current(v)).pharmacy![0].supplied, 4);
 });
-test('partial supply and reasoned remainder cancellation never restock supplied units',async()=>{
-  let {v,productId,batchId,prescriptionId}=await allocated();await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:2});v=await current(v);
-  await supply(v,{type:'cancel',prescriptionId,expectedVisitRevision:v.revision,reason:'Fictional remainder unavailable'});v=await current(v);assert.equal(v.pharmacy![0].cancelled,true);assert.equal(v.pharmacy![0].supplied,2);assert.equal(v.pharmacy![0].remaining,0);assert.equal(v.prescriptions![0].status,'cancelled');assert.equal((await batches(productId)).entries[0].balance,8);
-  assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:3,quantity:1})).statusCode,409);
+test('partial supply and reasoned remainder cancellation never restock supplied units', async () => {
+  let { v, productId, batchId, prescriptionId } = await allocated();
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 2,
+  });
+  v = await current(v);
+  await supply(v, {
+    type: 'cancel',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    reason: 'Fictional remainder unavailable',
+  });
+  v = await current(v);
+  assert.equal(v.pharmacy![0].cancelled, true);
+  assert.equal(v.pharmacy![0].supplied, 2);
+  assert.equal(v.pharmacy![0].remaining, 0);
+  assert.equal(v.prescriptions![0].status, 'cancelled');
+  assert.equal((await batches(productId)).entries[0].balance, 8);
+  assert.equal(
+    (
+      await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        batchId,
+        expectedBatchRevision: 3,
+        quantity: 1,
+      })
+    ).statusCode,
+    409,
+  );
 });
-test('expiry yesterday and today are blocked, tomorrow eligible; quarantine and inactive product block supply',async()=>{
-  let {v,productId,batchId,prescriptionId}=await allocated();const d=await dates();
-  for(const expiry of [d.yesterday,d.today]){const b=await stock({type:'batch.create',productId,lot:expiry,expiry});await stock({type:'stock.receive',batchId:b.batchId,expectedRevision:1,quantity:2,reference:'Fictional'});assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId:b.batchId,expectedBatchRevision:2,quantity:1})).json().code,'BATCH_UNAVAILABLE');}
-  const before=await batches(productId);assert.deepEqual(before.entries.map((b:any)=>b.eligibility),['expired','expiry_today','available']);
-  await stock({type:'batch.status',batchId,expectedRevision:2,quarantined:true,reason:'Fictional inspection'});assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:3,quantity:1})).json().code,'BATCH_UNAVAILABLE');
-  await stock({type:'batch.status',batchId,expectedRevision:3,quarantined:false,reason:'Fictional release'});await stock({type:'product.status',productId,expectedRevision:1,active:false,reason:'Fictional inactive'});assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:4,quantity:1})).json().code,'BATCH_UNAVAILABLE');assert.equal((await get(users.clinician,'/api/inventory/products')).json().total,0);
+test('expiry yesterday and today are blocked, tomorrow eligible; quarantine and inactive product block supply', async () => {
+  let { v, productId, batchId, prescriptionId } = await allocated();
+  const d = await dates();
+  for (const expiry of [d.yesterday, d.today]) {
+    const b = await stock({ type: 'batch.create', productId, lot: expiry, expiry });
+    await stock({
+      type: 'stock.receive',
+      batchId: b.batchId,
+      expectedRevision: 1,
+      quantity: 2,
+      reference: 'Fictional',
+    });
+    assert.equal(
+      (
+        await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+          type: 'dispense',
+          prescriptionId,
+          expectedVisitRevision: v.revision,
+          batchId: b.batchId,
+          expectedBatchRevision: 2,
+          quantity: 1,
+        })
+      ).json().code,
+      'BATCH_UNAVAILABLE',
+    );
+  }
+  const before = await batches(productId);
+  assert.deepEqual(
+    before.entries.map((b: any) => b.eligibility),
+    ['expired', 'expiry_today', 'available'],
+  );
+  await stock({
+    type: 'batch.status',
+    batchId,
+    expectedRevision: 2,
+    quarantined: true,
+    reason: 'Fictional inspection',
+  });
+  assert.equal(
+    (
+      await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        batchId,
+        expectedBatchRevision: 3,
+        quantity: 1,
+      })
+    ).json().code,
+    'BATCH_UNAVAILABLE',
+  );
+  await stock({
+    type: 'batch.status',
+    batchId,
+    expectedRevision: 3,
+    quarantined: false,
+    reason: 'Fictional release',
+  });
+  await stock({
+    type: 'product.status',
+    productId,
+    expectedRevision: 1,
+    active: false,
+    reason: 'Fictional inactive',
+  });
+  assert.equal(
+    (
+      await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        batchId,
+        expectedBatchRevision: 4,
+        quantity: 1,
+      })
+    ).json().code,
+    'BATCH_UNAVAILABLE',
+  );
+  assert.equal((await get(users.clinician, '/api/inventory/products')).json().total, 0);
 });
-test('adjustments require provenance, reject negative stock and preserve history with balance',async()=>{
-  const {productId,batchId}=await catalog();await stock({type:'stock.adjust',batchId,expectedRevision:2,quantity:-3,reason:'Fictional count discrepancy'});assert.equal((await batches(productId)).entries[0].balance,7);
-  assert.equal((await post(users.pharmacist,'/api/inventory/commands',{type:'stock.adjust',batchId,expectedRevision:3,quantity:-8,reason:'Fictional'})).json().code,'STOCK_LIMIT');assert.equal((await batches(productId)).entries[0].revision,3);
-  const h=(await get(users.auditor,`/api/inventory/history?productId=${productId}`)).json();assert.equal(h.total,4);assert.equal(h.entries[0].snapshot.reason,'Fictional count discrepancy');assert.equal(h.entries[0].snapshot.expiry,(await dates()).tomorrow);
+test('adjustments require provenance, reject negative stock and preserve history with balance', async () => {
+  const { productId, batchId } = await catalog();
+  await stock({
+    type: 'stock.adjust',
+    batchId,
+    expectedRevision: 2,
+    quantity: -3,
+    reason: 'Fictional count discrepancy',
+  });
+  assert.equal((await batches(productId)).entries[0].balance, 7);
+  assert.equal(
+    (
+      await post(users.pharmacist, '/api/inventory/commands', {
+        type: 'stock.adjust',
+        batchId,
+        expectedRevision: 3,
+        quantity: -8,
+        reason: 'Fictional',
+      })
+    ).json().code,
+    'STOCK_LIMIT',
+  );
+  assert.equal((await batches(productId)).entries[0].revision, 3);
+  const h = (await get(users.auditor, `/api/inventory/history?productId=${productId}`)).json();
+  assert.equal(h.total, 4);
+  assert.equal(h.entries[0].snapshot.reason, 'Fictional count discrepancy');
+  assert.equal(h.entries[0].snapshot.expiry, (await dates()).tomorrow);
 });
-test('same key, uppercase retry and actor/payload conflicts produce one receipt and one supply',async()=>{
-  const {v,batchId,prescriptionId}=await allocated();const key=randomUUID();const path=`/api/visits/${v.id}/inventory/commands`;const value={type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1};const [a,b]=await Promise.all([post(users.pharmacist,path,value,key),post(users.pharmacist,path,value,key)]);assert.equal(a.statusCode,200,a.body);assert.deepEqual(a.json(),b.json());
-  const upper=await post(users.pharmacist,`/api/visits/${v.id.toUpperCase()}/inventory/commands`,{...value,prescriptionId:prescriptionId.toUpperCase(),batchId:batchId.toUpperCase()},key.toUpperCase());assert.deepEqual(upper.json(),a.json());
-  assert.equal((await post(users.admin,path,value,key)).json().code,'IDEMPOTENCY_CONFLICT');assert.equal((await post(users.pharmacist,path,{...value,quantity:2},key)).json().code,'IDEMPOTENCY_CONFLICT');assert.equal((await current(v)).pharmacy![0].supplied,1);
+test('same key, uppercase retry and actor/payload conflicts produce one receipt and one supply', async () => {
+  const { v, batchId, prescriptionId } = await allocated();
+  const key = randomUUID();
+  const path = `/api/visits/${v.id}/inventory/commands`;
+  const value = {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  };
+  const [a, b] = await Promise.all([
+    post(users.pharmacist, path, value, key),
+    post(users.pharmacist, path, value, key),
+  ]);
+  assert.equal(a.statusCode, 200, a.body);
+  assert.deepEqual(a.json(), b.json());
+  const upper = await post(
+    users.pharmacist,
+    `/api/visits/${v.id.toUpperCase()}/inventory/commands`,
+    { ...value, prescriptionId: prescriptionId.toUpperCase(), batchId: batchId.toUpperCase() },
+    key.toUpperCase(),
+  );
+  assert.deepEqual(upper.json(), a.json());
+  assert.equal((await post(users.admin, path, value, key)).json().code, 'IDEMPOTENCY_CONFLICT');
+  assert.equal(
+    (await post(users.pharmacist, path, { ...value, quantity: 2 }, key)).json().code,
+    'IDEMPOTENCY_CONFLICT',
+  );
+  assert.equal((await current(v)).pharmacy![0].supplied, 1);
 });
-test('concurrent last stock and last prescribed quantity cannot oversell or overfulfill',async()=>{
-  const {v,productId,batchId,prescriptionId}=await allocated(2,1);let second=await visit();await supply(second,{type:'authorize',prescriptionId:second.prescriptions![0].id,expectedVisitRevision:second.revision,productId,quantity:1},users.clinician);second=await current(second);
-  const responses=await Promise.all([post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1}),post(users.pharmacist,`/api/visits/${second.id}/inventory/commands`,{type:'dispense',prescriptionId:second.prescriptions![0].id,expectedVisitRevision:second.revision,batchId,expectedBatchRevision:2,quantity:1})]);assert.deepEqual(responses.map(r=>r.statusCode).sort(),[200,409]);assert.equal((await batches(productId)).entries[0].balance,0);
-  await stock({type:'stock.receive',batchId,expectedRevision:3,quantity:10,reference:'Fictional replenishment'});const target=await current(v);const quantity=target.pharmacy![0].remaining;const value={type:'dispense',prescriptionId,expectedVisitRevision:target.revision,batchId,expectedBatchRevision:4,quantity};const race=await Promise.all([post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value),post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value)]);assert.deepEqual(race.map(r=>r.statusCode).sort(),[200,409]);assert.equal((await current(v)).pharmacy![0].supplied,2);
+test('concurrent last stock and last prescribed quantity cannot oversell or overfulfill', async () => {
+  const { v, productId, batchId, prescriptionId } = await allocated(2, 1);
+  let second = await visit();
+  await supply(
+    second,
+    {
+      type: 'authorize',
+      prescriptionId: second.prescriptions![0].id,
+      expectedVisitRevision: second.revision,
+      productId,
+      quantity: 1,
+    },
+    users.clinician,
+  );
+  second = await current(second);
+  const responses = await Promise.all([
+    post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+      type: 'dispense',
+      prescriptionId,
+      expectedVisitRevision: v.revision,
+      batchId,
+      expectedBatchRevision: 2,
+      quantity: 1,
+    }),
+    post(users.pharmacist, `/api/visits/${second.id}/inventory/commands`, {
+      type: 'dispense',
+      prescriptionId: second.prescriptions![0].id,
+      expectedVisitRevision: second.revision,
+      batchId,
+      expectedBatchRevision: 2,
+      quantity: 1,
+    }),
+  ]);
+  assert.deepEqual(responses.map((r) => r.statusCode).sort(), [200, 409]);
+  assert.equal((await batches(productId)).entries[0].balance, 0);
+  await stock({
+    type: 'stock.receive',
+    batchId,
+    expectedRevision: 3,
+    quantity: 10,
+    reference: 'Fictional replenishment',
+  });
+  const target = await current(v);
+  const quantity = target.pharmacy![0].remaining;
+  const value = {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: target.revision,
+    batchId,
+    expectedBatchRevision: 4,
+    quantity,
+  };
+  const race = await Promise.all([
+    post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, value),
+    post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, value),
+  ]);
+  assert.deepEqual(race.map((r) => r.statusCode).sort(), [200, 409]);
+  assert.equal((await current(v)).pharmacy![0].supplied, 2);
 });
-test('wrong product, stale visit, excess quantity and repeated authorization fail without changes',async()=>{
-  const {v,batchId,prescriptionId,productId}=await allocated();const p=await stock({type:'product.create',code:'OTHER',name:'Other fictional item',unit:'unit'});const b=await stock({type:'batch.create',productId:p.productId,lot:'OTHER',expiry:(await dates()).tomorrow});
-  for(const [value,code] of [[{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId:b.batchId,expectedBatchRevision:1,quantity:1},'NOT_FOUND'],[{type:'dispense',prescriptionId,expectedVisitRevision:v.revision-1,batchId,expectedBatchRevision:2,quantity:1},'STALE_VISIT'],[{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:5},'EXCESS_SUPPLY']]as const)assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value)).json().code,code);
-  assert.equal((await post(users.clinician,`/api/visits/${v.id}/inventory/commands`,{type:'authorize',prescriptionId,expectedVisitRevision:v.revision,productId,quantity:4})).statusCode,409);assert.equal((await batches(productId)).entries[0].balance,10);
+test('wrong product, stale visit, excess quantity and repeated authorization fail without changes', async () => {
+  const { v, batchId, prescriptionId, productId } = await allocated();
+  const p = await stock({
+    type: 'product.create',
+    code: 'OTHER',
+    name: 'Other fictional item',
+    unit: 'unit',
+  });
+  const b = await stock({
+    type: 'batch.create',
+    productId: p.productId,
+    lot: 'OTHER',
+    expiry: (await dates()).tomorrow,
+  });
+  for (const [value, code] of [
+    [
+      {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        batchId: b.batchId,
+        expectedBatchRevision: 1,
+        quantity: 1,
+      },
+      'NOT_FOUND',
+    ],
+    [
+      {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision - 1,
+        batchId,
+        expectedBatchRevision: 2,
+        quantity: 1,
+      },
+      'STALE_VISIT',
+    ],
+    [
+      {
+        type: 'dispense',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        batchId,
+        expectedBatchRevision: 2,
+        quantity: 5,
+      },
+      'EXCESS_SUPPLY',
+    ],
+  ] as const)
+    assert.equal(
+      (await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, value)).json().code,
+      code,
+    );
+  assert.equal(
+    (
+      await post(users.clinician, `/api/visits/${v.id}/inventory/commands`, {
+        type: 'authorize',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        productId,
+        quantity: 4,
+      })
+    ).statusCode,
+    409,
+  );
+  assert.equal((await batches(productId)).entries[0].balance, 10);
 });
-test('role, tenant, CSRF and query boundaries protect inventory and authorization',async()=>{
-  const {v,productId,batchId,prescriptionId}=await allocated();
-  for(const role of ['cashier','lab','receptionist']as const){assert.equal((await get(users[role],'/api/inventory/products')).statusCode,403);assert.equal((await get(users[role],'/api/inventory/history')).statusCode,403);assert.equal((await current(v)).pharmacy!.length,1);const projected=(await get(users[role],`/api/visits/${v.id}`)).json().visit;assert.equal(projected.pharmacy,undefined);}
-  for(const role of ['clinician','auditor']as const)assert.equal((await post(users[role],'/api/inventory/commands',{type:'stock.receive',batchId,expectedRevision:2,quantity:1,reference:'Fictional'})).statusCode,403);
-  assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,{type:'authorize',prescriptionId,expectedVisitRevision:v.revision,productId,quantity:4})).statusCode,403);
-  for(const path of [`/api/inventory/products/${productId}/batches`,`/api/inventory/history?productId=${productId}`,`/api/visits/${v.id}/inventory/history`])assert.equal((await get(other,path)).statusCode,404);
-  assert.equal((await post(other,'/api/inventory/commands',{type:'stock.receive',batchId,expectedRevision:2,quantity:1,reference:'Fictional'})).statusCode,404);
-  for(const path of ['/api/inventory/products?hospitalId=bad','/api/inventory/history?page=0'])assert.equal((await get(users.admin,path)).statusCode,400);
-  assert.equal((await app.inject({method:'POST',url:'/api/inventory/commands',headers:{cookie:users.admin.cookie},payload:{type:'product.create',code:'DENIED',name:'Fictional',unit:'unit'}})).statusCode,403);
+test('role, tenant, CSRF and query boundaries protect inventory and authorization', async () => {
+  const { v, productId, batchId, prescriptionId } = await allocated();
+  for (const role of ['cashier', 'lab', 'receptionist'] as const) {
+    assert.equal((await get(users[role], '/api/inventory/products')).statusCode, 403);
+    assert.equal((await get(users[role], '/api/inventory/history')).statusCode, 403);
+    assert.equal((await current(v)).pharmacy!.length, 1);
+    const projected = (await get(users[role], `/api/visits/${v.id}`)).json().visit;
+    assert.equal(projected.pharmacy, undefined);
+  }
+  for (const role of ['clinician', 'auditor'] as const)
+    assert.equal(
+      (
+        await post(users[role], '/api/inventory/commands', {
+          type: 'stock.receive',
+          batchId,
+          expectedRevision: 2,
+          quantity: 1,
+          reference: 'Fictional',
+        })
+      ).statusCode,
+      403,
+    );
+  assert.equal(
+    (
+      await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, {
+        type: 'authorize',
+        prescriptionId,
+        expectedVisitRevision: v.revision,
+        productId,
+        quantity: 4,
+      })
+    ).statusCode,
+    403,
+  );
+  for (const path of [
+    `/api/inventory/products/${productId}/batches`,
+    `/api/inventory/history?productId=${productId}`,
+    `/api/visits/${v.id}/inventory/history`,
+  ])
+    assert.equal((await get(other, path)).statusCode, 404);
+  assert.equal(
+    (
+      await post(other, '/api/inventory/commands', {
+        type: 'stock.receive',
+        batchId,
+        expectedRevision: 2,
+        quantity: 1,
+        reference: 'Fictional',
+      })
+    ).statusCode,
+    404,
+  );
+  for (const path of ['/api/inventory/products?hospitalId=bad', '/api/inventory/history?page=0'])
+    assert.equal((await get(users.admin, path)).statusCode, 400);
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/api/inventory/commands',
+        headers: { cookie: users.admin.cookie },
+        payload: { type: 'product.create', code: 'DENIED', name: 'Fictional', unit: 'unit' },
+      })
+    ).statusCode,
+    403,
+  );
 });
-test('audit insertion failure rolls back movement, visit, dispensing and receipt; exact retry succeeds',async()=>{
-  const {v,productId,batchId,prescriptionId}=await allocated();const key=randomUUID();const value={type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:2};const original=(await pool.query('SELECT * FROM outpatient_visits WHERE id=$1',[v.id])).rows[0];
-  await pool.query("ALTER TABLE audit_events ADD CONSTRAINT synthetic_failure CHECK(action<>'visit.dispense')");try{assert.equal((await post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value,key)).statusCode,500);assert.equal((await batches(productId)).entries[0].balance,10);assert.equal((await pool.query('SELECT * FROM inventory_dispenses')).rowCount,0);assert.equal((await pool.query('SELECT * FROM inventory_requests WHERE idempotency_key=$1',[key])).rowCount,0);assert.deepEqual((await pool.query('SELECT * FROM outpatient_visits WHERE id=$1',[v.id])).rows[0],original);}finally{await pool.query('ALTER TABLE audit_events DROP CONSTRAINT synthetic_failure');}await supply(v,value,users.pharmacist,key);
+test('audit insertion failure rolls back movement, visit, dispensing and receipt; exact retry succeeds', async () => {
+  const { v, productId, batchId, prescriptionId } = await allocated();
+  const key = randomUUID();
+  const value = {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 2,
+  };
+  const original = (await pool.query('SELECT * FROM outpatient_visits WHERE id=$1', [v.id]))
+    .rows[0];
+  await pool.query(
+    "ALTER TABLE audit_events ADD CONSTRAINT synthetic_failure CHECK(action<>'visit.dispense')",
+  );
+  try {
+    assert.equal(
+      (await post(users.pharmacist, `/api/visits/${v.id}/inventory/commands`, value, key))
+        .statusCode,
+      500,
+    );
+    assert.equal((await batches(productId)).entries[0].balance, 10);
+    assert.equal((await pool.query('SELECT * FROM inventory_dispenses')).rowCount, 0);
+    assert.equal(
+      (await pool.query('SELECT * FROM inventory_requests WHERE idempotency_key=$1', [key]))
+        .rowCount,
+      0,
+    );
+    assert.deepEqual(
+      (await pool.query('SELECT * FROM outpatient_visits WHERE id=$1', [v.id])).rows[0],
+      original,
+    );
+  } finally {
+    await pool.query('ALTER TABLE audit_events DROP CONSTRAINT synthetic_failure');
+  }
+  await supply(v, value, users.pharmacist, key);
 });
-test('immutable ledger and deferred integrity reject tampering and orphan stock deductions',async()=>{
-  const {v,batchId,prescriptionId}=await allocated();await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1});for(const table of ['inventory_authorizations','inventory_movements','inventory_dispenses','inventory_events','inventory_requests']){await assert.rejects(pool.query(`UPDATE ${table} SET hospital_id=hospital_id`),/immutable/);await assert.rejects(pool.query(`DELETE FROM ${table}`),/immutable/);}
-  await assert.rejects(pool.query("INSERT INTO inventory_movements(id,hospital_id,batch_id,kind,quantity) VALUES($1,$2,$3,'dispense',-1)",[randomUUID(),users.admin.hospital,batchId]));
+test('immutable ledger and deferred integrity reject tampering and orphan stock deductions', async () => {
+  const { v, batchId, prescriptionId } = await allocated();
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  });
+  for (const table of [
+    'inventory_authorizations',
+    'inventory_movements',
+    'inventory_dispenses',
+    'inventory_events',
+    'inventory_requests',
+  ]) {
+    await assert.rejects(pool.query(`UPDATE ${table} SET hospital_id=hospital_id`), /immutable/);
+    await assert.rejects(pool.query(`DELETE FROM ${table}`), /immutable/);
+  }
+  await assert.rejects(
+    pool.query(
+      "INSERT INTO inventory_movements(id,hospital_id,batch_id,kind,quantity) VALUES($1,$2,$3,'dispense',-1)",
+      [randomUUID(), users.admin.hospital, batchId],
+    ),
+  );
 });
-test('paginated inventory and history expose all records without unbounded result sets',async()=>{
-  const {productId,batchId}=await catalog();for(let revision=2;revision<29;revision++)await stock({type:'stock.receive',batchId,expectedRevision:revision,quantity:1,reference:'Fictional pagination'});const first=(await get(users.auditor,'/api/inventory/history')).json(),second=(await get(users.auditor,'/api/inventory/history?page=2')).json();assert.equal(first.entries.length,25);assert.equal(second.entries.length,5);assert.equal(first.total,30);assert.equal(new Set([...first.entries,...second.entries].map(e=>e.id)).size,30);assert.equal((await batches(productId)).entries[0].balance,37);
+test('paginated inventory and history expose all records without unbounded result sets', async () => {
+  const { productId, batchId } = await catalog();
+  for (let revision = 2; revision < 29; revision++)
+    await stock({
+      type: 'stock.receive',
+      batchId,
+      expectedRevision: revision,
+      quantity: 1,
+      reference: 'Fictional pagination',
+    });
+  const first = (await get(users.auditor, '/api/inventory/history')).json(),
+    second = (await get(users.auditor, '/api/inventory/history?page=2')).json();
+  assert.equal(first.entries.length, 25);
+  assert.equal(second.entries.length, 5);
+  assert.equal(first.total, 30);
+  assert.equal(new Set([...first.entries, ...second.entries].map((e) => e.id)).size, 30);
+  assert.equal((await batches(productId)).entries[0].balance, 37);
 });
-test('post-lock deactivation, role change, reset and expiry reject saved-key replay',async()=>{
-  const {v,batchId,prescriptionId}=await allocated();const key=randomUUID();const value={type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1};await supply(v,value,users.pharmacist,key);
-  for(const change of ['active','role','reset','expiry']){const blocker=await pool.connect();await blocker.query('BEGIN');await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE',[users.pharmacist.hospital]);const response=post(users.pharmacist,`/api/visits/${v.id}/inventory/commands`,value,key).then(r=>r);try{const pid=(await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;let reached=false;for(let i=0;i<150;i++){if((await database.query('SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND $2=ANY(pg_blocking_pids(pid))',[schema,pid])).rowCount){reached=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}assert.ok(reached);if(change==='expiry')await blocker.query("UPDATE staff_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1",[users.pharmacist.id]);else await blocker.query(`UPDATE staff_users SET ${change==='active'?'active=false':change==='role'?"role='cashier'":'password_change_required=true'} WHERE id=$1`,[users.pharmacist.id]);await blocker.query('COMMIT');assert.equal((await response).statusCode,401);}finally{await blocker.query('ROLLBACK');blocker.release();await pool.query("UPDATE staff_users SET active=true,role='pharmacist',password_change_required=false WHERE id=$1",[users.pharmacist.id]);await pool.query("UPDATE staff_sessions SET expires_at=clock_timestamp()+interval '1 hour' WHERE user_id=$1",[users.pharmacist.id]);}}assert.equal((await current(v)).pharmacy![0].supplied,1);
+test('post-lock deactivation, role change, reset and expiry reject saved-key replay', async () => {
+  const { v, batchId, prescriptionId } = await allocated();
+  const key = randomUUID();
+  const value = {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  };
+  await supply(v, value, users.pharmacist, key);
+  for (const change of ['active', 'role', 'reset', 'expiry']) {
+    const blocker = await pool.connect();
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [
+      users.pharmacist.hospital,
+    ]);
+    const response = post(
+      users.pharmacist,
+      `/api/visits/${v.id}/inventory/commands`,
+      value,
+      key,
+    ).then((r) => r);
+    try {
+      const pid = (await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      let reached = false;
+      for (let i = 0; i < 150; i++) {
+        if (
+          (
+            await database.query(
+              'SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND $2=ANY(pg_blocking_pids(pid))',
+              [schema, pid],
+            )
+          ).rowCount
+        ) {
+          reached = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.ok(reached);
+      if (change === 'expiry')
+        await blocker.query(
+          "UPDATE staff_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1",
+          [users.pharmacist.id],
+        );
+      else
+        await blocker.query(
+          `UPDATE staff_users SET ${change === 'active' ? 'active=false' : change === 'role' ? "role='cashier'" : 'password_change_required=true'} WHERE id=$1`,
+          [users.pharmacist.id],
+        );
+      await blocker.query('COMMIT');
+      assert.equal((await response).statusCode, 401);
+    } finally {
+      await blocker.query('ROLLBACK');
+      blocker.release();
+      await pool.query(
+        "UPDATE staff_users SET active=true,role='pharmacist',password_change_required=false WHERE id=$1",
+        [users.pharmacist.id],
+      );
+      await pool.query(
+        "UPDATE staff_sessions SET expires_at=clock_timestamp()+interval '1 hour' WHERE user_id=$1",
+        [users.pharmacist.id],
+      );
+    }
+  }
+  assert.equal((await current(v)).pharmacy![0].supplied, 1);
 });
 
-test('010 upgrade preserves populated supply and rejects a dispense with a null movement',async()=>{
-  const {v,batchId,prescriptionId}=await allocated();await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1});
-  const before=(await pool.query('SELECT * FROM inventory_dispenses')).rows;
-  await pool.query('ALTER TABLE inventory_dispenses DROP CONSTRAINT inventory_dispense_movement_required');await pool.query(await readFile(new URL('./migrations/010_inventory_dispense_integrity.sql',import.meta.url),'utf8'));await migrate(pool);await migrate(pool);
-  assert.deepEqual((await pool.query('SELECT * FROM inventory_dispenses')).rows,before);
-  await assert.rejects(pool.query("INSERT INTO inventory_dispenses(id,hospital_id,authorization_id,movement_id,kind,quantity,visit_revision) VALUES($1,$2,$3,NULL,'dispense',1,$4)",[randomUUID(),users.admin.hospital,(await current(v)).pharmacy![0].id,v.revision+2]),(error:unknown)=>(error as {constraint:string}).constraint==='inventory_dispense_movement_required');
+test('010 upgrade preserves populated supply and rejects a dispense with a null movement', async () => {
+  const { v, batchId, prescriptionId } = await allocated();
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  });
+  const before = (await pool.query('SELECT * FROM inventory_dispenses')).rows;
+  await pool.query(
+    'ALTER TABLE inventory_dispenses DROP CONSTRAINT inventory_dispense_movement_required',
+  );
+  await pool.query(
+    await readFile(
+      new URL('./migrations/010_inventory_dispense_integrity.sql', import.meta.url),
+      'utf8',
+    ),
+  );
+  await migrate(pool);
+  await migrate(pool);
+  assert.deepEqual((await pool.query('SELECT * FROM inventory_dispenses')).rows, before);
+  await assert.rejects(
+    pool.query(
+      "INSERT INTO inventory_dispenses(id,hospital_id,authorization_id,movement_id,kind,quantity,visit_revision) VALUES($1,$2,$3,NULL,'dispense',1,$4)",
+      [randomUUID(), users.admin.hospital, (await current(v)).pharmacy![0].id, v.revision + 2],
+    ),
+    (error: unknown) =>
+      (error as { constraint: string }).constraint === 'inventory_dispense_movement_required',
+  );
 });
-test('successful catalog and history reads isolate populated hospitals, products and visit subjects with stable actor IDs',async()=>{
-  await pool.query("UPDATE staff_users SET display_name='Duplicate Fictional Name' WHERE id=ANY($1::uuid[])",[[users.clinician.id,users.pharmacist.id]]);
-  const {v,productId,batchId,prescriptionId}=await allocated();await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1});
-  const p2=await stock({type:'product.create',code:'SECOND',name:'Second fictional product',unit:'unit'});const v2=await visit();await supply(v2,{type:'authorize',prescriptionId:v2.prescriptions![0].id,expectedVisitRevision:v2.revision,productId:p2.productId,quantity:2},users.clinician);
-  const foreign=await stock({type:'product.create',code:'FOREIGN',name:'Other hospital item',unit:'unit'},other);const foreignBatch=await stock({type:'batch.create',productId:foreign.productId,lot:'FOREIGN',expiry:'2099-01-01'},other);
-  for(const user of [users.admin,users.clinician,other]){const list=(await get(user,'/api/inventory/products')).json();assert.deepEqual(list.entries.map((p:any)=>p.id).sort(),(user===other?[foreign.productId]:[productId,p2.productId]).sort());assert.equal(list.total,user===other?1:2);}
-  const hospitalHistory=(await get(other,'/api/inventory/history')).json();assert.equal(hospitalHistory.total,2);assert.ok(hospitalHistory.entries.every((e:any)=>e.productId===foreign.productId));
-  const productHistory=(await get(users.auditor,`/api/inventory/history?productId=${productId}`)).json();assert.equal(productHistory.total,5);assert.ok(productHistory.entries.every((e:any)=>e.productId===productId));
-  for(const target of [v,v2]){const history=(await get(users.clinician,`/api/visits/${target.id}/inventory/history`)).json();assert.equal(history.total,target.id===v.id?2:1);assert.ok(history.entries.every((e:any)=>e.visitId===target.id&&e.prescriptionId===target.prescriptions![0].id));}
-  const history=(await get(users.clinician,`/api/visits/${v.id}/inventory/history`)).json();assert.equal(new Set(history.entries.map((e:any)=>e.actorName)).size,1);assert.deepEqual(history.entries.map((e:any)=>e.actorId).sort(),[users.pharmacist.id,users.clinician.id].sort());assert.equal((await current(v)).pharmacy![0].actorId,users.clinician.id);assert.equal(history.entries[0].snapshot.expiry,(await dates()).tomorrow);
-  for(const selected of [foreignBatch.batchId,randomUUID()])assert.equal((await get(users.admin,`/api/inventory/products/${productId}/batches?selectedBatchId=${selected}`)).statusCode,404);
-  const another=await stock({type:'batch.create',productId:p2.productId,lot:'OTHER',expiry:'2099-01-01'});assert.equal((await get(users.admin,`/api/inventory/products/${productId}/batches?selectedBatchId=${another.batchId}`)).statusCode,404);assert.equal((await get(users.admin,`/api/inventory/products/${productId}/batches?selectedBatchId=bad`)).statusCode,400);
+test('successful catalog and history reads isolate populated hospitals, products and visit subjects with stable actor IDs', async () => {
+  await pool.query(
+    "UPDATE staff_users SET display_name='Duplicate Fictional Name' WHERE id=ANY($1::uuid[])",
+    [[users.clinician.id, users.pharmacist.id]],
+  );
+  const { v, productId, batchId, prescriptionId } = await allocated();
+  await supply(v, {
+    type: 'dispense',
+    prescriptionId,
+    expectedVisitRevision: v.revision,
+    batchId,
+    expectedBatchRevision: 2,
+    quantity: 1,
+  });
+  const p2 = await stock({
+    type: 'product.create',
+    code: 'SECOND',
+    name: 'Second fictional product',
+    unit: 'unit',
+  });
+  const v2 = await visit();
+  await supply(
+    v2,
+    {
+      type: 'authorize',
+      prescriptionId: v2.prescriptions![0].id,
+      expectedVisitRevision: v2.revision,
+      productId: p2.productId,
+      quantity: 2,
+    },
+    users.clinician,
+  );
+  const foreign = await stock(
+    { type: 'product.create', code: 'FOREIGN', name: 'Other hospital item', unit: 'unit' },
+    other,
+  );
+  const foreignBatch = await stock(
+    { type: 'batch.create', productId: foreign.productId, lot: 'FOREIGN', expiry: '2099-01-01' },
+    other,
+  );
+  for (const user of [users.admin, users.clinician, other]) {
+    const list = (await get(user, '/api/inventory/products')).json();
+    assert.deepEqual(
+      list.entries.map((p: any) => p.id).sort(),
+      (user === other ? [foreign.productId] : [productId, p2.productId]).sort(),
+    );
+    assert.equal(list.total, user === other ? 1 : 2);
+  }
+  const hospitalHistory = (await get(other, '/api/inventory/history')).json();
+  assert.equal(hospitalHistory.total, 2);
+  assert.ok(hospitalHistory.entries.every((e: any) => e.productId === foreign.productId));
+  const productHistory = (
+    await get(users.auditor, `/api/inventory/history?productId=${productId}`)
+  ).json();
+  assert.equal(productHistory.total, 5);
+  assert.ok(productHistory.entries.every((e: any) => e.productId === productId));
+  for (const target of [v, v2]) {
+    const history = (
+      await get(users.clinician, `/api/visits/${target.id}/inventory/history`)
+    ).json();
+    assert.equal(history.total, target.id === v.id ? 2 : 1);
+    assert.ok(
+      history.entries.every(
+        (e: any) => e.visitId === target.id && e.prescriptionId === target.prescriptions![0].id,
+      ),
+    );
+  }
+  const history = (await get(users.clinician, `/api/visits/${v.id}/inventory/history`)).json();
+  assert.equal(new Set(history.entries.map((e: any) => e.actorName)).size, 1);
+  assert.deepEqual(
+    history.entries.map((e: any) => e.actorId).sort(),
+    [users.pharmacist.id, users.clinician.id].sort(),
+  );
+  assert.equal((await current(v)).pharmacy![0].actorId, users.clinician.id);
+  assert.equal(history.entries[0].snapshot.expiry, (await dates()).tomorrow);
+  for (const selected of [foreignBatch.batchId, randomUUID()])
+    assert.equal(
+      (
+        await get(
+          users.admin,
+          `/api/inventory/products/${productId}/batches?selectedBatchId=${selected}`,
+        )
+      ).statusCode,
+      404,
+    );
+  const another = await stock({
+    type: 'batch.create',
+    productId: p2.productId,
+    lot: 'OTHER',
+    expiry: '2099-01-01',
+  });
+  assert.equal(
+    (
+      await get(
+        users.admin,
+        `/api/inventory/products/${productId}/batches?selectedBatchId=${another.batchId}`,
+      )
+    ).statusCode,
+    404,
+  );
+  assert.equal(
+    (await get(users.admin, `/api/inventory/products/${productId}/batches?selectedBatchId=bad`))
+      .statusCode,
+    400,
+  );
 });
-test('product and batch pages expose 26 distinct records and retain a chosen batch outside the page',async()=>{
-  const ids:string[]=[];for(let index=0;index<26;index++)ids.push((await stock({type:'product.create',code:`PAGE-${String(index).padStart(2,'0')}`,name:`Fictional page ${index}`,unit:'unit'})).productId);
-  const first=(await get(users.admin,'/api/inventory/products')).json(),second=(await get(users.admin,'/api/inventory/products?page=2')).json();assert.equal(first.entries.length,25);assert.equal(second.entries.length,1);assert.equal(first.total,26);assert.deepEqual([...first.entries,...second.entries].map((p:any)=>p.id),ids);
-  const batchesIds:string[]=[];for(let index=0;index<26;index++)batchesIds.push((await stock({type:'batch.create',productId:ids[0],lot:`LOT-${index}`,expiry:`2099-01-${String(index+1).padStart(2,'0')}`})).batchId);
-  const one=(await get(users.admin,`/api/inventory/products/${ids[0]}/batches?selectedBatchId=${batchesIds[25]}`)).json(),two=(await get(users.admin,`/api/inventory/products/${ids[0]}/batches?page=2`)).json();assert.equal(one.entries.length,25);assert.equal(two.entries.length,1);assert.equal(one.total,26);assert.deepEqual([...one.entries,...two.entries].map((b:any)=>b.id),batchesIds);assert.equal(one.selectedBatch.id,batchesIds[25]);assert.equal(one.selectedBatch.eligibility,'available');
+test('product and batch pages expose 26 distinct records and retain a chosen batch outside the page', async () => {
+  const ids: string[] = [];
+  for (let index = 0; index < 26; index++)
+    ids.push(
+      (
+        await stock({
+          type: 'product.create',
+          code: `PAGE-${String(index).padStart(2, '0')}`,
+          name: `Fictional page ${index}`,
+          unit: 'unit',
+        })
+      ).productId,
+    );
+  const first = (await get(users.admin, '/api/inventory/products')).json(),
+    second = (await get(users.admin, '/api/inventory/products?page=2')).json();
+  assert.equal(first.entries.length, 25);
+  assert.equal(second.entries.length, 1);
+  assert.equal(first.total, 26);
+  assert.deepEqual(
+    [...first.entries, ...second.entries].map((p: any) => p.id),
+    ids,
+  );
+  const batchesIds: string[] = [];
+  for (let index = 0; index < 26; index++)
+    batchesIds.push(
+      (
+        await stock({
+          type: 'batch.create',
+          productId: ids[0],
+          lot: `LOT-${index}`,
+          expiry: `2099-01-${String(index + 1).padStart(2, '0')}`,
+        })
+      ).batchId,
+    );
+  const one = (
+      await get(
+        users.admin,
+        `/api/inventory/products/${ids[0]}/batches?selectedBatchId=${batchesIds[25]}`,
+      )
+    ).json(),
+    two = (await get(users.admin, `/api/inventory/products/${ids[0]}/batches?page=2`)).json();
+  assert.equal(one.entries.length, 25);
+  assert.equal(two.entries.length, 1);
+  assert.equal(one.total, 26);
+  assert.deepEqual(
+    [...one.entries, ...two.entries].map((b: any) => b.id),
+    batchesIds,
+  );
+  assert.equal(one.selectedBatch.id, batchesIds[25]);
+  assert.equal(one.selectedBatch.eligibility, 'available');
 });
-test('batch projection captures one post-lock Addis date across midnight for rows and selected batch',async()=>{
-  const {productId,batchId}=await catalog(0,'2099-01-02');await stock({type:'batch.create',productId,lot:'NEXT',expiry:'2099-01-03'});let captures=0,locked=false;
-  const clockPool=new Proxy(pool,{get(target,key){if(key==='connect')return async()=>{const client=await target.connect();return new Proxy(client,{get(connection,property){if(property==='query')return async(sql:string | pg.QueryConfig,...args:unknown[])=>{
-    if((typeof sql==='string'?sql:sql.text).includes("SELECT to_char(clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa'")){assert.equal(locked,true);captures++;return{rows:[{today:captures===1?'2099-01-01':'2099-01-02'}]};}
-    const result=await (connection.query as Function).call(connection,sql,...args);if((typeof sql==='string'?sql:sql.text).includes('FROM hospitals')&&(typeof sql==='string'?sql:sql.text).includes('FOR SHARE'))locked=true;return result;
-  };const member=Reflect.get(connection,property);return typeof member==='function'?member.bind(connection):member;}});};const member=Reflect.get(target,key);return typeof member==='function'?member.bind(target):member;}});
-  const clockApp=buildApp({pool:clockPool,origin});try{const response=await clockApp.inject({url:`/api/inventory/products/${productId}/batches?selectedBatchId=${batchId}`,headers:{cookie:users.admin.cookie}});assert.equal(response.statusCode,200,response.body);assert.equal(captures,1);assert.equal(response.json().today,'2099-01-01');assert.deepEqual(response.json().entries.map((b:any)=>b.eligibility),['available','available']);assert.equal(response.json().selectedBatch.eligibility,'available');}finally{await clockApp.close();}
+test('batch projection captures one post-lock Addis date across midnight for rows and selected batch', async () => {
+  const { productId, batchId } = await catalog(0, '2099-01-02');
+  await stock({ type: 'batch.create', productId, lot: 'NEXT', expiry: '2099-01-03' });
+  let captures = 0,
+    locked = false;
+  const clockPool = new Proxy(pool, {
+    get(target, key) {
+      if (key === 'connect')
+        return async () => {
+          const client = await target.connect();
+          return new Proxy(client, {
+            get(connection, property) {
+              if (property === 'query')
+                return async (sql: string | pg.QueryConfig, ...args: unknown[]) => {
+                  if (
+                    (typeof sql === 'string' ? sql : sql.text).includes(
+                      "SELECT to_char(clock_timestamp() AT TIME ZONE 'Africa/Addis_Ababa'",
+                    )
+                  ) {
+                    assert.equal(locked, true);
+                    captures++;
+                    return { rows: [{ today: captures === 1 ? '2099-01-01' : '2099-01-02' }] };
+                  }
+                  const result = await (connection.query as Function).call(
+                    connection,
+                    sql,
+                    ...args,
+                  );
+                  if (
+                    (typeof sql === 'string' ? sql : sql.text).includes('FROM hospitals') &&
+                    (typeof sql === 'string' ? sql : sql.text).includes('FOR SHARE')
+                  )
+                    locked = true;
+                  return result;
+                };
+              const member = Reflect.get(connection, property);
+              return typeof member === 'function' ? member.bind(connection) : member;
+            },
+          });
+        };
+      const member = Reflect.get(target, key);
+      return typeof member === 'function' ? member.bind(target) : member;
+    },
+  });
+  const clockApp = buildApp({ pool: clockPool, origin });
+  try {
+    const response = await clockApp.inject({
+      url: `/api/inventory/products/${productId}/batches?selectedBatchId=${batchId}`,
+      headers: { cookie: users.admin.cookie },
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(captures, 1);
+    assert.equal(response.json().today, '2099-01-01');
+    assert.deepEqual(
+      response.json().entries.map((b: any) => b.eligibility),
+      ['available', 'available'],
+    );
+    assert.equal(response.json().selectedBatch.eligibility, 'available');
+  } finally {
+    await clockApp.close();
+  }
 });
-test('fresh inventory write and protected read reject four authority changes while blocked behind hospital lock',async()=>{
-  const {productId,batchId}=await catalog();
-  for(const operation of ['write','read'])for(const change of ['active','role','reset','expiry']){
-    const blocker=await pool.connect();await blocker.query('BEGIN');await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE',[users.pharmacist.hospital]);
-    const key=randomUUID();const response=operation==='write'?post(users.pharmacist,'/api/inventory/commands',{type:'stock.receive',batchId,expectedRevision:2,quantity:1,reference:'Must not commit'},key):get(users.pharmacist,`/api/inventory/products/${productId}/batches`);const pending=Promise.resolve(response);
-    try{const pid=(await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;let reached=false;for(let i=0;i<150;i++){if((await database.query('SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND $2=ANY(pg_blocking_pids(pid))',[schema,pid])).rowCount){reached=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}assert.ok(reached,`${operation}/${change} reached lock`);
-      if(change==='expiry')await blocker.query("UPDATE staff_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1",[users.pharmacist.id]);else await blocker.query(`UPDATE staff_users SET ${change==='active'?'active=false':change==='role'?"role='cashier'":'password_change_required=true'} WHERE id=$1`,[users.pharmacist.id]);await blocker.query('COMMIT');const denied=await pending;assert.equal(denied.statusCode,401);assert.equal(denied.json().entries,undefined);assert.ok(!denied.body.includes('Fictional item'));assert.equal((await pool.query('SELECT * FROM inventory_requests WHERE idempotency_key=$1',[key])).rowCount,0);
-    }finally{await blocker.query('ROLLBACK');blocker.release();await pool.query("UPDATE staff_users SET active=true,role='pharmacist',password_change_required=false WHERE id=$1",[users.pharmacist.id]);await pool.query("UPDATE staff_sessions SET expires_at=clock_timestamp()+interval '1 hour' WHERE user_id=$1",[users.pharmacist.id]);}
-  }assert.equal((await batches(productId)).entries[0].balance,10);assert.equal((await get(users.auditor,'/api/inventory/history')).json().total,3);
+test('fresh inventory write and protected read reject four authority changes while blocked behind hospital lock', async () => {
+  const { productId, batchId } = await catalog();
+  for (const operation of ['write', 'read'])
+    for (const change of ['active', 'role', 'reset', 'expiry']) {
+      const blocker = await pool.connect();
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [
+        users.pharmacist.hospital,
+      ]);
+      const key = randomUUID();
+      const response =
+        operation === 'write'
+          ? post(
+              users.pharmacist,
+              '/api/inventory/commands',
+              {
+                type: 'stock.receive',
+                batchId,
+                expectedRevision: 2,
+                quantity: 1,
+                reference: 'Must not commit',
+              },
+              key,
+            )
+          : get(users.pharmacist, `/api/inventory/products/${productId}/batches`);
+      const pending = Promise.resolve(response);
+      try {
+        const pid = (await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+        let reached = false;
+        for (let i = 0; i < 150; i++) {
+          if (
+            (
+              await database.query(
+                'SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND $2=ANY(pg_blocking_pids(pid))',
+                [schema, pid],
+              )
+            ).rowCount
+          ) {
+            reached = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assert.ok(reached, `${operation}/${change} reached lock`);
+        if (change === 'expiry')
+          await blocker.query(
+            "UPDATE staff_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1",
+            [users.pharmacist.id],
+          );
+        else
+          await blocker.query(
+            `UPDATE staff_users SET ${change === 'active' ? 'active=false' : change === 'role' ? "role='cashier'" : 'password_change_required=true'} WHERE id=$1`,
+            [users.pharmacist.id],
+          );
+        await blocker.query('COMMIT');
+        const denied = await pending;
+        assert.equal(denied.statusCode, 401);
+        assert.equal(denied.json().entries, undefined);
+        assert.ok(!denied.body.includes('Fictional item'));
+        assert.equal(
+          (await pool.query('SELECT * FROM inventory_requests WHERE idempotency_key=$1', [key]))
+            .rowCount,
+          0,
+        );
+      } finally {
+        await blocker.query('ROLLBACK');
+        blocker.release();
+        await pool.query(
+          "UPDATE staff_users SET active=true,role='pharmacist',password_change_required=false WHERE id=$1",
+          [users.pharmacist.id],
+        );
+        await pool.query(
+          "UPDATE staff_sessions SET expires_at=clock_timestamp()+interval '1 hour' WHERE user_id=$1",
+          [users.pharmacist.id],
+        );
+      }
+    }
+  assert.equal((await batches(productId)).entries[0].balance, 10);
+  assert.equal((await get(users.auditor, '/api/inventory/history')).json().total, 3);
 });

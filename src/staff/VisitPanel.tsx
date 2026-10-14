@@ -1,3 +1,6 @@
+import { request, ApiError } from './api';
+import type { DepartmentSources, DepartmentChoice } from '../../shared/departments';
+import { hospitalDate } from './date';
 import { useEffect, useState } from 'react';
 import type { Session } from '../../shared/registration';
 import BillingPanel from './BillingPanel';
@@ -7,12 +10,38 @@ import ClinicalCorrections from './ClinicalCorrections';
 import type { VisitAction, VisitCommand, VisitSection, VisitView } from '../../shared/outpatient';
 
 const money = (amount: number) => `${(amount / 100).toFixed(2)} ETB`;
-const date = (value: string) => new Date(value).toLocaleString();
-export default function VisitPanel({ visit, disabled, onCommand, onDirty, saved, session, billingRefresh, billingPending, clinicalPending, pharmacyPending, onPharmacyPending, onClinicalPending, onBillingPending, onBillingSaved, onSessionError }: {
-  visit: VisitView; disabled: boolean; onCommand: (command: VisitCommand) => void; onDirty: (dirty: boolean) => void;
-  pharmacyPending: boolean; onPharmacyPending: (value: boolean) => void;
-  clinicalPending: boolean; onClinicalPending: (value: boolean) => void;
-  session: Session; billingRefresh: number; billingPending: boolean; onBillingPending: (value: boolean) => void; onBillingSaved: () => void; onSessionError: (error: unknown) => void;
+const date = (value: string) => hospitalDate(value);
+export default function VisitPanel({
+  visit,
+  disabled,
+  onCommand,
+  onDirty,
+  saved,
+  session,
+  billingRefresh,
+  billingPending,
+  clinicalPending,
+  pharmacyPending,
+  onPharmacyPending,
+  onClinicalPending,
+  onBillingPending,
+  onBillingSaved,
+  onSessionError,
+}: {
+  visit: VisitView;
+  disabled: boolean;
+  onCommand: (command: VisitCommand) => void;
+  onDirty: (dirty: boolean) => void;
+  pharmacyPending: boolean;
+  onPharmacyPending: (value: boolean) => void;
+  clinicalPending: boolean;
+  onClinicalPending: (value: boolean) => void;
+  session: Session;
+  billingRefresh: number;
+  billingPending: boolean;
+  onBillingPending: (value: boolean) => void;
+  onBillingSaved: () => void;
+  onSessionError: (error: unknown) => void;
   saved: { sequence: number; command?: VisitCommand };
 }) {
   const clinicalDisabled = disabled || billingPending || clinicalPending || pharmacyPending;
@@ -21,41 +50,689 @@ export default function VisitPanel({ visit, disabled, onCommand, onDirty, saved,
   const [pharmacyDirty, setPharmacyDirty] = useState(false);
   const [billingDirty, setBillingDirty] = useState(false);
   const [section, setSection] = useState<VisitSection | undefined>(visit.sections[0]);
-  const [note, setNote] = useState(''); const [instruction, setInstruction] = useState('');
-  const [test, setTest] = useState<'Blood count' | 'Urinalysis' | 'Blood glucose'>('Blood count');
+  const [note, setNote] = useState('');
+  const [instruction, setInstruction] = useState('');
+  const [test, setTest] = useState('');
+  const [tests, setTests] = useState<DepartmentChoice[]>([]);
+  const [testPage, setTestPage] = useState(1);
+  const [testTotal, setTestTotal] = useState(0);
+  const [testQuery, setTestQuery] = useState('');
+  const [testSearch, setTestSearch] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [testError, setTestError] = useState('');
+  useEffect(() => {
+    if (visit.financialMode !== 'catalog' || !visit.allowedActions.includes('order')) return;
+    let live = true;
+    setTestLoading(true);
+    setTestError('');
+    request<DepartmentSources>('/api/departments/sources', {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': session.csrfToken },
+      body: JSON.stringify({ kind: 'catalog', q: testSearch, page: testPage }),
+    })
+      .then((result) => {
+        if (live) {
+          setTests(result.entries);
+          setTestTotal(result.total);
+        }
+      })
+      .catch((error) => {
+        if (live) {
+          setTestError(error.message);
+          if (error instanceof ApiError && [401, 403].includes(error.status)) onSessionError(error);
+        }
+      })
+      .finally(() => {
+        if (live) setTestLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [visit.id, visit.financialMode, session.csrfToken, testSearch, testPage]);
   const [results, setResults] = useState<Record<string, string>>({});
   const dirty = Boolean(note || instruction || Object.values(results).some(Boolean));
-  useEffect(() => { onDirty(dirty || billingDirty || noteCorrectionDirty || resultCorrectionDirty || pharmacyDirty); }, [dirty, billingDirty, noteCorrectionDirty, resultCorrectionDirty, pharmacyDirty, onDirty]);
+  useEffect(() => {
+    onDirty(dirty || billingDirty || noteCorrectionDirty || resultCorrectionDirty || pharmacyDirty);
+  }, [dirty, billingDirty, noteCorrectionDirty, resultCorrectionDirty, pharmacyDirty, onDirty]);
   useEffect(() => {
     if (saved.command?.type === 'note') setNote('');
     if (saved.command?.type === 'prescribe') setInstruction('');
     if (saved.command?.type === 'advanceOrder' && saved.command.next === 'released') {
-      const id = saved.command.orderId; setResults(previous => { const next = { ...previous }; delete next[id]; return next; });
+      const id = saved.command.orderId;
+      setResults((previous) => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
     }
   }, [saved]);
-  const can = (action: VisitAction) => visit.status === 'active' && visit.allowedActions.includes(action);
-  const preservedResults = Object.entries(results).filter(([id, value]) => value && !(can('release') && visit.orders?.some(order => order.id === id && order.status === 'collected')));
-  function discardResult(id: string) { setResults(previous => { const next = { ...previous }; delete next[id]; return next; }); }
-  return <>
-    {dirty && <div className="notice warning"><span>You have unsaved visit drafts.</span><button disabled={clinicalDisabled} onClick={() => { setNote(''); setInstruction(''); setResults({}); }}>Discard unsaved drafts</button></div>}
-    {(preservedResults.length > 0 || (note && !can('note')) || (instruction && !can('prescribe'))) && <section className="panel visit-overview" aria-label="Preserved unsaved drafts"><h2>Preserved unsaved drafts</h2><p>The visit changed and these drafts cannot be saved here. Select the text to copy it, or discard it explicitly.</p>
-      {note && !can('note') && <><label htmlFor="preserved-note">Unsaved consultation note</label><textarea id="preserved-note" readOnly value={note} onFocus={e => e.currentTarget.select()} /></>}
-      {instruction && !can('prescribe') && <><label htmlFor="preserved-prescription">Unsaved prescription instructions</label><textarea id="preserved-prescription" readOnly value={instruction} onFocus={e => e.currentTarget.select()} /></>}
-      {preservedResults.map(([id, value]) => <div key={id}><label htmlFor={`preserved-${id}`}>Unsaved {visit.orders?.find(order => order.id === id)?.test ?? 'investigation'} result draft</label><textarea id={`preserved-${id}`} readOnly value={value} onFocus={e => e.currentTarget.select()} /><button disabled={clinicalDisabled} onClick={() => discardResult(id)}>Discard result draft</button></div>)}
-    </section>}
-    <section className="panel visit-overview" aria-label="Visit summary"><div><span className={`badge ${visit.status === 'closed' ? 'neutral' : 'teal'}`}>{visit.stage}</span><p>Opened {date(visit.openedAt)}{visit.closedAt && <> · Closed {date(visit.closedAt)}</>}</p></div><dl><div><dt>Corrections to review</dt><dd>{visit.pendingClinicalReviews}</dd></div><div><dt>Investigations pending</dt><dd>{visit.pendingInvestigations}</dd></div><div><dt>Prescriptions pending</dt><dd>{visit.pendingPrescriptions}</dd></div><div><dt>{visit.financialMode === 'catalog' ? 'Financial status' : 'Outstanding balance'}</dt><dd>{visit.billing?.state === 'unbilled' ? 'Not yet billed' : visit.billing?.state === 'settled' ? 'Settled' : money(visit.balance)}</dd></div></dl>
-      {visit.pendingClinicalReviews > 0 && <p className="notice warning">{visit.pendingClinicalReviews} corrected result{visit.pendingClinicalReviews === 1 ? ' requires' : 's require'} clinician review. {visit.sections.includes('Diagnostics') ? 'Open Diagnostics to review the latest correction.' : 'The assigned clinician must review the latest correction.'}</p>}
-      {visit.status === 'closed' ? <p className="notice success">{visit.financialMode === 'catalog' ? 'Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.' : 'This visit is closed. Original records remain unchanged; corrections remain available.'}</p> : <div className="closure"><div><h2>Visit completion</h2>{visit.blockers.length ? <ul>{visit.blockers.map(reason => <li key={reason}>{reason}</li>)}</ul> : <p>{visit.financialMode === 'catalog' ? 'Clinical work is complete. Closing the clinical visit does not settle its billing.' : 'All required work is complete. This visit can be closed.'}</p>}</div>{can('close') && <button disabled={clinicalDisabled || visit.blockers.length > 0} onClick={() => onCommand({ type: 'close' })}>Close visit</button>}</div>}
-    </section>
-    {visit.sections.length > 0 && <section className="panel visit-detail"><nav className="detail-tabs" aria-label="Visit sections">{visit.sections.map(item => <button key={item} disabled={clinicalDisabled} aria-pressed={section === item} onClick={() => setSection(item)}>{item}</button>)}</nav><div className="detail-content">
-      {section === 'Consultation' && visit.notes && <section aria-labelledby="consultation-title"><h2 id="consultation-title">Consultation notes</h2>{visit.notes.length ? visit.notes.map(item => <article className="note" key={item.id}><small>{date(item.at)}</small>{visit.clinical?.records.some(record => record.subjectId === item.id) && <p className="notice warning">Original note — amended. <button onClick={() => document.getElementById(`note-amendment-subject-${item.id}`)?.focus()}>Read latest amendment for note {visit.notes!.findIndex(note => note.id === item.id) + 1}</button></p>}<p className="preserve">{item.body}</p></article>) : <p className="empty-small">No consultation notes saved.</p>}{can('note') && <form onSubmit={e => { e.preventDefault(); onCommand({ type: 'note', body: note.trim() }); }}><label htmlFor="visit-note">Consultation note</label><textarea id="visit-note" required maxLength={4000} value={note} disabled={clinicalDisabled} onChange={e => setNote(e.target.value)} /><button className="primary" disabled={clinicalDisabled || !note.trim()}>Save note</button></form>}</section>}
-      {section === 'Diagnostics' && visit.orders && <section aria-labelledby="diagnostics-title"><h2 id="diagnostics-title">Investigations</h2>{can('order') && <form className="visit-order-form" onSubmit={e => { e.preventDefault(); onCommand({ type: 'order', test }); }}><div><label htmlFor="visit-investigation">Investigation</label><select id="visit-investigation" value={test} disabled={clinicalDisabled} onChange={e => setTest(e.target.value as typeof test)}><option>Blood count</option><option>Urinalysis</option><option>Blood glucose</option></select></div><button className="primary" disabled={clinicalDisabled || visit.orders.some(order => order.test === test)}>Request investigation</button></form>}{!visit.orders.length && <p className="empty-small">No investigations requested.</p>}{visit.orders.map(order => <article className="order-card" key={order.id} aria-label={`${order.test} investigation`}><div className="section-heading"><h3>{order.test}</h3><span className="badge neutral">{visit.clinical?.records.some(record => record.subjectId === order.id) ? `Original: ${order.status}` : order.status}</span></div>{order.result && <div className="result"><h4>{visit.clinical?.records.some(record => record.subjectId === order.id) ? 'Original released result' : 'Released result'}</h4><p className="preserve">{order.result}</p>{visit.clinical?.records.some(record => record.subjectId === order.id) && <p className="notice warning">This original result has been corrected. <button onClick={() => document.getElementById(`result-correction-subject-${order.id}`)?.focus()}>Read latest {order.test} correction</button></p>}</div>}<div className="button-row">{can('collect') && order.status === 'requested' && <button disabled={clinicalDisabled} onClick={() => onCommand({ type: 'advanceOrder', orderId: order.id, next: 'collected' })}>Mark collected</button>}{can('review') && order.status === 'released' && <button disabled={clinicalDisabled} onClick={() => onCommand({ type: 'advanceOrder', orderId: order.id, next: 'reviewed' })}>Mark reviewed</button>}{can('cancelOrder') && ['requested', 'collected'].includes(order.status) && <button disabled={clinicalDisabled} onClick={() => onCommand({ type: 'advanceOrder', orderId: order.id, next: 'cancelled' })}>Cancel investigation</button>}</div>{can('release') && order.status === 'collected' && <form onSubmit={e => { e.preventDefault(); onCommand({ type: 'advanceOrder', orderId: order.id, next: 'released', result: (results[order.id] ?? '').trim() }); }}><label htmlFor={`result-${order.id}`}>{order.test} result</label><textarea id={`result-${order.id}`} required maxLength={4000} value={results[order.id] ?? ''} disabled={clinicalDisabled} onChange={e => setResults(previous => ({ ...previous, [order.id]: e.target.value }))} /><p className="muted visit-form-help">Released results remain unchanged. Corrections are appended with a reason and a new review.</p><button className="primary" disabled={clinicalDisabled || !results[order.id]?.trim()}>Release result</button></form>}</article>)}</section>}
-      {visit.prescriptions && <section hidden={section !== 'Pharmacy'} aria-labelledby="pharmacy-title"><h2 id="pharmacy-title">Prescriptions</h2>{can('prescribe') && <form onSubmit={e => { e.preventDefault(); onCommand({ type: 'prescribe', instruction: instruction.trim() }); }}><label htmlFor="visit-prescription">Fictional prescription instructions</label><textarea id="visit-prescription" required maxLength={4000} value={instruction} disabled={clinicalDisabled} onChange={e => setInstruction(e.target.value)} /><button className="primary" disabled={clinicalDisabled || !instruction.trim()}>Add prescription</button></form>}<PharmacyPanel visit={visit} session={session} disabled={clinicalDisabled} onDirty={setPharmacyDirty} onPending={onPharmacyPending} onSaved={onBillingSaved} onSessionError={onSessionError} onCommand={onCommand} /></section>}
-      {visit.financialMode === 'catalog' && visit.sections.includes('Billing') && <div hidden={section !== 'Billing'}><BillingPanel visitId={visit.id} session={session} externalRefresh={billingRefresh} disabled={disabled || clinicalPending || pharmacyPending} onDirty={setBillingDirty} onPending={onBillingPending} onSaved={onBillingSaved} onSessionError={onSessionError} /></div>}
-      {visit.clinical && visit.sections.includes('Consultation') && <div hidden={section !== 'Consultation'}><ClinicalCorrections visit={visit} kind="note" session={session} disabled={clinicalDisabled} onDirty={setNoteCorrectionDirty} onPending={onClinicalPending} onSaved={onBillingSaved} onSessionError={onSessionError} /></div>}
-      {visit.clinical && visit.sections.includes('Diagnostics') && <div hidden={section !== 'Diagnostics'}><ClinicalCorrections visit={visit} kind="result" session={session} disabled={clinicalDisabled} onDirty={setResultCorrectionDirty} onPending={onClinicalPending} onSaved={onBillingSaved} onSessionError={onSessionError} /></div>}
-      {visit.financialMode !== 'catalog' && section === 'Billing' && visit.charges && visit.payments && <section aria-labelledby="billing-title"><h2 id="billing-title">Charges and payments</h2><p>Invented demonstration prices. Recording settlement does not process a real payment.</p><div className="invoice">{visit.charges.map(charge => <div key={charge.id}><span>{charge.label}<small>{charge.reversed ? 'Reversed' : charge.paid ? 'Paid' : 'Unpaid'}</small></span><span className={charge.reversed ? 'struck' : ''}>{money(charge.amount)}</span></div>)}<div className="invoice-total"><strong>Outstanding balance</strong><strong>{money(visit.balance)}</strong></div></div>{can('settle') && <button className="primary" disabled={clinicalDisabled || visit.balance <= 0} onClick={() => onCommand({ type: 'settle' })}>Record demo settlement</button>}<h3 className="visit-payments-title">Recorded payments</h3>{visit.payments.length ? <ul className="timeline">{visit.payments.map(payment => <li key={payment.id}><strong>{money(payment.amount)}</strong><small>{date(payment.at)}</small></li>)}</ul> : <p className="empty-small">No payments recorded.</p>}</section>}
-      {section === 'History' && visit.history && <section aria-labelledby="history-title"><h2 id="history-title">Visit history</h2><ul className="timeline">{visit.history.map(event => <li key={event.id}><strong>{event.detail}</strong><small>{date(event.at)} · {event.actor}</small></li>)}</ul><ClinicalHistory visitId={visit.id} version={billingRefresh} disabled={clinicalDisabled} onSessionError={onSessionError} /></section>}
-    </div></section>}
-  </>;
+  const can = (action: VisitAction) =>
+    visit.status === 'active' && visit.allowedActions.includes(action);
+  const preservedResults = Object.entries(results).filter(
+    ([id, value]) =>
+      value &&
+      !(
+        can('release') &&
+        visit.orders?.some(
+          (order) => order.id === id && !order.catalogId && order.status === 'collected',
+        )
+      ),
+  );
+  function discardResult(id: string) {
+    setResults((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+  }
+  return (
+    <>
+      {dirty && (
+        <div className="notice warning">
+          <span>You have unsaved visit drafts.</span>
+          <button
+            disabled={clinicalDisabled}
+            onClick={() => {
+              setNote('');
+              setInstruction('');
+              setResults({});
+            }}
+          >
+            Discard unsaved drafts
+          </button>
+        </div>
+      )}
+      {(preservedResults.length > 0 ||
+        (note && !can('note')) ||
+        (instruction && !can('prescribe'))) && (
+        <section className="panel visit-overview" aria-label="Preserved unsaved drafts">
+          <h2>Preserved unsaved drafts</h2>
+          <p>
+            The visit changed and these drafts cannot be saved here. Select the text to copy it, or
+            discard it explicitly.
+          </p>
+          {note && !can('note') && (
+            <>
+              <label htmlFor="preserved-note">Unsaved consultation note</label>
+              <textarea
+                id="preserved-note"
+                readOnly
+                value={note}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </>
+          )}
+          {instruction && !can('prescribe') && (
+            <>
+              <label htmlFor="preserved-prescription">Unsaved prescription instructions</label>
+              <textarea
+                id="preserved-prescription"
+                readOnly
+                value={instruction}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </>
+          )}
+          {preservedResults.map(([id, value]) => (
+            <div key={id}>
+              <label htmlFor={`preserved-${id}`}>
+                Unsaved {visit.orders?.find((order) => order.id === id)?.test ?? 'investigation'}{' '}
+                result draft
+              </label>
+              <textarea
+                id={`preserved-${id}`}
+                readOnly
+                value={value}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <button disabled={clinicalDisabled} onClick={() => discardResult(id)}>
+                Discard result draft
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      <section className="panel visit-overview" aria-label="Visit summary">
+        <div>
+          <span className={`badge ${visit.status === 'closed' ? 'neutral' : 'teal'}`}>
+            {visit.stage}
+          </span>
+          <p>
+            Opened {date(visit.openedAt)}
+            {visit.closedAt && <> · Closed {date(visit.closedAt)}</>}
+          </p>
+        </div>
+        <dl>
+          <div>
+            <dt>Corrections to review</dt>
+            <dd>{visit.pendingClinicalReviews}</dd>
+          </div>
+          <div>
+            <dt>Investigations pending</dt>
+            <dd>{visit.pendingInvestigations}</dd>
+          </div>
+          <div>
+            <dt>Prescriptions pending</dt>
+            <dd>{visit.pendingPrescriptions}</dd>
+          </div>
+          <div>
+            <dt>
+              {visit.financialMode === 'catalog' ? 'Financial status' : 'Outstanding balance'}
+            </dt>
+            <dd>
+              {visit.billing?.state === 'unbilled'
+                ? 'Not yet billed'
+                : visit.billing?.state === 'settled'
+                  ? 'Settled'
+                  : money(visit.balance)}
+            </dd>
+          </div>
+        </dl>
+        {visit.pendingClinicalReviews > 0 && (
+          <p className="notice warning">
+            {visit.pendingClinicalReviews} corrected result
+            {visit.pendingClinicalReviews === 1 ? ' requires' : 's require'} clinician review.{' '}
+            {visit.sections.includes('Diagnostics')
+              ? 'Open Diagnostics to review the latest correction.'
+              : 'The assigned clinician must review the latest correction.'}
+          </p>
+        )}
+        {visit.status === 'closed' ? (
+          <p className="notice success">
+            {visit.financialMode === 'catalog'
+              ? 'Clinical visit closed. Original clinical records remain unchanged; corrections and billing remain available.'
+              : 'This visit is closed. Original records remain unchanged; corrections remain available.'}
+          </p>
+        ) : (
+          <div className="closure">
+            <div>
+              <h2>Visit completion</h2>
+              {visit.blockers.length ? (
+                <ul>
+                  {visit.blockers.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>
+                  {visit.financialMode === 'catalog'
+                    ? 'Clinical work is complete. Closing the clinical visit does not settle its billing.'
+                    : 'All required work is complete. This visit can be closed.'}
+                </p>
+              )}
+            </div>
+            {can('close') && (
+              <button
+                disabled={clinicalDisabled || visit.blockers.length > 0}
+                onClick={() => onCommand({ type: 'close' })}
+              >
+                Close visit
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+      {visit.sections.length > 0 && (
+        <section className="panel visit-detail">
+          <nav className="detail-tabs" aria-label="Visit sections">
+            {visit.sections.map((item) => (
+              <button
+                key={item}
+                disabled={clinicalDisabled}
+                aria-pressed={section === item}
+                onClick={() => setSection(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+          <div className="detail-content">
+            {section === 'Consultation' && visit.notes && (
+              <section aria-labelledby="consultation-title">
+                <h2 id="consultation-title">Consultation notes</h2>
+                {visit.notes.length ? (
+                  visit.notes.map((item) => (
+                    <article className="note" key={item.id}>
+                      <small>{date(item.at)}</small>
+                      {visit.clinical?.records.some((record) => record.subjectId === item.id) && (
+                        <p className="notice warning">
+                          Original note — amended.{' '}
+                          <button
+                            onClick={() =>
+                              document.getElementById(`note-amendment-subject-${item.id}`)?.focus()
+                            }
+                          >
+                            Read latest amendment for note{' '}
+                            {visit.notes!.findIndex((note) => note.id === item.id) + 1}
+                          </button>
+                        </p>
+                      )}
+                      <p className="preserve">{item.body}</p>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-small">No consultation notes saved.</p>
+                )}
+                {can('note') && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      onCommand({ type: 'note', body: note.trim() });
+                    }}
+                  >
+                    <label htmlFor="visit-note">Consultation note</label>
+                    <textarea
+                      id="visit-note"
+                      required
+                      maxLength={4000}
+                      value={note}
+                      disabled={clinicalDisabled}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                    <button className="primary" disabled={clinicalDisabled || !note.trim()}>
+                      Save note
+                    </button>
+                  </form>
+                )}
+              </section>
+            )}
+            {section === 'Diagnostics' && visit.orders && (
+              <section aria-labelledby="diagnostics-title">
+                <h2 id="diagnostics-title">Investigations</h2>
+                {can('order') && (
+                  <form
+                    className="visit-order-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (visit.financialMode === 'catalog') {
+                        const choice = tests.find((t) => t.id === test);
+                        if (choice)
+                          onCommand({
+                            type: 'order',
+                            catalogId: choice.id,
+                            test: choice.data!.name,
+                          });
+                      } else if (test) onCommand({ type: 'order', test });
+                    }}
+                  >
+                    {visit.financialMode === 'catalog' && (
+                      <div>
+                        <label htmlFor="visit-test-search">Find a configured investigation</label>
+                        <input
+                          id="visit-test-search"
+                          maxLength={100}
+                          value={testQuery}
+                          disabled={clinicalDisabled}
+                          onChange={(e) => setTestQuery(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          disabled={clinicalDisabled || testLoading}
+                          onClick={() => {
+                            setTestSearch(testQuery.trim());
+                            setTestPage(1);
+                            setTest('');
+                          }}
+                        >
+                          Find tests
+                        </button>
+                      </div>
+                    )}
+                    <div>
+                      <label htmlFor="visit-investigation">Investigation</label>
+                      <select
+                        id="visit-investigation"
+                        required
+                        value={test}
+                        disabled={clinicalDisabled || testLoading}
+                        onChange={(e) => setTest(e.target.value)}
+                      >
+                        <option value="">Choose an investigation</option>
+                        {visit.financialMode === 'catalog'
+                          ? tests.map((choice) => (
+                              <option key={choice.id} value={choice.id}>
+                                {choice.label}
+                              </option>
+                            ))
+                          : ['Blood count', 'Urinalysis', 'Blood glucose'].map((name) => (
+                              <option key={name}>{name}</option>
+                            ))}
+                      </select>
+                      {testLoading && <p role="status">Loading configured tests…</p>}
+                      {testError && <p role="alert">{testError}</p>}
+                      {visit.financialMode === 'catalog' && !testLoading && !tests.length && (
+                        <p>
+                          No matching hospital tests configured. An administrator must configure the
+                          laboratory catalog before ordering.
+                        </p>
+                      )}
+                      {visit.financialMode === 'catalog' && (
+                        <div className="button-row">
+                          <button
+                            type="button"
+                            disabled={clinicalDisabled || testLoading || testPage === 1}
+                            onClick={() => {
+                              setTestPage((p) => p - 1);
+                              setTest('');
+                            }}
+                          >
+                            Previous tests
+                          </button>
+                          <button
+                            type="button"
+                            disabled={clinicalDisabled || testLoading || testPage * 25 >= testTotal}
+                            onClick={() => {
+                              setTestPage((p) => p + 1);
+                              setTest('');
+                            }}
+                          >
+                            Next tests
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="primary"
+                      disabled={
+                        clinicalDisabled ||
+                        testLoading ||
+                        !test ||
+                        visit.orders.some((order) =>
+                          visit.financialMode === 'catalog'
+                            ? order.catalogId === test
+                            : order.test === test,
+                        )
+                      }
+                    >
+                      Request investigation
+                    </button>
+                  </form>
+                )}
+                {!visit.orders.length && (
+                  <p className="empty-small">No investigations requested.</p>
+                )}
+                {visit.orders.map((order) => (
+                  <article
+                    className="order-card"
+                    key={order.id}
+                    aria-label={`${order.test} investigation`}
+                  >
+                    <div className="section-heading">
+                      <h3>{order.test}</h3>
+                      <span className="badge neutral">
+                        {visit.clinical?.records.some((record) => record.subjectId === order.id)
+                          ? `Original: ${order.status}`
+                          : order.status}
+                      </span>
+                    </div>
+                    {order.result && (
+                      <div className="result">
+                        <h4>
+                          {visit.clinical?.records.some((record) => record.subjectId === order.id)
+                            ? 'Original released result'
+                            : 'Released result'}
+                        </h4>
+                        <p className="preserve">{order.result}</p>
+                        {visit.clinical?.records.some(
+                          (record) => record.subjectId === order.id,
+                        ) && (
+                          <p className="notice warning">
+                            This original result has been corrected.{' '}
+                            <button
+                              onClick={() =>
+                                document
+                                  .getElementById(`result-correction-subject-${order.id}`)
+                                  ?.focus()
+                              }
+                            >
+                              Read latest {order.test} correction
+                            </button>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {order.catalogId && ['requested', 'collected'].includes(order.status) && (
+                      <p className="notice">
+                        Use <strong>Department operations → Laboratory specimens</strong> to
+                        register the accession, collect and receive the specimen, and release its
+                        result. The configured test and its critical-result rules follow this
+                        workflow.
+                      </p>
+                    )}
+                    <div className="button-row">
+                      {can('collect') && !order.catalogId && order.status === 'requested' && (
+                        <button
+                          disabled={clinicalDisabled}
+                          onClick={() =>
+                            onCommand({
+                              type: 'advanceOrder',
+                              orderId: order.id,
+                              next: 'collected',
+                            })
+                          }
+                        >
+                          Mark collected
+                        </button>
+                      )}
+                      {can('review') && order.status === 'released' && (
+                        <button
+                          disabled={clinicalDisabled}
+                          onClick={() =>
+                            onCommand({ type: 'advanceOrder', orderId: order.id, next: 'reviewed' })
+                          }
+                        >
+                          Mark reviewed
+                        </button>
+                      )}
+                      {can('cancelOrder') && ['requested', 'collected'].includes(order.status) && (
+                        <button
+                          disabled={clinicalDisabled}
+                          onClick={() =>
+                            onCommand({
+                              type: 'advanceOrder',
+                              orderId: order.id,
+                              next: 'cancelled',
+                            })
+                          }
+                        >
+                          Cancel investigation
+                        </button>
+                      )}
+                    </div>
+                    {can('release') && !order.catalogId && order.status === 'collected' && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          onCommand({
+                            type: 'advanceOrder',
+                            orderId: order.id,
+                            next: 'released',
+                            result: (results[order.id] ?? '').trim(),
+                          });
+                        }}
+                      >
+                        <label htmlFor={`result-${order.id}`}>{order.test} result</label>
+                        <textarea
+                          id={`result-${order.id}`}
+                          required
+                          maxLength={4000}
+                          value={results[order.id] ?? ''}
+                          disabled={clinicalDisabled}
+                          onChange={(e) =>
+                            setResults((previous) => ({ ...previous, [order.id]: e.target.value }))
+                          }
+                        />
+                        <p className="muted visit-form-help">
+                          Released results remain unchanged. Corrections are appended with a reason
+                          and a new review.
+                        </p>
+                        <button
+                          className="primary"
+                          disabled={clinicalDisabled || !results[order.id]?.trim()}
+                        >
+                          Release result
+                        </button>
+                      </form>
+                    )}
+                  </article>
+                ))}
+              </section>
+            )}
+            {visit.prescriptions && (
+              <section hidden={section !== 'Pharmacy'} aria-labelledby="pharmacy-title">
+                <h2 id="pharmacy-title">Prescriptions</h2>
+                {can('prescribe') && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      onCommand({ type: 'prescribe', instruction: instruction.trim() });
+                    }}
+                  >
+                    <label htmlFor="visit-prescription">Prescription instructions</label>
+                    <textarea
+                      id="visit-prescription"
+                      required
+                      maxLength={4000}
+                      value={instruction}
+                      disabled={clinicalDisabled}
+                      onChange={(e) => setInstruction(e.target.value)}
+                    />
+                    <button className="primary" disabled={clinicalDisabled || !instruction.trim()}>
+                      Add prescription
+                    </button>
+                  </form>
+                )}
+                <PharmacyPanel
+                  visit={visit}
+                  session={session}
+                  disabled={clinicalDisabled}
+                  onDirty={setPharmacyDirty}
+                  onPending={onPharmacyPending}
+                  onSaved={onBillingSaved}
+                  onSessionError={onSessionError}
+                  onCommand={onCommand}
+                />
+              </section>
+            )}
+            {visit.financialMode === 'catalog' && visit.sections.includes('Billing') && (
+              <div hidden={section !== 'Billing'}>
+                <BillingPanel
+                  visitId={visit.id}
+                  session={session}
+                  externalRefresh={billingRefresh}
+                  disabled={disabled || clinicalPending || pharmacyPending}
+                  onDirty={setBillingDirty}
+                  onPending={onBillingPending}
+                  onSaved={onBillingSaved}
+                  onSessionError={onSessionError}
+                />
+              </div>
+            )}
+            {visit.clinical && visit.sections.includes('Consultation') && (
+              <div hidden={section !== 'Consultation'}>
+                <ClinicalCorrections
+                  visit={visit}
+                  kind="note"
+                  session={session}
+                  disabled={clinicalDisabled}
+                  onDirty={setNoteCorrectionDirty}
+                  onPending={onClinicalPending}
+                  onSaved={onBillingSaved}
+                  onSessionError={onSessionError}
+                />
+              </div>
+            )}
+            {visit.clinical && visit.sections.includes('Diagnostics') && (
+              <div hidden={section !== 'Diagnostics'}>
+                <ClinicalCorrections
+                  visit={visit}
+                  kind="result"
+                  session={session}
+                  disabled={clinicalDisabled}
+                  onDirty={setResultCorrectionDirty}
+                  onPending={onClinicalPending}
+                  onSaved={onBillingSaved}
+                  onSessionError={onSessionError}
+                />
+              </div>
+            )}
+            {visit.financialMode !== 'catalog' &&
+              section === 'Billing' &&
+              visit.charges &&
+              visit.payments && (
+                <section aria-labelledby="billing-title">
+                  <h2 id="billing-title">Charges and payments</h2>
+                  <p>
+                    Invented demonstration prices. Recording settlement does not process a real
+                    payment.
+                  </p>
+                  <div className="invoice">
+                    {visit.charges.map((charge) => (
+                      <div key={charge.id}>
+                        <span>
+                          {charge.label}
+                          <small>
+                            {charge.reversed ? 'Reversed' : charge.paid ? 'Paid' : 'Unpaid'}
+                          </small>
+                        </span>
+                        <span className={charge.reversed ? 'struck' : ''}>
+                          {money(charge.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="invoice-total">
+                      <strong>Outstanding balance</strong>
+                      <strong>{money(visit.balance)}</strong>
+                    </div>
+                  </div>
+                  {can('settle') && (
+                    <button
+                      className="primary"
+                      disabled={clinicalDisabled || visit.balance <= 0}
+                      onClick={() => onCommand({ type: 'settle' })}
+                    >
+                      Record demo settlement
+                    </button>
+                  )}
+                  <h3 className="visit-payments-title">Recorded payments</h3>
+                  {visit.payments.length ? (
+                    <ul className="timeline">
+                      {visit.payments.map((payment) => (
+                        <li key={payment.id}>
+                          <strong>{money(payment.amount)}</strong>
+                          <small>{date(payment.at)}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="empty-small">No payments recorded.</p>
+                  )}
+                </section>
+              )}
+            {section === 'History' && visit.history && (
+              <section aria-labelledby="history-title">
+                <h2 id="history-title">Visit history</h2>
+                <ul className="timeline">
+                  {visit.history.map((event) => (
+                    <li key={event.id}>
+                      <strong>{event.detail}</strong>
+                      <small>
+                        {date(event.at)} · {event.actor}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+                <ClinicalHistory
+                  visitId={visit.id}
+                  version={billingRefresh}
+                  disabled={clinicalDisabled}
+                  onSessionError={onSessionError}
+                />
+              </section>
+            )}
+          </div>
+        </section>
+      )}
+    </>
+  );
 }

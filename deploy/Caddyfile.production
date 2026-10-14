@@ -1,0 +1,31 @@
+{
+ admin off
+ log default {
+  output discard
+ }
+ email {$MEDI_TLS_EMAIL}
+}
+{$MEDI_DOMAIN} {
+ header {
+  X-Content-Type-Options nosniff
+  Referrer-Policy no-referrer
+  X-Frame-Options DENY
+  Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+  Strict-Transport-Security "max-age=31536000"
+  Cross-Origin-Opener-Policy same-origin
+  Cross-Origin-Resource-Policy same-origin
+  Cross-Origin-Embedder-Policy require-corp
+  -Server
+ }
+ @api path /api /api/*
+ handle @api {
+  reverse_proxy api:3100
+ }
+ handle {
+  root * /srv
+  try_files {path} /index.html
+  header Cache-Control no-store
+  file_server
+ }
+}

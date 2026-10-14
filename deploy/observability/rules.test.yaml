@@ -22,7 +22,7 @@ tests:
       - eval_time: 40s
         alertname: MediApiUnavailable
         exp_alerts:
-          - exp_labels: {severity: rehearsal}
+          - exp_labels: { severity: rehearsal }
   - interval: 5s
     input_series:
       - series: 'medi_heartbeat_seconds'
@@ -33,4 +33,4 @@ tests:
       - eval_time: 20s
         alertname: MediApiUnavailable
         exp_alerts:
-          - exp_labels: {severity: rehearsal}
+          - exp_labels: { severity: rehearsal }

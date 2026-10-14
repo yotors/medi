@@ -1,28 +1,123 @@
-.hospital-configuration { min-width: 0; }
-.configuration-scope { max-width: 80ch; }
-.configuration-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
-.configuration-form, .configuration-history, .configuration-directory { padding: 24px; min-width: 0; }
-.configuration-form h2, .configuration-history h2 { margin-top: 0; }
-.configuration-form fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
-.configuration-form label:not(.checkbox) { display: block; margin: 18px 0 6px; font-weight: 650; }
-.configuration-form input:not([type=checkbox]), .configuration-form select { width: 100%; min-width: 0; }
-.configuration-form p { overflow-wrap: anywhere; }
-.configuration-form .muted { font-size: 14px; margin: 6px 0 16px; }
-.configuration-form .checkbox { margin-top: 20px; }
-.configuration-department-pages { margin-top: 12px; }
-.configuration-form input[readonly] { background: #f4f7f7; color: #52686d; }
-.configuration-history ol { padding-left: 22px; margin-top: 24px; }
-.configuration-history li { padding: 0 0 20px 4px; overflow-wrap: anywhere; }
-.configuration-history li + li { border-top: 1px solid #dce5e4; padding-top: 20px; }
-.configuration-history p { margin: 6px 0; }
-.configuration-directory nav { margin-bottom: 24px; }
-.configuration-directory [aria-current=page] { background: #e6f2ee; color: #12695d; border-color: #12695d; }
-.configuration-money, .configuration-history time { font-variant-numeric: tabular-nums; }
-.configuration-directory td { overflow-wrap: anywhere; }
-@media (max-width: 850px) { .configuration-editor { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 650px) { .configuration-form, .configuration-history, .configuration-directory { padding: 16px; } .configuration-directory table { min-width: 570px; } }
-.hospital-configuration > .staff-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
-.hospital-configuration > .staff-section-heading h1 { margin-bottom: 8px; }
-.hospital-configuration > .staff-section-heading p { margin-bottom: 0; }
-@media (max-width: 650px) { .hospital-configuration > .staff-section-heading { align-items: flex-start; flex-direction: column; gap: 16px; } }
-.hospital-configuration input[type=checkbox] { accent-color: #12695d; }
+.hospital-configuration {
+  min-width: 0;
+}
+.configuration-scope {
+  max-width: 80ch;
+}
+.configuration-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.configuration-form,
+.configuration-history,
+.configuration-directory {
+  padding: 24px;
+  min-width: 0;
+}
+.configuration-form h2,
+.configuration-history h2 {
+  margin-top: 0;
+}
+.configuration-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  min-width: 0;
+}
+.configuration-form label:not(.checkbox) {
+  display: block;
+  margin: 18px 0 6px;
+  font-weight: 650;
+}
+.configuration-form input:not([type='checkbox']),
+.configuration-form select {
+  width: 100%;
+  min-width: 0;
+}
+.configuration-form p {
+  overflow-wrap: anywhere;
+}
+.configuration-form .muted {
+  font-size: 14px;
+  margin: 6px 0 16px;
+}
+.configuration-form .checkbox {
+  margin-top: 20px;
+}
+.configuration-department-pages {
+  margin-top: 12px;
+}
+.configuration-form input[readonly] {
+  background: #f4f7f7;
+  color: #52686d;
+}
+.configuration-history ol {
+  padding-left: 22px;
+  margin-top: 24px;
+}
+.configuration-history li {
+  padding: 0 0 20px 4px;
+  overflow-wrap: anywhere;
+}
+.configuration-history li + li {
+  border-top: 1px solid #dce5e4;
+  padding-top: 20px;
+}
+.configuration-history p {
+  margin: 6px 0;
+}
+.configuration-directory nav {
+  margin-bottom: 24px;
+}
+.configuration-directory [aria-current='page'] {
+  background: #e6f2ee;
+  color: #12695d;
+  border-color: #12695d;
+}
+.configuration-money,
+.configuration-history time {
+  font-variant-numeric: tabular-nums;
+}
+.configuration-directory td {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 850px) {
+  .configuration-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 650px) {
+  .configuration-form,
+  .configuration-history,
+  .configuration-directory {
+    padding: 16px;
+  }
+  .configuration-directory table {
+    min-width: 570px;
+  }
+}
+.hospital-configuration > .staff-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.hospital-configuration > .staff-section-heading h1 {
+  margin-bottom: 8px;
+}
+.hospital-configuration > .staff-section-heading p {
+  margin-bottom: 0;
+}
+@media (max-width: 650px) {
+  .hospital-configuration > .staff-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+.hospital-configuration input[type='checkbox'] {
+  accent-color: #12695d;
+}

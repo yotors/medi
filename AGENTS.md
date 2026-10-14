@@ -10,12 +10,12 @@ The existing PostgreSQL Docker setup remains in use. Tell the user when an
 actual deployment decision needs hosting, budget, a domain or production services;
 prepare the concrete plan first and do not require cloud setup for local work.
 See docs/product-roadmap.md and docs/deployment.md.
-Production deployment, clinical backend design, budget, clinical scope, and capacity
-targets remain undecided. The separate `/staff` outpatient workspace uses Fastify and
-PostgreSQL with sessions, hospital-scoped access, role-projected visit sections,
-transactional registration and durable outpatient commands.
-See docs/staff-workspace.md; use fictional data only. The local synthetic outpatient prototype uses
-React/TypeScript/Vite with Radix Dialog; see docs/prototype.md. The user
+Production host/budget, hospital acceptance and customer capacity targets remain
+operator decisions. The authenticated app uses Fastify/PostgreSQL with sessions,
+hospital-scoped access and RLS, role projections and transactional commands.
+Care, departmental, governance and portable installation modules are implemented;
+verify the current revision before claiming release completion.
+See docs/staff-workspace.md; use fictional data only. The authenticated React/TypeScript/Vite app is the sole browser entry at `/`; `/staff` remains an alias. The user
 wants a comparison of hosted, hospital-local, and hybrid deployment. Existing
 sibling projects are separate products; do not import their secrets or change
 their code as part of this project.
@@ -68,12 +68,12 @@ production services or handling live patient data.
   links. Include cross-user authorization, admin permissions, idempotency,
   concurrency, auditability, and backup restoration where applicable.
 - Once application code exists, add its lint, type, unit/integration, browser,
-  accessibility, and security gates to CI. CI includes prototype and staff application checks plus tooling/security scans.
+  accessibility, and security gates to CI. CI includes application, installation, recovery, browser and tooling/security checks.
   GitHub Actions runs in yotors/medi; CI does not establish production readiness.
 - Before launch, instrument relevant traces, metrics, and logs with redaction;
   choose an OpenTelemetry backend and validate alerts, rollback, and restore.
-- Branch protection, production deployment, and realistic capacity validation
-  remain unconfigured. Local logical backup restoration is tested in a disposable
-  database; production disaster recovery remains to be designed.
+- Branch protection and actual deployment remain operator settings. Portable
+  installation and encrypted recovery tooling are implemented and rehearsed;
+  real offsite custody, human escalation and customer capacity require acceptance.
 
 See `README.md` for commands and `docs/readiness.md` for outstanding decisions.

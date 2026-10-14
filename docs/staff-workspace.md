@@ -96,7 +96,7 @@ npm run typecheck:server
 npm test
 npm run build
 npm run test:server
-npm run test:app
+npm run test:staff
 npm run test:staff
 npm run security:source
 npm run security:dependencies
@@ -150,7 +150,7 @@ before clinical closure, including acknowledgement of any corrected results.
 Original clinical records remain immutable; attributable corrections and billing
 remain available after closure. “Not yet billed” is distinct from “Settled.” Historical demonstration
 visits retain their original invented charges, settlement and closure behavior;
-they cannot receive catalog invoices. The browser-only `/` walkthrough is unchanged.
+they cannot receive catalog invoices. The authenticated workspace is available at both `/` and `/staff`.
 Hospital product/batch stock and explicit quantity supply are available below. There is no dosing support or insurance processing.
 
 ### Clinical amendments and corrected-result review

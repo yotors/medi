@@ -144,5 +144,5 @@ confirmation. Operational summaries derive from actual demo state.
 - Do keep actions labelled and patient names visibly actionable.
 - Do preserve the light background, teal accents and clear patient lists.
 - Do show pending work and recovery instructions in plain language.
-- Distinguish the unauthenticated `/` walkthrough from the authenticated `/staff` workspace; neither processes real payments.
+- Keep one authenticated hospital workspace at `/` and `/staff`; financial entries record cash/manual transfer outcomes.
 - Don't use decorative charts, fictional avatars or color-only statuses.

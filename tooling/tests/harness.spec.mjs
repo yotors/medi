@@ -9,7 +9,9 @@ const fixture = `<!doctype html><html lang="en"><head><title>Tooling fixture</ti
 <output aria-live="polite"></output></main></body></html>`;
 
 test.beforeEach(async ({ page }) => {
-  await page.route('http://fixture.test/**', route => route.fulfill({ contentType: 'text/html', body: fixture }));
+  await page.route('http://fixture.test/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: fixture }),
+  );
   await page.goto('http://fixture.test/');
 });
 
@@ -22,11 +24,11 @@ test('browser interaction and accessible fixture work', async ({ page }) => {
 });
 
 test('accessibility scanner detects a broken control', async ({ page }) => {
-  await page.locator('main').evaluate(el => {
+  await page.locator('main').evaluate((el) => {
     const input = document.createElement('input');
     input.id = 'unlabelled';
     el.append(input);
   });
   const result = await new AxeBuilder({ page }).analyze();
-  expect(result.violations.some(v => v.id === 'label')).toBe(true);
+  expect(result.violations.some((v) => v.id === 'label')).toBe(true);
 });

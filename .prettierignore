@@ -1,0 +1,10 @@
+node_modules
+.local
+.cache
+artifacts
+_bmad
+_bmad-output
+.vscode
+package-lock.json
+server/migrations
+docs/production-installation-evidence.json
