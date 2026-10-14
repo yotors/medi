@@ -1,3 +1,6 @@
+import { boundedMfa } from './mfa-db.ts';
+import { registerMfaRoutes } from './mfa.ts';
+import { syntheticPolicy, keyring, validateEnvelopes, readiness } from './mfa-config.ts';
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
@@ -33,9 +36,12 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   const originUrl = new URL(origin);
   if (originUrl.origin !== origin || !['http:', 'https:'].includes(originUrl.protocol)) throw new Error('APP_ORIGIN must be an exact HTTP origin.');
   if (process.env.NODE_ENV === 'production' && (!secureCookies || originUrl.protocol !== 'https:')) throw new Error('Production requires HTTPS and Secure cookies.');
+  const synthetic = syntheticPolicy();
+  if (!synthetic || process.env.NODE_ENV === 'production') keyring();
   // Request logging is deliberately disabled: URLs can contain patient search terms.
   const app = Fastify({ logger: false, bodyLimit: 4096, trustProxy: trustProxy === 1 ? (_address: string, hop: number) => hop < 1 : false });
   app.register(cookie);
+  app.addHook('onReady', async () => { await validateEnvelopes(pool); });
   const sessions = new WeakMap<FastifyRequest, Session>();
   const cookieOptions = { path: '/api', httpOnly: true, sameSite: 'strict' as const, secure: secureCookies };
 
@@ -48,20 +54,32 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
     const path = request.url.split('?')[0];
     if (path === '/api/auth/login' || (path === '/api/health' && request.method === 'GET')) return;
     const isPrivateRead = (request.method === 'POST' && ['/api/patients/search', '/api/visits/search'].includes(path)) || (['GET', 'HEAD'].includes(request.method) && /^\/api\/(patients|visits)(\/[^/]+)?$/.test(path));
-    const session = await readSession(pool, request.cookies[SESSION_COOKIE]).catch(error => {
+    const isMfa=path.startsWith('/api/auth/mfa/') || path==='/api/staff/mfa/grant';
+    const session = await (isMfa ? boundedMfa(pool,'status',client=>readSession({query:client.query.bind(client)} as pg.Pool,request.cookies[SESSION_COOKIE])) : readSession(pool, request.cookies[SESSION_COOKIE], path === '/api/auth/logout' && request.method === 'POST')).catch(error => {
       if (isPrivateRead && !(error instanceof ApiError)) throw readUnavailable();
       throw error;
     });
     if (!session) {
-      reply.clearCookie(SESSION_COOKIE, cookieOptions);
+      // A delayed rejection may carry a predecessor cookie; never clear a newer login.
       throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in to continue.');
     }
     sessions.set(request, session);
-    if (session.passwordChangeRequired && !['/api/auth/session', '/api/auth/logout', '/api/auth/password'].includes(path)) throw new ApiError(403, 'PASSWORD_CHANGE_REQUIRED', 'Change your temporary password before opening the workspace.');
+    const common = ['/api/auth/session','/api/auth/logout'];
+    const allowed = session.authState === 'challenge' ? ['/api/auth/mfa/verify','/api/auth/mfa/recover'] : session.authState === 'enrollment' ? ['/api/auth/mfa/start','/api/auth/mfa/status','/api/auth/mfa/confirm',...(session.passwordChangeRequired ? ['/api/auth/password'] : [])] : ['/api/auth/mfa/status','/api/auth/mfa/confirm'];
+    if (session.authState !== 'complete' && !common.includes(path) && !allowed.includes(path)) throw new ApiError(403,'MFA_REQUIRED','Complete authenticator sign-in before opening the workspace.');
+    if (session.authState === 'complete' && session.passwordChangeRequired && !['/api/auth/session', '/api/auth/logout', '/api/auth/password'].includes(path)) throw new ApiError(403, 'PASSWORD_CHANGE_REQUIRED', 'Change your temporary password before opening the workspace.');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       const csrf = request.headers['x-csrf-token'];
       if (typeof csrf !== 'string' || !safeEqual(csrf, session.csrfToken)) throw new ApiError(403, 'FORBIDDEN', 'This request is not allowed.');
     }
+  });
+  app.addHook('onSend', async (request,reply,payload) => {
+    const session = sessions.get(request);
+    if (session?.authState === 'complete' && reply.statusCode < 400 && !request.url.startsWith('/api/auth/') && request.url.split('?')[0] !== '/api/staff/mfa/grant') {
+      const { rows: [row] } = await pool.query(`UPDATE staff_sessions s SET idle_expires_at=LEAST(s.expires_at,clock_timestamp()+interval '30 minutes') FROM staff_users u WHERE s.user_id=u.id AND s.csrf_token=$1 AND u.id=$2 AND u.hospital_id=$3 AND u.role=$4 AND u.active AND s.factor_generation=$5 AND s.factor_generation=u.factor_generation AND NOT s.logout_only AND s.auth_state='complete' AND s.expires_at>clock_timestamp() AND s.idle_expires_at>clock_timestamp() RETURNING LEAST(s.expires_at,s.idle_expires_at) AS expiry`,[session.csrfToken,session.user.id,session.user.hospital.id,session.user.role,session.factorGeneration]);
+      if (row) reply.header('X-Session-Expires-At',row.expiry.toISOString());
+    }
+    return payload;
   });
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ApiError) return reply.code(error.status).send({ code: error.code, message: error.message });
@@ -71,7 +89,7 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   });
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ code: 'NOT_FOUND', message: 'The requested resource was not found.' }));
 
-  app.get('/api/health', async () => { await pool.query('SELECT 1'); return { status: 'ok' }; });
+  app.get('/api/health', async () => { await readiness(pool); return { status: 'ok' }; });
 
   app.post('/api/auth/login', async (request, reply) => {
     if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') throw invalid();
@@ -93,13 +111,15 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
     try {
       await client.query('BEGIN');
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [user.hospital_id]);
-      const { rows: [latest] } = await client.query('SELECT password_hash,active FROM staff_users WHERE id=$1', [user.id]);
+      const { rows: [latest] } = await client.query('SELECT password_hash,active,factor_generation FROM staff_users WHERE id=$1', [user.id]);
       if (!latest?.active || latest.password_hash !== user.password_hash) throw new ApiError(401, 'INVALID_CREDENTIALS', 'The sign-in details were not accepted.');
-      await client.query('DELETE FROM staff_sessions WHERE expires_at <= now()');
+      await client.query('DELETE FROM staff_sessions WHERE user_id=$1 AND expires_at <= now()', [user.id]);
       const oldToken = request.cookies[SESSION_COOKIE];
-      if (oldToken) await client.query('DELETE FROM staff_sessions WHERE token_hash=$1', [digest(oldToken)]);
-      await client.query(`INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at)
-        VALUES ($1,$2,$3,now() + $4 * interval '1 second')`, [digest(token), user.id, csrfToken, SESSION_SECONDS]);
+      if (oldToken) await client.query('DELETE FROM staff_sessions WHERE token_hash=$1 AND user_id=$2', [digest(oldToken),user.id]);
+      const enrolled = await client.query('SELECT 1 FROM staff_factors WHERE user_id=$1 UNION ALL SELECT 1 FROM staff_recovery_codes WHERE user_id=$1',[user.id]);
+      const state = enrolled.rowCount ? 'challenge' : synthetic && Number(latest.factor_generation) === 0 ? 'complete' : 'enrollment';
+      await client.query(`INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state,factor_generation,restricted_expires_at)
+        VALUES ($1,$2,$3,clock_timestamp() + $4 * interval '1 second',$5,$6,CASE WHEN $5='complete' THEN NULL ELSE clock_timestamp()+interval '10 minutes' END)`, [digest(token), user.id, csrfToken, SESSION_SECONDS,state,latest.factor_generation]);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
@@ -113,7 +133,13 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   });
   app.post('/api/auth/logout', async (request, reply) => {
     if (!emptyQuery.safeParse(request.query).success || (request.body !== undefined && !emptyQuery.safeParse(request.body).success)) throw invalid();
-    await pool.query('DELETE FROM staff_sessions WHERE token_hash=$1', [digest(request.cookies[SESSION_COOKIE]!)]);
+    const session=sessions.get(request)!;const client=await pool.connect();
+    try {
+      await client.query('BEGIN');await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE',[session.user.hospital.id]);
+      // A concurrent elevation preserves this family, so even a late Set-Cookie is revoked.
+      await client.query('DELETE FROM staff_sessions WHERE user_id=$1 AND family_id=$2',[session.user.id,session.sessionFamily]);
+      await client.query('COMMIT');
+    } catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     reply.clearCookie(SESSION_COOKIE, cookieOptions);
     return reply.code(204).send();
   });
@@ -209,5 +235,6 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   registerInventoryRoutes(app, pool, sessions);
   registerReportRoutes(app, pool, sessions);
   registerAdministrationRoutes(app, pool, sessions);
+  registerMfaRoutes(app,pool,sessions,secureCookies);
   return app;
 }

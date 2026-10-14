@@ -19,6 +19,7 @@ COPY --from=build /build/node_modules ./node_modules
 COPY --from=build /build/dist-server ./compiled
 COPY --from=build /build/server/migrations ./compiled/server/migrations
 COPY deploy/migrate.mjs ./deploy/migrate.mjs
+COPY deploy/keyring-init.mjs ./deploy/keyring-init.mjs
 USER node
 CMD ["node", "compiled/server/index.js"]
 

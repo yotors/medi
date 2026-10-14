@@ -98,8 +98,12 @@ export async function authenticateArchive(path, key, directory, options = {}) {
   finally { closeSync(fd); }
 }
 export function validateManifest(m) {
-  check(m && m.format === 1 && typeof m.createdAt === 'string' && Number.isFinite(Date.parse(m.createdAt)));
+  check(m && [1,2].includes(m.format) && typeof m.createdAt === 'string' && Number.isFinite(Date.parse(m.createdAt)));
   configValues(m.config);
+  if (m.format === 2) {
+    check(m.mfaKeyring && Buffer.byteLength(JSON.stringify(m.mfaKeyring))<=16384 && Object.keys(m.mfaKeyring).sort().join(',')==='current,keys' && typeof m.mfaKeyring.current==='string' && /^[A-Za-z0-9_-]{1,64}$/.test(m.mfaKeyring.current) && m.mfaKeyring.keys && typeof m.mfaKeyring.keys==='object' && !Array.isArray(m.mfaKeyring.keys) && Object.keys(m.mfaKeyring.keys).length<=64 && Object.hasOwn(m.mfaKeyring.keys,m.mfaKeyring.current));
+    for (const [id,key] of Object.entries(m.mfaKeyring.keys)) check(/^[A-Za-z0-9_-]{1,64}$/.test(id) && typeof key==='string' && /^[a-f0-9]{64}$/.test(key));
+  }
   check(m.images && Object.keys(m.images).sort().join(',') === 'api,database,migrate,web');
   for(const id of Object.values(m.images)) check(typeof id === 'string' && /^sha256:[a-f0-9]{64}$/.test(id));
   check(m.images.api === m.images.migrate && typeof m.version === 'string' && /^16\./.test(m.version));

@@ -352,7 +352,7 @@ test('003 rejects missing/null visit identities and null visit audit revisions o
   assert.equal((await pool.query('SELECT * FROM audit_events WHERE visit_id=$1', [v.id])).rowCount, 1);
 });
 
-test('migrations 002 through 011 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
+test('migrations 002 through 014 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
   const oldSchema = `outpatient_migration_${randomUUID().replaceAll('-', '')}`;
   await database.query(`CREATE SCHEMA ${oldSchema}`);
   const old = new pg.Pool({ connectionString, options: `-c search_path=${oldSchema}` });
@@ -376,7 +376,7 @@ test('migrations 002 through 011 preserve populated registration/visit data and 
       VALUES ($1,$2,$3,$4,'visit.checkIn',$5,1,'Legacy check-in')`, [legacyEventId, staff.hospitalId, staff.id, patientId, legacyVisitId]);
     const oldEvents = (await old.query('SELECT id,actor_id,action,visit_id,visit_revision,detail FROM audit_events ORDER BY id')).rows;
     await migrate(old); await migrate(old);
-    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }]);
+    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 }, { version: 14 }]);
     assert.equal((await old.query("SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() AND indexname IN ('configuration_department_search','configuration_service_search')")).rowCount, 0);
     assert.equal((await old.query('SELECT id FROM patients')).rows[0].id, patientId);
     assert.deepEqual((await old.query('SELECT data FROM outpatient_visits WHERE id=$1', [legacyVisitId])).rows[0].data, legacyVisit);
@@ -392,7 +392,7 @@ async function raceActor(role: 'receptionist' | 'clinician'): Promise<Auth> {
   const id = randomUUID(); const token = randomBytes(32).toString('base64url'); const csrf = randomBytes(32).toString('base64url');
   await pool.query('INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$3,$4,$5,$6)',
     [id, auth.admin.hospitalId, `race-${id}`, 'Synthetic revoked staff', role, 'unused-test-hash']);
-  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')", [digest(token), id, csrf]);
+  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour','complete')", [digest(token), id, csrf]);
   return { id, hospitalId: auth.admin.hospitalId, cookie: `staff_session=${token}`, csrf };
 }
 async function waitForHospitalLock(blockerPid: number) {
@@ -452,6 +452,8 @@ test('check-in and clinical writes work with SELECT/INSERT-only patient privileg
   try {
     await database.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
     await database.query(`GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${role}`);
+    await pool.query(`GRANT UPDATE ON staff_sessions TO ${role}`);
+    await pool.query(`GRANT DELETE ON staff_mfa_pending TO ${role}`);
     await pool.query(`GRANT INSERT ON patients,outpatient_visits,audit_events,outpatient_requests TO ${role}`);
     await pool.query(`GRANT UPDATE ON hospitals,staff_users,outpatient_visits TO ${role}`);
     const permissions = await restrictedPool.query("SELECT has_table_privilege(current_user,'patients','UPDATE') AS can_update, has_table_privilege(current_user,'patients','INSERT') AS can_insert");

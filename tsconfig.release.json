@@ -8,6 +8,6 @@
     "sourceMap": false,
     "declaration": false
   },
-  "include": ["server/index.ts", "server/setup.ts"],
+  "include": ["server/index.ts", "server/setup.ts", "server/mfa-setup.ts"],
   "exclude": ["**/*.test.ts"]
 }

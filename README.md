@@ -23,6 +23,8 @@ and closed clinical visit history, persisted in PostgreSQL. It is local syntheti
 for live hospital records. Follow [staff-workspace.md](docs/staff-workspace.md)
 for database startup, migration, account provisioning and the two server commands.
 On this workstation it is available at `http://127.0.0.1:5173/staff`.
+The built HTTPS release requires [staff MFA and private enrollment](docs/staff-mfa.md).
+Local fictional accounts can use the explicitly selected synthetic development policy.
 
 Use Node22.12 or newer. The original outpatient walkthrough remains at `/`, with
 its own browser-only data. The two workspaces do not exchange patient records.

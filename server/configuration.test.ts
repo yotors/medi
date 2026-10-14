@@ -16,7 +16,7 @@ let admin: Auth; let other: Auth; let staff: Auth;
 async function actor(hospital: string, role: 'admin' | 'clinician'): Promise<Auth> {
   const id = randomUUID(); const token = randomBytes(32).toString('base64url'); const csrf = randomBytes(32).toString('base64url');
   await pool.query('INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$6,$3,$4,$5)', [id, hospital, `Fictional ${role}`, role, 'unused-test-hash', id]);
-  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')", [digest(token), id, csrf]);
+  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state) VALUES($1,$2,$3,now()+interval '1 hour','complete')", [digest(token), id, csrf]);
   return { id, hospital, cookie: `staff_session=${token}`, csrf };
 }
 const headers = (user: Auth, key = randomUUID()) => ({ origin, cookie: user.cookie, 'x-csrf-token': user.csrf, 'idempotency-key': key });

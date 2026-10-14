@@ -84,3 +84,20 @@ private and removed after verification or failure. Unsupported schema objects
 are refused rather than silently omitted. These checks do not establish offsite
 availability, independently held production keys, an approved retention period,
 point-in-time recovery or an operator's recovery commitment.
+
+
+## Authentication and sessions
+
+Pinned references: [ASVS5.0 V6](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x15-V6-Authentication.md) and [V7](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x16-V7-Session-Management.md). These links identify assessment topics, not a compliance verdict. Local MFA evidence is tracked in [the verification matrix](staff-mfa-verification.md); independent delivery review is still in progress.
+
+| Reference | Implementation evidence | Remaining assessment |
+| --- | --- | --- |
+|6.1.3,6.3.3–6.3.4|Restricted MFA states, independent grants, production-required policy; `docs/staff-mfa-verification.md`|Operator identity proofing and every deployed authentication path|
+|6.4.1,6.4.3–6.4.4|Temporary-password gate; ordinary reset preserves MFA; one-use recovery and attributable operator reset|Hospital delivery/identity procedures; initial credential expiry|
+|6.5.1–6.5.3|Atomic counters and recovery consumption;128-bit recovery codes hashed;160-bit random TOTP seeds encrypted|Independent cryptographic/key-management assessment|
+|6.5.5|30-second TOTP step with adjacent-step tolerance|Tolerance permits a larger acceptance window; no strict30-second-validity compliance claimed|
+|7.2.1–7.2.4|Backend validation, random256-bit reference tokens, rotation and narrowly bounded logout-only predecessors|Independent review of predecessor authority and every reauthentication path|
+|7.1.1,7.3.1–7.3.2|Eight-hour absolute and30-minute idle limits; polling excluded|Hospital risk acceptance and clock synchronization|
+|7.4.1–7.4.4,7.5.1|Family logout; access/factor changes revoke sessions; fresh proofs for authenticator changes|Full endpoint and browser-state assessment|
+
+Common/breached-password screening (6.2.4,6.2.11–6.2.12), a documented concurrent-session limit (7.1.2), and user session inventory/revocation (7.5.2) remain open. Do not present MFA completion as a completed Level2 assessment.

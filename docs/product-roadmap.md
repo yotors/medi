@@ -28,7 +28,7 @@ deadline, contract scope or production capacity is implied.
 | Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
 | Reporting/integrations | Audited role-scoped visit activity, current outstanding work, exact receipt totals and per-product stock/movement reports | Hospital validation of report definitions, governed exports; payer, payment and statutory interfaces only against verified contracts |
-| Operations | Local Docker DB and restore verification; built local HTTPS installation with restricted runtime grants and separate migration job | Production installation acceptance, monitoring/alerts, encrypted offsite recovery, upgrades, migration rehearsal, support and measured capacity |
+| Operations | Local Docker DB, built HTTPS installation, restricted runtime grants, separate migrations and authenticated encrypted source-offline recovery rehearsal | Production installation acceptance, monitoring/alerts, operated offsite recovery/key custody, upgrades, support and measured capacity |
 
 ## Delivery milestones and exit evidence
 
@@ -64,7 +64,7 @@ deadline, contract scope or production capacity is implied.
    Built web/API/database containers, separate private configuration, runtime
    privileges, controlled migrations and HTTPS are implemented. The verifier
    exercises synthetic workflows with restricted credentials and checks restart
-   persistence. Production rollback, monitoring and offsite recovery remain. Staging uses synthetic records. Founder infrastructure decisions
+   persistence. Encrypted recovery now verifies a consistent snapshot, schema/data/grants and source-offline restoration; its delivery CI passed. Upgrade/rollback rehearsal, monitoring and operated offsite recovery remain. Staging uses synthetic records. Founder infrastructure decisions
    occur at the triggers in [deployment.md](deployment.md), not upfront.
 
 5. **Accepted pilot and first commercial release — not yet reached.**

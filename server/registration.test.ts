@@ -79,7 +79,7 @@ test('authentication is generic, JSON-only, strict, origin-bound and no-store', 
   assert.equal(malformed.statusCode, 400); assert.doesNotMatch(malformed.body, /secret-invalid-json/);
 });
 
-test('sessions are hashed, fixed-expiry, survive application restart and revoke on logout', async () => {
+test('sessions are hashed, absolute-bounded with idle expiry, survive application restart and revoke on logout', async () => {
   const response = await login();
   assert.equal(response.statusCode, 200);
   const setCookie = String(response.headers['set-cookie']);
@@ -88,12 +88,14 @@ test('sessions are hashed, fixed-expiry, survive application restart and revoke 
   const token = auth.cookie.slice(`${SESSION_COOKIE}=`.length);
   const { rows: [stored] } = await pool.query('SELECT * FROM staff_sessions');
   assert.equal(stored.token_hash, digest(token)); assert.notEqual(stored.token_hash, token);
-  assert.equal(response.json().expiresAt, stored.expires_at.toISOString());
+  assert.equal(response.json().expiresAt, stored.idle_expires_at.toISOString());
+  assert.equal(stored.expires_at.getTime()-stored.created_at.getTime() <= 8*60*60*1000+1000,true);
   const registered = await create(auth);
   assert.equal(registered.statusCode, 201);
   await app.close(); app = buildApp({ pool, origin });
   assert.equal((await get(auth)).json().patients[0].id, registered.json().patient.id);
-  assert.equal((await get(auth, '/api/auth/session')).json().expiresAt, stored.expires_at.toISOString());
+  const effective=(await get(auth, '/api/auth/session')).json().expiresAt;
+  assert.ok(Date.parse(effective)>=stored.idle_expires_at.getTime() && Date.parse(effective)<stored.expires_at.getTime());
   assert.equal((await pool.query('SELECT expires_at FROM staff_sessions')).rows[0].expires_at.getTime(), stored.expires_at.getTime());
   const logout = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: headers(auth) });
   assert.equal(logout.statusCode, 204);

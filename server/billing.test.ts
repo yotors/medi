@@ -20,7 +20,7 @@ let visitId: string; let serviceId: string; let departmentId: string;
 async function actor(hospital: string, role: StaffRole): Promise<Auth> {
   const id = randomUUID(); const token = randomBytes(32).toString('base64url'); const csrf = randomBytes(32).toString('base64url');
   await pool.query('INSERT INTO staff_users(id,hospital_id,username,display_name,role,password_hash) VALUES($1,$2,$6,$3,$4,$5)', [id, hospital, `Fictional ${role}`, role, 'unused-test-hash', id]);
-  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')", [digest(token), id, csrf]);
+  await pool.query("INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour','complete')", [digest(token), id, csrf]);
   return { id, hospital, cookie: `staff_session=${token}`, csrf };
 }
 const headers = (user: Auth, key: string = randomUUID()) => ({ origin, cookie: user.cookie, 'x-csrf-token': user.csrf, 'idempotency-key': key });
@@ -329,6 +329,8 @@ test('restricted runtime needs insert-only ledger access; SQL immutability and h
     await database.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
     await database.query(`GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO ${role}`);
     await pool.query(`GRANT UPDATE ON hospitals,billing_counters TO ${role}`);
+    await pool.query(`GRANT UPDATE ON staff_sessions TO ${role}`);
+    await pool.query(`GRANT DELETE ON staff_mfa_pending TO ${role}`);
     await pool.query(`GRANT INSERT ON billing_counters,billing_invoices,billing_lines,billing_payments,billing_receipts,billing_events,billing_requests TO ${role}`);
     const issue = await restrictedApp.inject({ method: 'POST', url: `/api/visits/${visitId}/billing/commands`, headers: headers(cashier), payload: issueCommand() }); assert.equal(issue.statusCode, 200, issue.body);
     const payment = await restrictedApp.inject({ method: 'POST', url: `/api/visits/${visitId}/billing/commands`, headers: headers(cashier), payload: payCommand(issue.json().invoiceId) }); assert.equal(payment.statusCode, 200, payment.body);

@@ -30,6 +30,9 @@ jobs:
       - run: npm run typecheck:server
       - run: npm run test:server
       - run: npm run test:staff
+      - run: npm run test:mfa:browser
+      - run: npm run test:mfa:artifacts
+      - run: node --test tooling/release-local-admission.test.mjs tooling/release-mfa.test.mjs
       - run: npm run db:restore-check
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
@@ -65,12 +68,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run release:local
+      - run: npm run test:mfa:runtime
       - run: npm run release:verify
       - run: npm run release:stop
       - run: npm run release:local
       - run: npm run release:verify
       - run: install -d -m 700 .local/release-backups
       - run: npm run release:key-init -- .local/recovery.key
+      - run: node tooling/mfa-backup-check.mjs .local/recovery.key
       - run: npm run release:recovery-drill -- .local/recovery.key .local/release-backups/ci.medi
       - run: npm run release:stop
         if: always()

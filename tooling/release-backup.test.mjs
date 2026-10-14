@@ -175,6 +175,7 @@ for (const malformed of ['inventory','fixture']) test('backup CLI rejects malfor
   mkdirSync(project,{mode:0o700});mkdirSync(tooling,{mode:0o700});mkdirSync(local,{mode:0o700});mkdirSync(bin,{mode:0o700});
   for(const name of ['release-backup.mjs','release-archive.mjs','release-cancellation.mjs','release-process.mjs','release-snapshot.mjs'])copyFileSync(new URL(name,import.meta.url),join(tooling,name));
   const manifest=validManifest();writeFileSync(join(local,'release.env'),manifest.config,{mode:0o600});
+  writeFileSync(join(local,'mfa-keyring.json'),JSON.stringify({current:'test',keys:{test:randomBytes(32).toString('hex')}}),{mode:0o600});
   if(malformed==='fixture')writeFileSync(join(local,'release-verification.json'),JSON.stringify({password:'SENSITIVE-INVALID-FIXTURE'}),{mode:0o600});
   else manifest.inventory.records=[{table:'invalid-table',count:1,sha256:'0'.repeat(64)}];
   const dumpMarker=join(d,'dump-called'),snapshotMarker=join(d,'snapshot-called');
@@ -184,4 +185,10 @@ for (const malformed of ['inventory','fixture']) test('backup CLI rejects malfor
   assert.equal(result.error,undefined);assert.equal(result.status,1);assert.ok(existsSync(snapshotMarker),'must reach snapshot admission');
   assert.equal(existsSync(dumpMarker),false);assert.equal(existsSync(archive),false);assert.equal(readdirSync(d).some(n=>n.endsWith('.partial')),false);
   assert.doesNotMatch(result.stdout+result.stderr,/PASS|SENSITIVE/);
+}));
+test('MFA format2 requires complete keyring and preserves format1 compatibility',fixture(async d=>{
+  const {validateManifest}=await import('./release-archive.mjs');const old=validManifest();assert.doesNotThrow(()=>validateManifest(old));
+  const current={...old,format:2,mfaKeyring:{current:'v2',keys:{v1:randomBytes(32).toString('hex'),v2:randomBytes(32).toString('hex')}}};assert.doesNotThrow(()=>validateManifest(current));
+  for(const ring of [null,{current:'v2',keys:{}},{current:'v2',keys:{v2:'short'}},{...current.mfaKeyring,extra:true},{current:'v2',keys:{...current.mfaKeyring.keys,...Object.fromEntries(Array.from({length:65},(_,i)=>['k'+i,'a'.repeat(64)]))}},{...current.mfaKeyring,extra:'x'.repeat(16385)}])assert.throws(()=>validateManifest({...current,mfaKeyring:ring}));
+  const key=randomBytes(32),path=join(d,'mfa-backup');await encryptArchive(path,key,current,Readable.from(['dump']));const out=join(d,'out');mkdirSync(out,{mode:0o700});const restored=await authenticateArchive(path,key,out);assert.deepEqual(restored.manifest.mfaKeyring,current.mfaKeyring);assert.equal(restored.manifest.format,2);
 }));

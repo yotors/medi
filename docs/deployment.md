@@ -15,7 +15,9 @@ credentials and does not connect directly to PostgreSQL.
 The named volume `hospital-product-studio_hospital-dev-data` persists database
 files across ordinary container restarts. Ignored `.env` and `.local/` files hold
 local credentials and backup artifacts. Migrations 001–011 create the staff, patient, outpatient, configuration, billing,
-clinical correction, pharmacy inventory and report-access audit data model. Hospital isolation is enforced by the
+clinical correction, pharmacy inventory and report-access audit data model.
+Migrations 012–014 add MFA, identity events, session-family revocation and bounded
+MFA rejection aggregates. Hospital isolation is enforced by the
 application and relational constraints; the release rehearsal separates schema migration privileges from restricted
 runtime grants. Per-hospital database row policies remain unimplemented.
 
@@ -108,7 +110,7 @@ Run these from the repository root:
 ```sh
 npm run db:local          # Create config only if absent; start/wait for local DB
 npm run db:migrate        # Apply pending migrations to the dedicated database
-npm run dev:api           # API; keep running
+STAFF_MFA_POLICY=synthetic npm run dev:api  # Fictional development accounts only
 # In another terminal:
 npm run dev              # Browser app; keep running
 ```
@@ -149,10 +151,18 @@ and certificate configuration, after its access plan is approved.
 The runner generates `.local/release.env` with private permissions and never
 prints its credentials. The verifier provisions only a synthetic hospital and
 administrator, storing login fields in `.local/release-verification.json` (mode
-600). Read that file privately to sign in; do not paste it into chat, CI artifacts
-or issues. Existing accounts are never overwritten. Hospital administrators can
-then provision staff through the UI. A production bootstrap/recovery ceremony
-with accountable operators remains a release gate.
+600). These are automated verification fixtures with harness-owned authenticators;
+the password alone cannot open the production-policy workspace. Do not reuse the
+verifier identity as a person's account or copy its authenticator. For manual
+release testing, provision a separate named synthetic account and follow the
+[private operator enrollment procedure](staff-mfa.md), using its `release:mfa`
+command for the packaged installation and an authenticator controlled by that
+person. The packaged command verifies its local release target; generic checkout
+setup commands can instead select the development database. Existing accounts
+are never overwritten. Do not paste
+private credentials into chat, CI artifacts or issues. Hospital administrators
+can subsequently provision named staff through the UI. Operator identity
+verification and key custody still need acceptance for a real installation.
 
 Verification replaces its private fixture file atomically after syncing the new
 contents. Each subsequent run compares saved row digests for the prior patient's

@@ -9,3 +9,11 @@
 
 .staff-administration input[type=checkbox]{accent-color:#12695d}
 @media(max-width:650px){.staff-administration .staff-directory td:first-child{min-width:180px}}
+
+.staff-mfa { max-width: 530px; margin: 24px auto; }
+.staff-mfa > button { margin-top: 16px; }
+.mfa-secret, .mfa-codes { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mfa-secret { padding: 16px; background: var(--pale-teal, #e6f2ee); }
+.mfa-codes { padding-left: 24px; line-height: 1.9; }
+
+.staff-mfa form > .button-row { margin-top: 16px; }

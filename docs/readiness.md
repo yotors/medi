@@ -54,11 +54,11 @@ An installed tool or a green fixture test does not complete these items.
 | Security requirements | Applicable OWASP ASVS 5.0 Level 2 requirements mapped to code/tests; justify exclusions | Initial registration control mapping recorded; complete ASVS/risk assessment pending ([mapping](staff-workspace.md)) |
 | Accessibility | Automated checks plus keyboard and assistive-technology review | Staff desktop/mobile journey, axe and keyboard checks pass; assistive-technology review pending ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Visual quality | Desktop/mobile screenshots and loading/empty/error states | Staff outpatient visual review passed within its captured scope; broader states documented in the [implementation evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md) |
-| Dependencies and source | Semgrep, Trivy and package audit reports with triaged findings | Configured source/dependency gates passed for outpatient revision ad914e7; see [CI](https://github.com/yotors/medi/actions/runs/38390211322) |
+| Dependencies and source | Semgrep, Trivy and package audit reports with triaged findings | Delivered recovery baseline bb2d61e passed configured gates ([CI](https://github.com/yotors/medi/actions/runs/38549645965)); uncommitted MFA changes require their own final scans and CI |
 | Running application security | Authenticated ZAP configuration and business-logic tests | Pending staging |
 | Capacity | Agreed traffic mix, dataset, concurrency, duration, latency/error thresholds, environment and cost | Pending workload |
-| Observability | Redacted OpenTelemetry traces/metrics/logs, backend and tested alerts | Pending services |
-| Operations | Backup restoration, migrations, rollback, secrets handling, incident owner | Local isolated restore matches schema and all table counts/content digests; production recovery pending |
+| Observability | Redacted OpenTelemetry traces/metrics/logs, backend and tested alerts | Local implementation planned after MFA; external provider purchase is not required for this engineering stage |
+| Operations | Backup restoration, migrations, rollback, secrets handling, incident owner | Authenticated encrypted packaged recovery passed source-offline and concurrent-write rehearsals ([evidence](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md)); upgrade/rollback engineering and operated production recovery remain |
 | CI enforcement | Application checks running on PRs and required branch checks configured | GitHub Actions connected to yotors/medi; branch protection pending |
 
 Do not assert vulnerability-free operation, compliance, or support for a user count
@@ -69,8 +69,9 @@ Staff administration now has a hospital-scoped account lifecycle and required
 password replacement, with administrative audit separate from patient audit.
 The [implementation specification](../_bmad-output/implementation-artifacts/spec-staff-administration.md)
 records its integration, browser and review evidence. Provisional seven-role
-policy, MFA/recovery, privileged account governance and hospital acceptance still
-block production identity readiness. Local synthetic credentials are not a
+policy, privileged account governance and hospital acceptance still block production
+identity readiness. Staff MFA and recovery are implemented locally and undergoing
+final review; see [the verification matrix](staff-mfa-verification.md). Local synthetic credentials are not a
 production identity program.
 
 ## Administration and installation verification — 2026-10-13

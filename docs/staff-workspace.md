@@ -16,7 +16,7 @@ npm run setup:staff -- staff --hospital-code demo \
   --hospital-name 'Demo Medical Center' --username reception \
   --display-name 'Demo Reception' --role receptionist \
   --password-file "$PWD/.local/reception-password.txt"
-npm run dev:api
+STAFF_MFA_POLICY=synthetic npm run dev:api
 # In another terminal:
 npm run dev
 ```
@@ -26,6 +26,13 @@ workstation, hospital code is `demo` and username is `reception`. Open the ignor
 `.local/reception-password.txt` file locally to retrieve its generated password.
 No password appears in documentation or application source. Existing accounts
 are never overwritten by provisioning; skip that command when already created.
+
+The command above explicitly permits password-only access for never-enrolled
+fictional development accounts. Production rejects this policy. Previously
+enrolled accounts still require MFA, including during recovery. For local MFA
+testing, configure a private keyring and use the required policy described in
+[staff authenticator sign-in](staff-mfa.md). The built HTTPS release always
+requires MFA; its verifier credentials are separate synthetic test fixtures.
 
 `db:local` creates an ignored mode600 `.env` only when absent, starts the dedicated
 `hospital-product-studio` Compose project and waits for PostgreSQL. Its named
@@ -60,8 +67,8 @@ records are persisted separately from the original browser walkthrough.
 
 | Area | Implemented evidence | Still needed before live use |
 | --- | --- | --- |
-| Authentication | Salted, versioned scrypt hashes; generic login errors; persistent bounded login attempts | MFA, recovery, lifecycle policy and staff onboarding review |
-| Session handling | Random opaque cookie; hashed token in DB; HttpOnly/SameSite Strict; 8h fixed expiry; revoked logout; inactive-user checks | Idle/session policy validation and managed transport |
+| Authentication | Salted, versioned scrypt hashes; generic login errors; persistent bounded login attempts; MFA/recovery implementation under review ([matrix](staff-mfa-verification.md)) | Finish MFA delivery review; lifecycle policy and hospital onboarding validation |
+| Session handling | Random opaque cookie; hashed token in DB; HttpOnly/SameSite Strict; 8h absolute/30-minute idle limits; family logout and inactive-user checks under MFA review | Final session-race review, hospital policy validation and managed transport |
 | Request integrity | Exact Origin on mutations and session CSRF header; strict validation/body limit | Broader ASVS review and external assessment |
 | Hospital boundary | Session-derived hospital predicates; no client-selected hospital; composite foreign keys | Production DB privileges, defense-in-depth/RLS evaluation, validated clinical role matrix |
 | Integrity and audit | Transactional registration and visit commands/audit/idempotency; author and exact visit-subject IDs | Tamper-resistant audit storage, access/security events and retention |
@@ -71,8 +78,8 @@ records are persisted separately from the original browser walkthrough.
 These are initial control areas for the required OWASP ASVS assessment, not a
 completed assessment or compliance claim. Secure cookies and HTTPS origin are
 mandatory when `NODE_ENV=production`; that configuration is not a deployment.
-Local Compose uses a development database owner. No production least-privilege
-account, external identity provider or hospital hosting has been configured.
+Local Compose uses a development database owner. The separate local release uses a restricted runtime account and migration owner;
+no live hospital hosting or external identity provider has been configured.
 
 Implementation references checked during this slice:
 [Fastify server options](https://fastify.dev/docs/latest/Reference/Server/),
@@ -331,8 +338,10 @@ its exact temporary credential, command and retry key in browser memory until an
 explicit retry confirms the result. Reloading or intentionally leaving loses that
 credential; use a new credential reset if it can no longer be delivered safely.
 
-Temporary-password sessions allow only session inspection, logout and password
-replacement. All staff can change their own password (12–256 characters); success
+Unenrolled temporary-password sessions permit password replacement while
+remaining restricted. Enrolled accounts must complete MFA first; temporary
+passwords still block workspace access until replaced. All staff can change
+their own password (12–256 characters); success
 revokes every old session and requires a new sign-in. If that response is lost,
 retry the unchanged details or sign out and try the new password. A successfully
 revoked session cannot be reused to replay a password replacement.

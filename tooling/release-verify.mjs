@@ -1,4 +1,5 @@
 // Verify only the isolated local release project, never an arbitrary remote URL.
+import { TOTP, Secret } from 'otpauth';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, writeFileSync, existsSync, mkdtempSync, mkdirSync, copyFileSync, rmSync, openSync, fsyncSync, closeSync, renameSync } from 'node:fs';
 import https from 'node:https';
@@ -97,7 +98,8 @@ function persistenceSnapshot(hospitalCode, records) {
       const snapshots=[];
       for(const [table,where,count] of queries) {
         // Cast every parameter in the CTE, even if this row set uses only some.
-        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service,$7::uuid product,$8::uuid[] report_audits) SELECT to_jsonb(r)::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
+        const record=table==='staff_users'?"(to_jsonb(r)-'factor_generation')":'to_jsonb(r)';
+        const sql='WITH p AS (SELECT $1::uuid h,$2::uuid patient,$3::uuid visit,$4::uuid account,$5::uuid department,$6::uuid service,$7::uuid product,$8::uuid[] report_audits) SELECT '+record+'::text AS record FROM '+table+' r,p WHERE hospital_id=$1 AND ('+where+') ORDER BY to_jsonb(r)::text';
         const rows=(await pool.query(sql,values)).rows;
         if(rows.length!==count) throw Error();
         snapshots.push(createHash('sha256').update(JSON.stringify(rows)).digest('hex'));
@@ -105,6 +107,26 @@ function persistenceSnapshot(hospitalCode, records) {
       process.stdout.write(JSON.stringify(snapshots));
     } catch {process.exitCode=1;} finally {await pool.end();}`;
   return JSON.parse(docker(['exec', '-T', 'api', 'node', '--input-type=module', '-e', script], JSON.stringify({ hospitalCode, records })));
+}
+// Only this release-* synthetic fixture is eligible for harness enrollment.
+function fixtureFactor(hospitalCode, username) {
+  check(/^release-[a-f0-9-]{8}$/.test(hospitalCode),'Only isolated synthetic fixtures may be enrolled.');
+  const script = `import {createPool} from './compiled/server/db.js'; import {issueGrant} from './compiled/server/mfa.js'; import {unseal} from './compiled/server/mfa-config.js';
+    let input='';for await(const c of process.stdin)input+=c;const f=JSON.parse(input);const p=createPool();const c=await p.connect();
+    try{await c.query('BEGIN');const h=(await c.query('SELECT id FROM hospitals WHERE code=$1 FOR UPDATE',[f.hospitalCode])).rows[0];const u=(await c.query('SELECT id FROM staff_users WHERE hospital_id=$1 AND username=$2',[h.id,f.username])).rows[0];const factor=(await c.query('SELECT envelope,last_counter FROM staff_factors WHERE user_id=$1',[u.id])).rows[0];const result=factor?{secret:unseal(factor.envelope,h.id,u.id,'factor'),counter:Number(factor.last_counter)}:await issueGrant(c,h.id,u.id,null,'release-synthetic-verifier','initial_enrollment');await c.query('COMMIT');process.stdout.write(JSON.stringify(result));}catch{await c.query('ROLLBACK');process.exitCode=1;}finally{c.release();await p.end();}`;
+  return JSON.parse(docker(['run','--rm','--no-deps','-T','--entrypoint','node','migrate','--input-type=module','-e',script],JSON.stringify({hospitalCode,username})));
+}
+const otp = (secret,timestamp=Date.now()) => new TOTP({secret:Secret.fromBase32(secret),algorithm:'SHA1',digits:6,period:30}).generate({timestamp});
+async function finishFactor(login,factor) {
+  check(login.status===200,'Synthetic sign-in failed.');
+  const session=JSON.parse(login.text);const headers={origin,cookie:login.headers['set-cookie'][0].split(';')[0],'x-csrf-token':session.csrfToken};
+  check((await request('/api/patients',{headers})).status===403,'Password-only session gained workspace access.');
+  let secret=factor.secret;
+  if(factor.grant){const start=await request('/api/auth/mfa/start',{method:'POST',headers,body:{grant:factor.grant}});check(start.status===200,'Synthetic grant rejected.');secret=JSON.parse(start.text).secret;}
+  else {const wait=Math.max(0,(factor.counter+1)*30000-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait+25));}
+  const verified=await request('/api/auth/mfa/'+(factor.grant?'confirm':'verify'),{method:'POST',headers,body:{code:otp(secret)}});
+  check(verified.status===200 && JSON.parse(verified.text).session.authState==='complete','Synthetic MFA failed.');
+  return {...verified,text:JSON.stringify(JSON.parse(verified.text).session)};
 }
 const ca = docker(['exec', '-T', 'web', 'cat', '/data/caddy/pki/authorities/local/root.crt']);
 const origin = 'https://localhost:8443';
@@ -159,10 +181,28 @@ try {
     writeFileSync(path, `${JSON.stringify(fixture)}\n`, { flag: 'wx', mode: 0o600 });
   }
   check(/^release-[a-f0-9-]{8}$/.test(fixture.hospitalCode) && fixture.username === 'admin', 'Unexpected release fixture.');
-  const login = await request('/api/auth/login', { method: 'POST', headers: { origin }, body: {
+  // Exercise the documented packaged operator procedure only on a new synthetic account.
+  const operatorFixture={hospitalCode:fixture.hospitalCode,hospitalName:fixture.hospitalName,username:'operator-'+randomUUID().slice(0,8),displayName:'Synthetic operator check',role:'admin',password:randomBytes(32).toString('hex')};
+  docker(['run','--rm','--no-deps','-T','--entrypoint','node','migrate','--input-type=module','-e',`import {provisionStaff} from './compiled/server/setup.js';import {createPool} from './compiled/server/db.js';let data='';for await(const chunk of process.stdin)data+=chunk;const pool=createPool();try{await provisionStaff(pool,JSON.parse(data));}finally{await pool.end();}`],JSON.stringify(operatorFixture));
+  const operatorDirectory=mkdtempSync(join('.local','operator-verification-'));
+  try {
+    const ceremony=(mode,reason)=>{
+      const output=join(operatorDirectory,randomUUID()+'.json');
+      const result=spawnSync(process.execPath,['tooling/release-mfa.mjs','medi-release-local',mode,operatorFixture.hospitalCode,operatorFixture.username,reason,'release-synthetic-verifier',output],{encoding:'utf8',timeout:60000});
+      check(result.status===0,'Packaged private operator procedure failed; diagnostics withheld.');privateFile(output);const value=JSON.parse(readFileSync(output,'utf8'));check(!value.grant || !(result.stdout+result.stderr).includes(value.grant),'Operator output leaked a grant.');return value;
+    };
+    const sign=()=>request('/api/auth/login',{method:'POST',headers:{origin},body:{hospitalCode:operatorFixture.hospitalCode,username:operatorFixture.username,password:operatorFixture.password}});
+    const grant=ceremony('grant','initial_enrollment');check(Date.parse(grant.expiresAt)>Date.now(),'Operator grant expiry missing.');await finishFactor(await sign(),grant);
+    check(ceremony('rotate-keys','compromised_factor').reencrypted===1,'Packaged rotation count failed.');
+    const reset=ceremony('grant','lost_all_factors');await finishFactor(await sign(),reset);
+    console.log('PASS: packaged operator initial grant, private delivery, key rotation and recovery reset on separate synthetic account.');
+  } finally {rmSync(operatorDirectory,{recursive:true,force:true});}
+  const factor = fixtureFactor(fixture.hospitalCode,fixture.username);
+  let login = await request('/api/auth/login', { method: 'POST', headers: { origin }, body: {
     hospitalCode: fixture.hospitalCode, username: fixture.username, password: fixture.password,
   } });
   check(login.status === 200, 'Release sign-in failed.');
+  login = await finishFactor(login,factor);
   const setCookie = login.headers['set-cookie']?.[0] ?? '';
   check(/; Secure/.test(setCookie) && /; HttpOnly/.test(setCookie) && /; SameSite=Strict/i.test(setCookie), 'Session cookie protection failed.');
   cookie = setCookie.split(';')[0]; csrf = JSON.parse(login.text).csrfToken;
@@ -219,7 +259,8 @@ try {
   const replacement = randomBytes(32).toString('base64url');
   check((await request('/api/auth/password', { method: 'POST', headers: temporaryHeaders, body: { currentPassword: accountCommand.temporaryPassword, newPassword: replacement } })).status === 200, 'Restricted runtime password replacement failed.');
   check((await request('/api/auth/session', { headers: temporaryHeaders })).status === 401, 'Password replacement retained the old session.');
-  const clinicianSession = await staffLogin(replacement);
+  const clinicianFactor = fixtureFactor(fixture.hospitalCode,account.username);
+  const clinicianSession = await finishFactor(await staffLogin(replacement),clinicianFactor);
   check(clinicianSession.status === 200 && !JSON.parse(clinicianSession.text).passwordChangeRequired, 'Replacement credential could not access the workspace.');
   const clinicianHeaders = { origin, cookie: clinicianSession.headers['set-cookie'][0].split(';')[0], 'x-csrf-token': JSON.parse(clinicianSession.text).csrfToken };
   try {
@@ -400,6 +441,11 @@ try {
     await page.getByLabel('Username', { exact: true }).fill(fixture.username);
     await page.getByLabel('Password', { exact: true }).fill(fixture.password);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('heading',{name:'Enter authenticator code',exact:true}).waitFor();
+    const browserFactor=fixtureFactor(fixture.hospitalCode,fixture.username);
+    const wait=Math.max(0,(browserFactor.counter+1)*30000-Date.now());if(wait)await new Promise(resolve=>setTimeout(resolve,wait+25));
+    await page.getByLabel('Authenticator code',{exact:true}).fill(otp(browserFactor.secret));
+    await page.getByRole('button',{name:'Verify code',exact:true}).click();
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
     await page.reload();
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
@@ -410,6 +456,21 @@ try {
     await page.getByRole('button', { name: 'Run report', exact: true }).click();
     await page.getByRole('heading', { name: `Report for ${reportRange.from} through ${reportRange.to}`, exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Product stock', exact: true }).waitFor();
+    await page.getByRole('button',{name:'Authenticator security',exact:true}).click();
+    await page.getByLabel('Current password',{exact:true}).waitFor();
+    check(await page.locator('.staff-mfa form > .button-row').evaluate(element=>getComputedStyle(element).marginTop)==='16px','Built authenticator actions need input spacing.');
+    for(const [operation,button,message] of [['regenerate','Generate new recovery codes','Generating new recovery codes…'],['replace','Replace authenticator','Preparing replacement authenticator…']]) {
+      let release;const hold=new Promise(resolve=>{release=resolve;});
+      await page.route(`**/api/auth/mfa/${operation}`,async route=>{await hold;await route.abort();});
+      await page.getByLabel('Current password',{exact:true}).fill(fixture.password);
+      await page.getByLabel('Authenticator code',{exact:true}).fill('000000');
+      await page.getByRole('button',{name:button,exact:true}).click();
+      await page.getByRole('status').filter({hasText:message}).waitFor();
+      check(await page.getByRole('button',{name:'Patient directory',exact:true}).isDisabled(),'Built maintenance navigation must remain guarded.');
+      release();if(operation==='regenerate') await page.getByRole('alert').waitFor();else await page.getByLabel('Current password',{exact:true}).waitFor();
+      await page.getByRole('status').filter({hasText:message}).waitFor({state:'hidden'});
+      await page.unroute(`**/api/auth/mfa/${operation}`);
+    }
     check(errors.length === 0, 'Built browser application reported a runtime error.');
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await page.getByRole('heading', { name: 'Staff sign-in', exact: true }).waitFor();
@@ -417,6 +478,8 @@ try {
   } finally { await browser.close(); }
   try {
     docker(['stop', 'database']);
+    // Readiness intentionally caches the previous result for two seconds.
+    await new Promise(resolve=>setTimeout(resolve,2100));
     check((await request('/api/health')).status !== 200, 'Readiness incorrectly passed with the database stopped.');
   } finally { docker(['up', '-d', '--wait', '--wait-timeout', '60', 'database']); }
   check((await request('/api/health')).status === 200, 'API did not recover after the database returned.');
@@ -431,7 +494,7 @@ try {
   console.log('PASS: closed-record note/result corrections, fresh review, stable retries, original preservation and clinical-history grants/digests.');
   console.log('PASS: restricted-runtime stock receipt, authorized partial/full supply, legacy bypass denial and reconciled persistent inventory.');
   console.log('PASS: audited operational reports reconcile activity, payments, current work and inventory; immutable report audits persist.');
-  console.log('PASS: built browser sign-in, session restoration on refresh, and sign-out with no runtime errors.');
+  console.log('PASS: built browser sign-in, refresh, authenticator operation status/action spacing, and sign-out with no runtime errors.');
   console.log('Private synthetic administrator details: .local/release-verification.json. Prior saved records are checked on each subsequent run.');
 } catch (error) {
   // Browser diagnostics can contain filled values; never forward their errors.

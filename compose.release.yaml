@@ -15,14 +15,27 @@ services:
       retries: 30
     networks: [data]
     restart: unless-stopped
+  mfa-keyring:
+    image: medi-local-api:${MEDI_RELEASE_TAG:?Missing local release tag}
+    user: '0:0'
+    command: [node, deploy/keyring-init.mjs]
+    volumes: ['./.local/mfa-keyring.json:/input/keyring.json:ro', 'release-mfa-keys:/output']
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
   migrate:
     image: medi-local-api:${MEDI_RELEASE_TAG:?Missing local release tag}
     command: [node, deploy/migrate.mjs]
+    volumes: ['release-mfa-keys:/run/secrets:ro']
     environment:
       DATABASE_URL: postgresql://medi_migrator:${MEDI_MIGRATION_PASSWORD}@database:5432/product_studio_release
       MEDI_RUNTIME_PASSWORD: ${MEDI_RUNTIME_PASSWORD:?Missing runtime password}
+      STAFF_MFA_KEYRING_FILE: /run/secrets/mfa-keyring.json
     depends_on:
       database: { condition: service_healthy }
+      mfa-keyring: { condition: service_completed_successfully }
     networks: [data]
     read_only: true
     cap_drop: [ALL]
@@ -30,10 +43,13 @@ services:
   api:
     image: medi-local-api:${MEDI_RELEASE_TAG:?Missing local release tag}
     build: { context: ., target: api }
+    volumes: ['release-mfa-keys:/run/secrets:ro']
     environment:
       DATABASE_URL: postgresql://medi_runtime:${MEDI_RUNTIME_PASSWORD}@database:5432/product_studio_release
       APP_ORIGIN: https://localhost:8443
       NODE_ENV: production
+      STAFF_MFA_POLICY: required
+      STAFF_MFA_KEYRING_FILE: /run/secrets/mfa-keyring.json
       HOST: 0.0.0.0
       PORT: '3100'
       TRUST_PROXY_HOPS: '1'
@@ -80,3 +96,4 @@ volumes:
   release-database:
   release-certificates:
   release-web-config:
+  release-mfa-keys:

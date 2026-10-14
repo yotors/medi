@@ -1,3 +1,4 @@
+import { invalidateEnrollment } from './mfa.ts';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
@@ -5,9 +6,9 @@ import { z } from 'zod';
 import { administrationRequestSchema, passwordChangeSchema, staffQuerySchema, staffHistoryQuerySchema, staffAccountQuerySchema, staffAccountParamsSchema, type StaffAccount } from '../shared/administration.ts';
 import type { Session } from '../shared/registration.ts';
 import { ApiError } from './app.ts';
-import { reserveReauthentication, currentActor, hashPassword, verifyPassword } from './auth.ts';
+import { reserveReauthentication, authenticationIdentity, currentActor, hashPassword, verifyPassword } from './auth.ts';
 const empty = z.strictObject({});
-const account = (row: Record<string, unknown>): StaffAccount => ({ id: row.id as string, username: row.username as string, displayName: row.display_name as string, role: row.role as StaffAccount['role'], active: row.active as boolean, revision: row.revision as number, passwordChangeRequired: row.password_change_required as boolean });
+const account = (row: Record<string, unknown>): StaffAccount => ({ id: row.id as string, username: row.username as string, displayName: row.display_name as string, role: row.role as StaffAccount['role'], active: row.active as boolean, revision: row.revision as number, passwordChangeRequired: row.password_change_required as boolean, firstEnrollmentEligible: row.active === true && row.password_change_required === false && row.factor_generation === 0 });
 const invalid = () => new ApiError(400, 'INVALID_REQUEST', 'Check the account fields and try again.');
 const forbidden = () => new ApiError(403, 'FORBIDDEN', 'This account cannot administer staff.');
 const expired = () => new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
@@ -114,6 +115,7 @@ export function registerAdministrationRoutes(app: FastifyInstance, pool: pg.Pool
         ({ rows: [row] } = command.type === 'update'
           ? await client.query('UPDATE staff_users SET role=$3,active=$4,revision=revision+1 WHERE hospital_id=$1 AND id=$2 RETURNING *', [hospitalId, target.id, command.role, command.active])
           : await client.query('UPDATE staff_users SET password_hash=$3,password_change_required=true,revision=revision+1 WHERE hospital_id=$1 AND id=$2 RETURNING *', [hospitalId, target.id, passwordHash]));
+        await invalidateEnrollment(client,target.id);
         await client.query('DELETE FROM staff_sessions WHERE user_id=$1', [target.id]);
       }
       const result = account(row);
@@ -130,8 +132,9 @@ export function registerAdministrationRoutes(app: FastifyInstance, pool: pg.Pool
     const newHash = await hashPassword(parsed.data.newPassword); const client = await pool.connect();
     try {
       await client.query('BEGIN'); await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [session.user.hospital.id]);
-      const actor = await currentActor(client, session); if (!actor || actor.password_hash !== actorHash) throw expired();
+      const actor = session.authState === 'enrollment' && session.passwordChangeRequired ? await authenticationIdentity(client, session) : await currentActor(client, session); if (!actor || actor.password_hash !== actorHash) throw expired();
       const { rows: [row] } = await client.query('UPDATE staff_users SET password_hash=$2,password_change_required=false,revision=revision+1 WHERE id=$1 RETURNING *', [session.user.id, newHash]);
+      await invalidateEnrollment(client,session.user.id);
       await client.query('DELETE FROM staff_sessions WHERE user_id=$1', [session.user.id]);
       await client.query("INSERT INTO staff_administration_events(id,hospital_id,actor_id,account_id,action,revision,role,active,created_at) VALUES ($1,$2,$3,$3,'password.changed',$4,$5,$6,clock_timestamp())", [randomUUID(), session.user.hospital.id, session.user.id, row.revision, row.role, row.active]);
       await client.query('COMMIT'); return { changed: true };

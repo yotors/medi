@@ -9,5 +9,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const error = await response.json().catch(() => ({}));
     throw new ApiError(response.status, error.code ?? 'REQUEST_FAILED', error.message ?? 'The request could not be completed. Please retry.');
   }
+  const expiry = response.headers.get('X-Session-Expires-At');
+  if (expiry) window.dispatchEvent(new CustomEvent('staff-session-activity',{ detail:expiry }));
   return response.status === 204 ? undefined as T : response.json();
 }
