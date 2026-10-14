@@ -394,3 +394,13 @@ test('private patient search treats backslashes and combined wildcards literally
   for (const q of ['\\', '\\%_', '%_']) assert.equal((await search(auth, { q })).json().total, 1);
   for (const q of ['\\\\', '\\_%', '\\%x']) assert.equal((await search(auth, { q })).json().total, 0);
 });
+
+test('identity event failure rolls back login and logout without cookie success',async()=>{
+ await pool.query("CREATE FUNCTION reject_identity_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic audit unavailable'; END $$");
+ const fail=()=>pool.query('CREATE TRIGGER reject_identity_event BEFORE INSERT ON identity_security_events FOR EACH ROW EXECUTE FUNCTION reject_identity_event()');
+ try{
+  await fail();const denied=await login();assert.equal(denied.statusCode,500);assert.equal(denied.headers['set-cookie'],undefined);assert.equal(Number((await pool.query('SELECT count(*) n FROM staff_sessions')).rows[0].n),0);
+  await pool.query('DROP TRIGGER reject_identity_event ON identity_security_events');const auth=await signedIn();await fail();
+  const logout=await app.inject({method:'POST',url:'/api/auth/logout',headers:headers(auth)});assert.equal(logout.statusCode,500);assert.equal(logout.headers['set-cookie'],undefined);assert.equal((await get(auth)).statusCode,200);
+ }finally{await pool.query('DROP TRIGGER IF EXISTS reject_identity_event ON identity_security_events');await pool.query('DROP FUNCTION reject_identity_event()');}
+});

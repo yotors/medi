@@ -57,6 +57,9 @@ def main():
             command += ['--skip-dirs', f'/src/{directory}']
         command += ['--skip-files', '/src/.env', '/src']
     elif args.tool == 'zap':
+        # The owned local gateway binds IPv4; keep localhost TLS/SNI intact.
+        if url.hostname == 'localhost':
+            command += ['-e', 'JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true']
         command += ['-v', f'{reports}:/zap/wrk:rw', image, 'zap-baseline.py',
                     '-t', target, '-m', '1', '-J', 'results.json', '-r', 'report.html']
     else:

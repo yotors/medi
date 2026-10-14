@@ -67,7 +67,7 @@ records are persisted separately from the original browser walkthrough.
 
 | Area | Implemented evidence | Still needed before live use |
 | --- | --- | --- |
-| Authentication | Salted, versioned scrypt hashes; generic login errors; persistent bounded login attempts; MFA/recovery implementation under review ([matrix](staff-mfa-verification.md)) | Finish MFA delivery review; lifecycle policy and hospital onboarding validation |
+| Authentication | Salted, versioned scrypt hashes; generic login errors; persistent bounded login attempts; required production MFA and private recovery verified ([matrix](staff-mfa-verification.md)) | Lifecycle policy and hospital onboarding validation |
 | Session handling | Random opaque cookie; hashed token in DB; HttpOnly/SameSite Strict; 8h absolute/30-minute idle limits; family logout and inactive-user checks under MFA review | Final session-race review, hospital policy validation and managed transport |
 | Request integrity | Exact Origin on mutations and session CSRF header; strict validation/body limit | Broader ASVS review and external assessment |
 | Hospital boundary | Session-derived hospital predicates; no client-selected hospital; composite foreign keys | Production DB privileges, defense-in-depth/RLS evaluation, validated clinical role matrix |

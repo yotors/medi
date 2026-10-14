@@ -326,7 +326,7 @@ test('operator durable enrollment reason, trusted output ancestry, and partial-w
     writeFileSync(hook,`import fs from 'node:fs';import {syncBuiltinESMExports,createRequire} from 'node:module';const pg=createRequire(${JSON.stringify(join(process.cwd(),'package.json'))})('pg');let written=false;const original=fs.writeFileSync;fs.writeFileSync=(...args)=>{if(typeof args[0]==='number'){written=true;${failure==='write'?"original(args[0],args[1].slice(0,8));throw Error('injected');":"return original(...args);"}}return original(...args);};syncBuiltinESMExports();const query=pg.Client.prototype.query;pg.Client.prototype.query=function(...args){if(written&&args[0]==='COMMIT'&&${failure==='commit'})return Promise.reject(Error('injected'));return query.apply(this,args);};`);
     const result=run(output,'initial_enrollment',hook);assert.equal(result.status,1);assert.equal(existsSync(output),false);
     assert.equal((await pool.query('SELECT 1 FROM staff_mfa_grants WHERE user_id=$1',[f.id])).rowCount,0);
-    assert.equal((await pool.query('SELECT 1 FROM identity_security_events WHERE user_id=$1',[f.id])).rowCount,0);
+    assert.deepEqual((await pool.query('SELECT event FROM identity_security_events WHERE user_id=$1',[f.id])).rows,[{event:'password.accepted'}]);
   }
 });
 test('MFA limiter and password reauthentication locks have bounded admission',async()=>{
@@ -379,7 +379,7 @@ test('operator held hospital lock fails boundedly without output or mutation and
   const url=new URL(connectionString!);url.searchParams.set('options',`-c search_path=${schema}`);const output=join(directory,'bounded-operator.json');
   const run=()=>new Promise<number|null>(resolve=>{const child=spawn(process.execPath,['--import','tsx','server/mfa-setup.ts','grant','mfa',f.username,'initial_enrollment','test-operator',output],{env:{...process.env,DATABASE_URL:url.toString()},stdio:'ignore',timeout:12000});child.on('exit',resolve);});
   const lock=await pool.connect();await lock.query('BEGIN');await lock.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE',[hospital]);
-  try {const start=Date.now();assert.equal(await run(),1);assert.ok(Date.now()-start<5000);assert.equal(existsSync(output),false);assert.equal((await pool.query('SELECT 1 FROM staff_mfa_grants WHERE user_id=$1',[f.id])).rowCount,0);assert.equal((await pool.query('SELECT 1 FROM identity_security_events WHERE user_id=$1',[f.id])).rowCount,0);}finally{await lock.query('ROLLBACK');lock.release();}
+  try {const start=Date.now();assert.equal(await run(),1);assert.ok(Date.now()-start<5000);assert.equal(existsSync(output),false);assert.equal((await pool.query('SELECT 1 FROM staff_mfa_grants WHERE user_id=$1',[f.id])).rowCount,0);assert.deepEqual((await pool.query('SELECT event FROM identity_security_events WHERE user_id=$1',[f.id])).rows,[{event:'password.accepted'}]);}finally{await lock.query('ROLLBACK');lock.release();}
   assert.equal(await run(),0);assert.equal(existsSync(output),true);
 });
 test('operator rotates established and pending envelopes; retired key removal preserves confirmation',async()=>{

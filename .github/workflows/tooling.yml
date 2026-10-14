@@ -29,6 +29,9 @@ jobs:
       - run: npm run db:migrate
       - run: npm run typecheck:server
       - run: npm run test:server
+      - run: npm run test:operations
+      - run: npm run test:operations:tooling
+      - run: node --test tooling/ci-legacy-fixture.test.mjs
       - run: npm run test:staff
       - run: npm run test:mfa:browser
       - run: npm run test:mfa:artifacts
@@ -56,17 +59,28 @@ jobs:
           retention-days: 7
   local-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: current
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: current
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: bb2d61eca859415e458fc753a5a3787b267fa987
+          path: legacy
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
           cache: npm
+          cache-dependency-path: current/package-lock.json
       - run: npm ci --ignore-scripts
       - run: npx --no-install playwright install --with-deps chromium
+      - run: node tooling/ci-legacy-fixture.mjs
       - run: npm run release:local
       - run: npm run test:mfa:runtime
       - run: npm run release:verify
@@ -77,5 +91,9 @@ jobs:
       - run: npm run release:key-init -- .local/recovery.key
       - run: node tooling/mfa-backup-check.mjs .local/recovery.key
       - run: npm run release:recovery-drill -- .local/recovery.key .local/release-backups/ci.medi
+      - run: npm run release:observability
+      - run: npm run release:upgrade-check -- .local/ci-old.key .local/release-backups/ci-old.medi
+      - run: npm run release:capacity-check -- .local/recovery.key .local/release-backups/ci.medi
+      - run: npm run release:preflight -- .local/recovery.key .local/release-backups/ci.medi
       - run: npm run release:stop
         if: always()

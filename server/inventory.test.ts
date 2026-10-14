@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes,randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { after,before,beforeEach,test } from 'node:test';
 import pg from 'pg';
 import { buildApp } from './app.ts';
@@ -103,7 +104,7 @@ test('post-lock deactivation, role change, reset and expiry reject saved-key rep
 test('010 upgrade preserves populated supply and rejects a dispense with a null movement',async()=>{
   const {v,batchId,prescriptionId}=await allocated();await supply(v,{type:'dispense',prescriptionId,expectedVisitRevision:v.revision,batchId,expectedBatchRevision:2,quantity:1});
   const before=(await pool.query('SELECT * FROM inventory_dispenses')).rows;
-  await pool.query('ALTER TABLE inventory_dispenses DROP CONSTRAINT inventory_dispense_movement_required');await pool.query('DELETE FROM registration_migrations WHERE version=10');await migrate(pool);await migrate(pool);
+  await pool.query('ALTER TABLE inventory_dispenses DROP CONSTRAINT inventory_dispense_movement_required');await pool.query(await readFile(new URL('./migrations/010_inventory_dispense_integrity.sql',import.meta.url),'utf8'));await migrate(pool);await migrate(pool);
   assert.deepEqual((await pool.query('SELECT * FROM inventory_dispenses')).rows,before);
   await assert.rejects(pool.query("INSERT INTO inventory_dispenses(id,hospital_id,authorization_id,movement_id,kind,quantity,visit_revision) VALUES($1,$2,$3,NULL,'dispense',1,$4)",[randomUUID(),users.admin.hospital,(await current(v)).pharmacy![0].id,v.revision+2]),(error:unknown)=>(error as {constraint:string}).constraint==='inventory_dispense_movement_required');
 });

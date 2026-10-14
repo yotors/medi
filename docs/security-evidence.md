@@ -88,7 +88,7 @@ point-in-time recovery or an operator's recovery commitment.
 
 ## Authentication and sessions
 
-Pinned references: [ASVS5.0 V6](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x15-V6-Authentication.md) and [V7](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x16-V7-Session-Management.md). These links identify assessment topics, not a compliance verdict. Local MFA evidence is tracked in [the verification matrix](staff-mfa-verification.md); independent delivery review is still in progress.
+Pinned references: [ASVS5.0 V6](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x15-V6-Authentication.md) and [V7](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x16-V7-Session-Management.md). These links identify assessment topics, not a compliance verdict. Local MFA evidence is tracked in [the verification matrix](staff-mfa-verification.md); delivery review is complete for c530616, with all configured CI jobs passing after harness correction13985b8 ([run](https://github.com/yotors/medi/actions/runs/38575773068)).
 
 | Reference | Implementation evidence | Remaining assessment |
 | --- | --- | --- |
@@ -101,3 +101,40 @@ Pinned references: [ASVS5.0 V6](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en
 |7.4.1–7.4.4,7.5.1|Family logout; access/factor changes revoke sessions; fresh proofs for authenticator changes|Full endpoint and browser-state assessment|
 
 Common/breached-password screening (6.2.4,6.2.11–6.2.12), a documented concurrent-session limit (7.1.2), and user session inventory/revocation (7.5.2) remain open. Do not present MFA completion as a completed Level2 assessment.
+
+## Production operations additions
+
+[Operations engineering](production-operations.md) adds manual allowlisted telemetry,
+end-once completion, bounded exporter/log behavior, private monitoring and synthetic
+receiver wiring. Login/logout state and identity events share transactions; general
+failure aggregates reuse the bounded MFA table. PostgreSQL raw container diagnostics
+are discarded. Schema admission pins SQL hashes and rejects incompatible histories.
+This extends scoped V16 evidence; it does not close independent logging, incident
+ownership, production retention or a full ASVS assessment.
+
+
+### Operations passive web baseline — 2026-10-14
+
+Owned target https://localhost:8443/staff, unauthenticated ZAP baseline:61 PASS,
+0 FAIL-class findings,6 warning groups, exit2. Reports remain in ignored
+artifacts/zap. Initial attempts could not connect/negotiate TLS; only the final
+completed scan supplies application evidence.
+
+- CSP style-src unsafe-inline (10055, medium): retained for the shared Radix
+  prototype's generated styles. Scripts remain self-only, object-src none; React
+  renders record text without HTML injection. This is a residual style-injection
+  defense limitation, not evidence that script injection is possible. Review the
+  deployed staff-only CSP during staging security acceptance.
+- Cross-origin isolation headers (90004, low): COOP/COEP/CORP are absent. No
+  SharedArrayBuffer or cross-origin-isolated capability is used. Existing
+  frame-ancestors none and X-Frame-Options DENY block embedding. Record this
+  browser-hardening limitation for the chosen production topology.
+- HSTS (10035, low): absent on the local internal-CA rehearsal. The real domain
+  needs trusted TLS and an explicitly approved HSTS policy before live use.
+- Modern application (10109), non-storable content (10049), cache directives
+  (10015): informational; the SPA needs authenticated browser testing and sensitive
+  responses intentionally prevent storage. Existing authenticated workflow tests
+  supplement, but do not turn this passive crawl into a penetration test.
+
+No warnings were suppressed or reclassified to produce a green scanner exit.
+Required staging security review and the broader ASVS assessment remain open.

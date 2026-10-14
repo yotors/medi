@@ -73,8 +73,7 @@ export function registerMfaRoutes(app: FastifyInstance, pool: pg.Pool, sessions:
   // fields or identity are copied into failure evidence. Retention is 24 hours.
   app.addHook('onError',async(request,_reply,error)=>{
     const path=request.url.split('?')[0];
-    const operation=path==='/api/staff/mfa/grant'?'grant':/^\/api\/auth\/mfa\/(verify|start|recover|confirm|regenerate|replace)$/.exec(path)?.[1];
-    if(request.method!=='POST' || !operation || !sessions.has(request))return;
+    const operation=path==='/api/staff/mfa/grant'?'grant':/^\/api\/auth\/mfa\/(verify|start|recover|confirm|regenerate|replace)$/.exec(path)?.[1] ?? (path==='/api/auth/login'?'login':'request');
     const status=error instanceof ApiError?error.status:error.statusCode;
     const outcome=status===429?'limited':typeof status==='number' && status>=400 && status<500?'denied':'unavailable';
     try {await boundedMfa(pool,'evidence',async client=>{

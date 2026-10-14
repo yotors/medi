@@ -50,15 +50,15 @@ An installed tool or a green fixture test does not complete these items.
 | --- | --- | --- |
 | Core journeys | Acceptance tests including error/retry paths | Server-backed outpatient, multi-role, retry and draft-recovery journeys pass; complete departmental workflows and hospital acceptance pending ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Authorization | Cross-user/tenant tests and administrator endpoint checks | Seven preliminary staff roles, response projections and hospital isolation tested; hospital validation pending ([evidence](staff-workspace.md)) |
-| Data integrity | Relevant race, replay, idempotency and transaction tests | Registration and visit transaction/replay/rollback checks pass; catalog invoice/payment/receipt integrity also has dedicated checks; production migration and broader financial controls remain ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
+| Data integrity | Relevant race, replay, idempotency and transaction tests | Registration and visit transaction/replay/rollback checks pass; catalog invoice/payment/receipt integrity also has dedicated checks; genuine old-schema upgrade is now rehearsed; production cutover and broader financial controls remain ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Security requirements | Applicable OWASP ASVS 5.0 Level 2 requirements mapped to code/tests; justify exclusions | Initial registration control mapping recorded; complete ASVS/risk assessment pending ([mapping](staff-workspace.md)) |
 | Accessibility | Automated checks plus keyboard and assistive-technology review | Staff desktop/mobile journey, axe and keyboard checks pass; assistive-technology review pending ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Visual quality | Desktop/mobile screenshots and loading/empty/error states | Staff outpatient visual review passed within its captured scope; broader states documented in the [implementation evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md) |
-| Dependencies and source | Semgrep, Trivy and package audit reports with triaged findings | Delivered recovery baseline bb2d61e passed configured gates ([CI](https://github.com/yotors/medi/actions/runs/38549645965)); uncommitted MFA changes require their own final scans and CI |
+| Dependencies and source | Semgrep, Trivy and package audit reports with triaged findings | Delivered MFA baseline c530616 plus CI harness correction13985b8 passed all three configured jobs ([CI](https://github.com/yotors/medi/actions/runs/38575773068)); operations source/dependency scans passed (Semgrep212 targets/0 findings; Trivy/npm audit0); separate operations CI pending |
 | Running application security | Authenticated ZAP configuration and business-logic tests | Pending staging |
-| Capacity | Agreed traffic mix, dataset, concurrency, duration, latency/error thresholds, environment and cost | Pending workload |
-| Observability | Redacted OpenTelemetry traces/metrics/logs, backend and tested alerts | Local implementation planned after MFA; external provider purchase is not required for this engineering stage |
-| Operations | Backup restoration, migrations, rollback, secrets handling, incident owner | Authenticated encrypted packaged recovery passed source-offline and concurrent-write rehearsals ([evidence](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md)); upgrade/rollback engineering and operated production recovery remain |
+| Capacity | Agreed traffic mix, dataset, concurrency, duration, latency/error thresholds, environment and cost | Isolated10-session/180s synthetic workload passed1,818 operations, worst route p95=101ms, zero failures/invariant violations; [exact environment/aggregate](operations-capacity-2026-10-14.json). Sustained customer capacity remains unvalidated |
+| Observability | Redacted OpenTelemetry traces/metrics/logs, backend and tested alerts | Manual telemetry/private alert wiring implemented and local drills passing; see [operations evidence](production-operations.md). Human escalation and independent retention remain external |
+| Operations | Backup restoration, migrations, rollback, secrets handling, incident owner | Authenticated encrypted packaged recovery passed source-offline and concurrent-write rehearsals ([evidence](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md)); genuine schema1–11->15 upgrade and old-image replacement passed; machine preflight16/16 passed. Operated production recovery remains external |
 | CI enforcement | Application checks running on PRs and required branch checks configured | GitHub Actions connected to yotors/medi; branch protection pending |
 
 Do not assert vulnerability-free operation, compliance, or support for a user count
@@ -70,8 +70,7 @@ password replacement, with administrative audit separate from patient audit.
 The [implementation specification](../_bmad-output/implementation-artifacts/spec-staff-administration.md)
 records its integration, browser and review evidence. Provisional seven-role
 policy, privileged account governance and hospital acceptance still block production
-identity readiness. Staff MFA and recovery are implemented locally and undergoing
-final review; see [the verification matrix](staff-mfa-verification.md). Local synthetic credentials are not a
+identity readiness. Staff MFA and recovery were delivered in c530616 with passing CI after harness correction13985b8; see [the verification matrix](staff-mfa-verification.md). Local synthetic credentials are not a
 production identity program.
 
 ## Administration and installation verification — 2026-10-13

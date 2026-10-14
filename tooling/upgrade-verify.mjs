@@ -1,0 +1,52 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {randomBytes} from 'node:crypto';
+import {withIsolatedTarget} from './release-recovery.mjs';
+import {docker,sourceCompose} from './release-process.mjs';
+import {check} from './release-archive.mjs';
+const [key,archive,...extra]=process.argv.slice(2);
+const started=Date.now();let stage='source';
+try {
+ check(key&&archive&&!extra.length);
+ const source=docker([...sourceCompose,'ps','-q','api'],process.env).trim();check(/^[a-f0-9]{12,64}$/.test(source));
+ const newImage=JSON.parse(docker(['image','inspect','medi-local-api:local'],process.env))[0].Id;check(/^sha256:[a-f0-9]{64}$/.test(newImage));
+ const result=await withIsolatedTarget(key,archive,async({manifest,compose,environment,directory,target})=>{
+  stage='old-baseline';
+  check(manifest.inventory.versions.length===11&&manifest.inventory.versions.every((r,i)=>r.version===i+1));
+  const owner=(script,input)=>docker([...compose,'run','--rm','--no-deps','-T','--entrypoint','node','migrate','--input-type=module','-e',script],environment,input);
+  const columns=Object.fromEntries(manifest.inventory.records.filter(r=>!['registration_migrations','staff_sessions'].includes(r.table)).map(r=>[r.table,manifest.inventory.columns.filter(c=>c.table_name===r.table).map(c=>c.column_name)]));
+  const compare=`import pg from 'pg';import {createHash} from 'node:crypto';let input='';for await(const chunk of process.stdin)input+=chunk;const columns=JSON.parse(input),c=new pg.Client({connectionString:process.env.DATABASE_URL});const q=s=>'"'+s.replaceAll('"','""')+'"';try{await c.connect();const result=[];for(const [table,names]of Object.entries(columns)){const rows=(await c.query('SELECT to_jsonb(t)::text AS row FROM (SELECT '+names.map(q).join(',')+' FROM '+q(table)+') t ORDER BY to_jsonb(t)::text COLLATE "C"')).rows;const hash=createHash('sha256');for(const {row}of rows)hash.update(String(Buffer.byteLength(row))+':'+row);result.push({table,count:rows.length,sha256:hash.digest('hex')});}process.stdout.write(JSON.stringify(result));}catch{process.exitCode=1;}finally{await c.end();}`;
+  stage='historical-projection';
+  const before=owner(compare,JSON.stringify(columns));
+  const keyPath=resolve(directory,'upgrade-keyring.json');writeFileSync(keyPath,JSON.stringify({current:'drill',keys:{drill:randomBytes(32).toString('hex')}}),{mode:0o600,flag:'wx'});
+  const override=resolve(directory,'upgrade.json');
+  writeFileSync(override,JSON.stringify({services:{'mfa-keyring':{image:newImage,user:'0:0',command:['node','deploy/keyring-init.mjs'],volumes:[keyPath+':/input/keyring.json:ro','upgrade-keys:/output'],network_mode:'none',read_only:true,cap_drop:['ALL'],cap_add:['CHOWN','DAC_OVERRIDE','FOWNER'],security_opt:['no-new-privileges:true']},migrate:{volumes:['upgrade-keys:/run/secrets:ro'],environment:{STAFF_MFA_KEYRING_FILE:'/run/secrets/mfa-keyring.json'}},api:{volumes:['upgrade-keys:/run/secrets:ro'],environment:{STAFF_MFA_POLICY:'required',STAFF_MFA_KEYRING_FILE:'/run/secrets/mfa-keyring.json'}}},volumes:{'upgrade-keys':{}}}),{mode:0o600,flag:'wx'});
+  compose.push('-f',override);environment.RECOVERY_API_IMAGE=newImage;
+  stage='keyring';
+  docker([...compose,'run','--rm','mfa-keyring'],environment);
+  stage='legacy-privilege-refusal';
+  owner(`import {createPool,migrate} from './compiled/server/db.js';const p=createPool();let reached=false,rejected=false;try{await p.query('GRANT UPDATE ON billing_receipts TO medi_runtime');try{await migrate(p,async()=>{reached=true;throw Error();});}catch(e){rejected=e.message==='Legacy privileges rejected.';}if(reached||!rejected||(await p.query('SELECT max(version) v FROM registration_migrations')).rows[0].v!==11)throw Error();}catch{process.exitCode=1;}finally{await p.query('REVOKE UPDATE ON billing_receipts FROM medi_runtime');await p.end();}`);
+  // Deliberate transactional failure after migrations and before grants commit.
+  stage='failure-rollback';
+  const rollback=JSON.parse(owner(`import {createPool,migrate} from './compiled/server/db.js';const p=createPool();let reached=false,kind='unknown',category='unknown',index=-1,fields=[];try{try{await migrate(p,async()=>{reached=true;throw Error('injected');});}catch(e){fields=Array.isArray(e.fields)?e.fields.filter(f=>['relname','relkind','relrowsecurity','columns','constraints','indexes'].includes(f)):[];category=['tables','triggers','functions'].includes(e.category)?e.category:'unknown';index=Number.isInteger(e.index)?e.index:-1;kind=['Legacy schema rejected.','Legacy privileges rejected.','Migration artifact rejected.'].includes(e.message)?e.message:'other';}process.stdout.write(JSON.stringify({reached,kind,category,index,fields,version:(await p.query('SELECT max(version) v FROM registration_migrations')).rows[0].v}));}catch{process.exitCode=1;}finally{await p.end();}`));
+  if(!rollback.reached)console.error('Rollback admission category: '+rollback.kind+' '+rollback.category+' '+rollback.index+' '+rollback.fields.join(','));check(rollback.reached&&rollback.version===11);
+  check(owner(compare,JSON.stringify(columns))===before);
+  stage='migration';
+  docker([...compose,'run','--rm','--no-deps','migrate'],environment);
+  stage='historical-reconciliation';
+  check(owner(compare,JSON.stringify(columns))===before);
+  owner(`import {createPool} from './compiled/server/db.js';const p=createPool();try{if(Number((await p.query('SELECT count(*) n FROM staff_sessions')).rows[0].n)!==0)throw Error();}catch{process.exitCode=1;}finally{await p.end();}`);
+  stage='new-api';
+  docker([...compose,'up','-d','--wait','--wait-timeout','90','api'],environment);
+  stage='mfa-smoke';
+  const smoke=readFileSync(new URL('./upgrade-smoke.mjs',import.meta.url),'utf8');
+  docker([...compose,'exec','-T','api','node','--input-type=module','-e',smoke],environment,JSON.stringify(manifest.fixture));
+  docker([...compose,'restart','api'],environment);
+  docker([...compose,'up','-d','--wait','--wait-timeout','90','api'],environment);
+  docker([...compose,'exec','-T','api','node','--input-type=module','-e',"if(!(await fetch('http://127.0.0.1:3100/api/health')).ok)process.exitCode=1;"],environment);
+  return {upgrade:'PASS',oldImage:manifest.images.api,newImage,oldVersions:manifest.inventory.versions,newVersion:15,historicalTables:Object.keys(columns).length,sessionInvalidation:true,failedMigrationRollback:true,legacyPrivilegeRefusal:true};
+ });
+ stage='replacement';
+ const replacement=await withIsolatedTarget(key,archive);
+ console.log(JSON.stringify({...result,replacement:replacement.result,durationSeconds:Math.round((Date.now()-started)/1000)}));
+}catch{console.error('Upgrade verification failed at '+stage+'; sensitive diagnostics withheld.');process.exitCode=1;}

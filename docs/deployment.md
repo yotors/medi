@@ -288,3 +288,12 @@ Offsite transfer, scheduled execution, retention/deletion policy, key custody,
 backup failure alerts, recovery objectives, operator acceptance and any
 point-in-time recovery remain installation decisions. No tested local duration
 establishes a production recovery SLA.
+
+## Production operations engineering
+
+See [the operations runbook](production-operations.md) for the exact telemetry
+allowlist, private monitoring/retention, schema admission, replacement upgrade drill,
+capacity contract and versioned dedicated-hosted/hospital-local inputs. Migration015
+extends identity events and bounded failure aggregates; schema manifests now require
+checksums. Live ingress, human notifications, independent backup custody and hospital
+acceptance remain external decisions.

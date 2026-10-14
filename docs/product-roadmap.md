@@ -19,7 +19,7 @@ deadline, contract scope or production capacity is implied.
 | Area | Implemented now | Required next or before the relevant release |
 | --- | --- | --- |
 | Browser workspace | Responsive light/teal staff UI with keyboard and automated accessibility checks | Broader assistive-technology review, localization and role-specific workflow validation |
-| Identity and hospital boundary | Individual logins, seven preliminary roles, scoped API responses and cross-hospital tests | Recovery, privileged MFA, validated permissions, separate vendor support controls and database row-policy defense in depth |
+| Identity and hospital boundary | Individual logins, required production MFA, private recovery, seven preliminary roles, scoped API responses and cross-hospital tests | Validated permissions, separate vendor support controls and database row-policy defense in depth |
 | Hospital administration | Hospital-scoped staff directory, onboarding, roles/status, credential reset, password replacement and administrative history; secure CLI bootstrap; departments and immutable service-price versions/history | Branch structure, broader hospital settings and validated permission policy |
 | Patient registration | Directory/search, MRN, duplicate-name warning and check-in | Safe demographic corrections, identity reconciliation, provisional/urgent identity, merge governance and migration |
 | Clinical encounters | Authored notes, append-only note amendments and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing, broader responsible follow-up and urgent-care/downtime procedures |
@@ -28,7 +28,7 @@ deadline, contract scope or production capacity is implied.
 | Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
 | Reporting/integrations | Audited role-scoped visit activity, current outstanding work, exact receipt totals and per-product stock/movement reports | Hospital validation of report definitions, governed exports; payer, payment and statutory interfaces only against verified contracts |
-| Operations | Local Docker DB, built HTTPS installation, restricted runtime grants, separate migrations and authenticated encrypted source-offline recovery rehearsal | Production installation acceptance, monitoring/alerts, operated offsite recovery/key custody, upgrades, support and measured capacity |
+| Operations | Local Docker DB, built HTTPS installation, restricted runtime grants, checked migrations, encrypted source-offline recovery, private monitoring/alert drills, upgrade/replacement rehearsal and measured synthetic capacity | Production installation acceptance, human alert escalation, operated offsite recovery/key custody, support and hospital-specific capacity targets |
 
 ## Delivery milestones and exit evidence
 
@@ -48,7 +48,7 @@ deadline, contract scope or production capacity is implied.
    Departments and versioned ETB service settings/history are also implemented;
    catalog prices now supply explicit invoices for new encounters. Historical demo
    records remain unchanged. Branch
-   structure, recovery, privileged MFA and validated permissions remain outstanding.
+   structure and validated permissions remain outstanding. Required production MFA and private recovery are implemented; see [MFA verification](staff-mfa-verification.md).
 
 3. **Operational outpatient product — in progress.**
    Complete patient corrections, broader lab and pharmacy requirements, and
@@ -64,7 +64,7 @@ deadline, contract scope or production capacity is implied.
    Built web/API/database containers, separate private configuration, runtime
    privileges, controlled migrations and HTTPS are implemented. The verifier
    exercises synthetic workflows with restricted credentials and checks restart
-   persistence. Encrypted recovery now verifies a consistent snapshot, schema/data/grants and source-offline restoration; its delivery CI passed. Upgrade/rollback rehearsal, monitoring and operated offsite recovery remain. Staging uses synthetic records. Founder infrastructure decisions
+   persistence. Encrypted recovery now verifies a consistent snapshot, schema/data/grants and source-offline restoration; its delivery CI passed. Upgrade/replacement rollback and private monitoring/alert drills now pass locally; a declared 10-session synthetic capacity run passed. See [operations evidence](production-operations.md). Operated offsite recovery and hospital acceptance remain. Staging uses synthetic records. Founder infrastructure decisions
    occur at the triggers in [deployment.md](deployment.md), not upfront.
 
 5. **Accepted pilot and first commercial release — not yet reached.**

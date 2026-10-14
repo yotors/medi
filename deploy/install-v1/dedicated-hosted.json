@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "topology": "dedicated-hosted",
+  "origin": "https://CHOOSE-HOSPITAL-DOMAIN",
+  "proxyHops": 1,
+  "apiPrivate": true,
+  "databasePrivate": true,
+  "monitoringPrivate": true,
+  "git": "REQUIRED",
+  "schema": 15,
+  "images": {
+    "api": "REQUIRED@sha256:REQUIRED",
+    "web": "REQUIRED@sha256:REQUIRED",
+    "database": "REQUIRED@sha256:REQUIRED",
+    "collector": "REQUIRED@sha256:REQUIRED",
+    "prometheus": "REQUIRED@sha256:REQUIRED",
+    "alertmanager": "REQUIRED@sha256:REQUIRED"
+  },
+  "privateFiles": {
+    "mfaKeyring": "/private/REQUIRED",
+    "backupKey": "/private/REQUIRED",
+    "backupArchive": "/private/REQUIRED"
+  },
+  "evidence": {
+    "restrictedGrants": false,
+    "schemaCompatible": false,
+    "keyReferences": false,
+    "restoreVerified": false,
+    "backupImagesAvailable": false,
+    "collectorHealthy": false,
+    "diskBudget": false,
+    "rotationConfigured": false
+  },
+  "decisions": {
+    "operator": false,
+    "domain": false,
+    "tls": false,
+    "dataLocation": false,
+    "clinicalAcceptance": false,
+    "legalAcceptance": false,
+    "alertEscalation": false,
+    "independentBackupCustody": false
+  }
+}

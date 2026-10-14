@@ -1,0 +1,13 @@
+groups:
+  - name: local-drill
+    rules:
+      - alert: MediApiUnavailable
+        expr: (time() - max(medi_heartbeat_seconds) > 20) or absent(medi_heartbeat_seconds) or (max(medi_api_ready) == 0)
+        for: 10s
+        labels:
+          severity: rehearsal
+      - alert: MediCollectorUnavailable
+        expr: up{job="medi"} == 0
+        for: 10s
+        labels:
+          severity: rehearsal

@@ -1,5 +1,7 @@
+import { compatibleSchema, schemaReady } from './schema.ts';
 import { boundedMfa } from './mfa-db.ts';
-import { registerMfaRoutes } from './mfa.ts';
+import { registerMfaRoutes, securityEvent } from './mfa.ts';
+import { instrument, type Telemetry } from './observability.ts';
 import { syntheticPolicy, keyring, validateEnvelopes, readiness } from './mfa-config.ts';
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyRequest } from 'fastify';
@@ -32,7 +34,7 @@ const patient = (row: Record<string, unknown>): RegisteredPatient => ({
 });
 const invalid = () => new ApiError(400, 'INVALID_REQUEST', 'Check the request fields and try again.');
 
-export function buildApp({ pool, origin, trustProxy = false, secureCookies = process.env.NODE_ENV === 'production' }: { pool: pg.Pool; origin: string; trustProxy?: false | 1; secureCookies?: boolean }) {
+export function buildApp({ pool, origin, trustProxy = false, telemetry, secureCookies = process.env.NODE_ENV === 'production' }: { pool: pg.Pool; origin: string; telemetry?: Telemetry; trustProxy?: false | 1; secureCookies?: boolean }) {
   const originUrl = new URL(origin);
   if (originUrl.origin !== origin || !['http:', 'https:'].includes(originUrl.protocol)) throw new Error('APP_ORIGIN must be an exact HTTP origin.');
   if (process.env.NODE_ENV === 'production' && (!secureCookies || originUrl.protocol !== 'https:')) throw new Error('Production requires HTTPS and Secure cookies.');
@@ -40,12 +42,14 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
   if (!synthetic || process.env.NODE_ENV === 'production') keyring();
   // Request logging is deliberately disabled: URLs can contain patient search terms.
   const app = Fastify({ logger: false, bodyLimit: 4096, trustProxy: trustProxy === 1 ? (_address: string, hop: number) => hop < 1 : false });
+  if (telemetry) instrument(app, telemetry);
   app.register(cookie);
-  app.addHook('onReady', async () => { await validateEnvelopes(pool); });
+  app.addHook('onReady', async () => { await schemaReady(pool); await validateEnvelopes(pool); });
   const sessions = new WeakMap<FastifyRequest, Session>();
   const cookieOptions = { path: '/api', httpOnly: true, sameSite: 'strict' as const, secure: secureCookies };
 
   app.addHook('onRequest', async (request, reply) => {
+    await compatibleSchema(pool).catch(()=>{throw readUnavailable();});
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.origin !== origin) {
@@ -120,6 +124,7 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
       const state = enrolled.rowCount ? 'challenge' : synthetic && Number(latest.factor_generation) === 0 ? 'complete' : 'enrollment';
       await client.query(`INSERT INTO staff_sessions(token_hash,user_id,csrf_token,expires_at,auth_state,factor_generation,restricted_expires_at)
         VALUES ($1,$2,$3,clock_timestamp() + $4 * interval '1 second',$5,$6,CASE WHEN $5='complete' THEN NULL ELSE clock_timestamp()+interval '10 minutes' END)`, [digest(token), user.id, csrfToken, SESSION_SECONDS,state,latest.factor_generation]);
+      await securityEvent(client,user.hospital_id,user.id,state==='complete'?'authentication.completed':'password.accepted',user.id);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
@@ -138,6 +143,7 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
       await client.query('BEGIN');await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE',[session.user.hospital.id]);
       // A concurrent elevation preserves this family, so even a late Set-Cookie is revoked.
       await client.query('DELETE FROM staff_sessions WHERE user_id=$1 AND family_id=$2',[session.user.id,session.sessionFamily]);
+      await securityEvent(client,session.user.hospital.id,session.user.id,'session.logout',session.user.id);
       await client.query('COMMIT');
     } catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     reply.clearCookie(SESSION_COOKIE, cookieOptions);

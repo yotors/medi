@@ -1,5 +1,7 @@
 {
 	admin off
+	# Local clients without SNI still receive the localhost certificate.
+	default_sni localhost
 	auto_https disable_redirects
 	# Rehearsal has no access logging; avoid request/header content in proxy diagnostics.
 	log default {

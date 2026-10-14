@@ -1,0 +1,36 @@
+rule_files: [rules.yaml]
+evaluation_interval: 5s
+tests:
+  - interval: 5s
+    input_series:
+      - series: 'medi_heartbeat_seconds'
+        values: '0 5 10 10 10 10 10 10 10 45 50 55 60'
+      - series: 'up{job="medi"}'
+        values: '1+0x12'
+    alert_rule_test:
+      - eval_time: 40s
+        alertname: MediApiUnavailable
+        exp_alerts: []
+      - eval_time: 45s
+        alertname: MediApiUnavailable
+        exp_alerts: []
+  - interval: 5s
+    input_series:
+      - series: 'medi_heartbeat_seconds'
+        values: '0+0x12'
+    alert_rule_test:
+      - eval_time: 40s
+        alertname: MediApiUnavailable
+        exp_alerts:
+          - exp_labels: {severity: rehearsal}
+  - interval: 5s
+    input_series:
+      - series: 'medi_heartbeat_seconds'
+        values: '0+5x12'
+      - series: 'medi_api_ready'
+        values: '0+0x12'
+    alert_rule_test:
+      - eval_time: 20s
+        alertname: MediApiUnavailable
+        exp_alerts:
+          - exp_labels: {severity: rehearsal}

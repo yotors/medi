@@ -1,0 +1,194 @@
+{
+  "contract": {
+    "hospitals": 2,
+    "patientsPerHospital": 1000,
+    "encountersPerHospital": 250,
+    "sessions": 10,
+    "rampSeconds": 10,
+    "steadySeconds": 180,
+    "thinkMs": 1000,
+    "timeoutMs": 10000,
+    "p95Ms": 1500,
+    "unexpectedFailureRate": 0.01
+  },
+  "provisioningSeconds": 67.221,
+  "routeClasses": {
+    "visits.search": {
+      "attempts": 568,
+      "success": 568,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 56,
+      "p95": 74,
+      "p99": 102
+    },
+    "patients.search": {
+      "attempts": 570,
+      "success": 570,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 45,
+      "p95": 66,
+      "p99": 92
+    },
+    "visit.command": {
+      "attempts": 208,
+      "success": 208,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 60,
+      "p95": 87,
+      "p99": 101
+    },
+    "payment.record": {
+      "attempts": 98,
+      "success": 98,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 60,
+      "p95": 72,
+      "p99": 90
+    },
+    "pharmacy.dispense": {
+      "attempts": 96,
+      "success": 96,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 60,
+      "p95": 101,
+      "p99": 162
+    },
+    "patient.register": {
+      "attempts": 112,
+      "success": 112,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 48,
+      "p95": 63,
+      "p99": 72
+    },
+    "visit.checkin": {
+      "attempts": 112,
+      "success": 112,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 47,
+      "p95": 69,
+      "p99": 91
+    },
+    "visit.detail": {
+      "attempts": 38,
+      "success": 38,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 48,
+      "p95": 66,
+      "p99": 110
+    },
+    "billing.detail": {
+      "attempts": 16,
+      "success": 16,
+      "failures": 0,
+      "limited": 0,
+      "conflicts": 0,
+      "p50": 50,
+      "p95": 60,
+      "p99": 60
+    }
+  },
+  "invariantViolations": 0,
+  "networkRetries": 0,
+  "node": "v24.21.0",
+  "postgres": "16.14",
+  "runnerMemoryBytes": 208007168,
+  "apiMemoryBytes": 356036608,
+  "poolWaitingMaximum": 14,
+  "metricSamples": 41,
+  "loginAbuse": {
+    "attempts": 12,
+    "denied": 10,
+    "limited": 2
+  },
+  "overload": {
+    "requests": 24,
+    "unavailable": 20,
+    "recovered": true,
+    "recoveryMs": 31,
+    "recoveryStatuses": [
+      200
+    ]
+  },
+  "result": "PASS",
+  "images": {
+    "database": "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+    "api": "sha256:c7fbbe075bed7361a73ad49ee7717bc666c2481a48c5d47192e4eb3033cb1b82",
+    "web": "sha256:ae012fb7c5778deae593177fa538a5a43fef1b84b696752160decca9639fb367",
+    "migrate": "sha256:c7fbbe075bed7361a73ad49ee7717bc666c2481a48c5d47192e4eb3033cb1b82"
+  },
+  "schema": [
+    {
+      "version": 1
+    },
+    {
+      "version": 2
+    },
+    {
+      "version": 3
+    },
+    {
+      "version": 4
+    },
+    {
+      "version": 5
+    },
+    {
+      "version": 6
+    },
+    {
+      "version": 7
+    },
+    {
+      "version": 8
+    },
+    {
+      "version": 9
+    },
+    {
+      "version": 10
+    },
+    {
+      "version": 11
+    },
+    {
+      "version": 12
+    },
+    {
+      "version": 13
+    },
+    {
+      "version": 14
+    },
+    {
+      "version": 15
+    }
+  ],
+  "coLoad": "no-other-agent-tests-or-builds",
+  "host": {
+    "os": "Arch Linux",
+    "cpus": 12,
+    "memoryBytes": 33272524800
+  },
+  "allocation": {
+    "memoryBytes": 0,
+    "nanoCpus": 0,
+    "zeroMeansHostLimit": true
+  }
+}
