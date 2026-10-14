@@ -78,7 +78,7 @@ remain founder responsibilities, with concrete deployable artifacts supplied.
 - [x] Implement complete departmental operational controls.
 - [x] Implement configuration, privacy/export and database tenant policies.
 - [x] Ship portable production installation and operational handoff.
-- [ ] Complete integrated verification/review, delivery CI and accurate handoff.
+- [x] Complete integrated verification/review, delivery CI and accurate handoff.
 
 ## Resume checkpoint — user explicitly stopped work, 2026-10-14
 
@@ -231,3 +231,35 @@ unquoted-role literal encoding remains comparable. Capacity, final production
 metadata drill, monitoring readiness retry and exact revision CI remain pending.
 The first web scan stalled updating add-ons and was stopped; the pinned scanner
 will run with installed rules (-silent), without interpreting stale reports as new.
+
+
+Final local gates PASS: isolated180-second10-session workload1786 requests,
+0 unexpected failures/0 invariant violations, route p9559–101ms, controlled
+pool overload bounded503s and73ms recovery. All preflight runtime checks pass.
+Fresh production installation/MFA/tenant isolation/encrypted replacement passes
+in89s against API f15e49215b88759d1c072ea5f490ce2f5c3b9dd249588edc93ffeb3bfe5dd0cc
+and web06c133a47d14422db68a15fda388a568c697550bc79a2859d8aed1a68895cc8e.
+The independent running-API database-outage alert and complete monitoring retry
+both pass, including firing/resolved receipts and privacy redaction. The earlier
+combined failure remains recorded; bounded fixed-stage diagnostics were added.
+Final ZAP58pass/0fail/3warnings(exit2): localhost HSTS low, SPA/cache informational;
+real-domain production config supplies HSTS. Semgrep/Trivy exact revision CI job
+passes. Implementation committed/pushed80f9b60; run38615699574 API suite passes,
+remaining browser/release checks still running. Local accounts/passwords,
+original archives/keys/images and founder .vscode are retained.
+
+
+## Completed engineering delivery
+
+Revision80f9b60d695575903d6505e49d8441b10bf61299 is committed/pushed to main.
+All configured GitHub jobs succeeded in
+https://github.com/yotors/medi/actions/runs/38615699574:
+application/tooling (full API/browser/MFA/restore tests), source-security and
+local-release (fresh production installer, restart, MFA backup, concurrent/offline
+recovery, monitoring, genuine legacy upgrade, capacity and preflight).
+The final documentation-only evidence commit uses [skip ci]; application and
+operational code remain exactly the verified revision. No required engineering
+task in this specification remains. Hospital clinical/legal acceptance, actual
+host/domain/operator, human alerts and independent backup/key custody are
+explicit deployment inputs in docs/deployment.md and docs/readiness.md.
+Local app and packaged app remain available; no credentials were reset or exposed.

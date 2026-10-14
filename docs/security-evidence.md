@@ -152,4 +152,21 @@ release gateways now use `style-src self` and COOP/COEP/CORP headers. The public
 production gateway includes HSTS; the internal-CA local rehearsal intentionally
 does not. The older scanner triage above describes its dated baseline and does
 not describe these changed headers. Final scan and exact revision CI evidence
-will be recorded after their completion.
+are recorded below.
+
+
+Final product passive scan,2026-10-14: pinned ZAP completed with58 checks
+passing,0 failures and3 warning classes (exit2, not a clean exit0). The only
+security-risk warning was missing HSTS on the internal-CA localhost rehearsal
+(10035,low); the real-domain production Caddy configuration supplies HSTS.
+Modern Web Application10109 and Cache-control Review10015 were informational.
+The earlier medium CSP unsafe-inline and low cross-origin-header findings are
+absent from this final scan. This anonymous passive scan complements the
+separate authenticated desktop/mobile authorization and browser checks; it
+cannot establish clinical acceptance or a complete penetration assessment.
+Exact revision80f9b60 source-security CI passed in run38615699574.
+
+
+All three [exact revision CI jobs](https://github.com/yotors/medi/actions/runs/38615699574)
+passed for80f9b60, including the complete API/browser/MFA and packaged operational
+checks. This is engineering evidence, not an ASVS certification.

@@ -239,3 +239,31 @@ policy refusal and changed security-invoker option refusal, all with owned targe
 cleanup and source archive preservation. This is static/fake-process evidence;
 root's real Docker recovery drill supplies runtime evidence. Original private
 archives, keys, images and database contents were untouched.
+
+
+## Product-completion verification,2026-10-14
+
+The current schema19 encrypted archive restores58 tables with exact record,
+policy/RLS and invoker-view metadata. The source-offline/concurrent100-change
+backup drill passes, preserving original configuration and source containers.
+The genuine original schema1–11 archive upgrades to19 in86s, preserving33
+historical tables; migration rollback, unsafe legacy privilege refusal, session
+invalidation and isolated replacement pass. The original archive/key/image are
+retained unchanged.
+
+The [current aggregate capacity evidence](operations-capacity-product-completion.json)
+passes the unchanged2-hospital/2000-patient/500-encounter/10-session/180-second
+contract. There were1786 measured requests,0 unexpected failures and0 invariant
+violations; route p95 ranged59–101ms. Overload returned bounded503s and recovered
+in73ms. This workstation has12CPU threads/approximately31GiB RAM and other host
+workloads; it is a measured local contract, not a customer capacity commitment.
+
+All local preflight runtime/privacy/grant/MFA/telemetry/restore checks pass;
+its `ready:false` explicitly tracks actual domain, operator, clinical/legal,
+human escalation, independent custody and retention decisions. Independent
+running-API database-outage firing/resolution receipts pass. The first combined
+monitoring run failed readiness-outage; the independent readiness check and
+complete monitoring retry subsequently passed. Both attempts are recorded in
+the completion specification.
+The fresh production installer and encrypted replacement recovery pass against
+current immutable images; see [the regenerated evidence](production-installation-evidence.json).

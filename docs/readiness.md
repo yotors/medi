@@ -1,11 +1,13 @@
 # Release status and acceptance
 
-The current product-completion changes are implemented locally and undergoing
-combined verification. They are not yet a verified committed release. The last
-passing committed baseline is 65bb78c; its [CI run](https://github.com/yotors/medi/actions/runs/38584302746)
-predates the new care, departmental, governance and production-installer changes.
-Current acceptance and test results belong in the
-[completion specification](../_bmad-output/implementation-artifacts/spec-product-completion.md).
+The product-completion engineering release is **80f9b60**. All three configured
+GitHub jobs passed for that exact revision: application/tooling, source security,
+and packaged installation/release operations.
+[Verified CI run](https://github.com/yotors/medi/actions/runs/38615699574).
+This verifies the delivered software and documented synthetic workload; live
+hospital acceptance and the deployment inputs below remain operator decisions.
+The [completion specification](../_bmad-output/implementation-artifacts/spec-product-completion.md)
+records local results, corrected failures and review evidence.
 
 The single authenticated app now includes patient registration and audited identity
 corrections, outpatient encounters, appointments, triage, admissions/beds/nursing,
@@ -14,7 +16,7 @@ procurement/returns, invoices/refunds/cash shifts, operational reports, hospital
 settings, controlled support and governed record exports. See the
 [coverage statement](product-roadmap.md) and [architecture](architecture.md).
 
-Final engineering gates are type/unit/API/browser/accessibility checks, independent
+The passed engineering gates include type/unit/API/browser/accessibility checks, independent
 review of the final fixes, source/dependency/web security triage, packaged restart,
 immutable-schema upgrade, encrypted recovery, production installation and exact
 revision CI. Earlier slice evidence remains historical; it does not automatically
