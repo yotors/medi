@@ -38,7 +38,7 @@ Requirement references: [ASVS V14, pinned version](https://github.com/OWASP/ASVS
 
 | Requirement | Current evidence | Remaining assessment |
 | --- | --- | --- |
-| 14.1.1, 14.1.2, 14.2.4: protection policy | Synthetic-data restriction and pilot governance workbook | Data classification, retention, encryption/key ownership and approved data location are unresolved |
+| 14.1.1, 14.1.2, 14.2.4: protection policy | Synthetic-data restriction, pilot governance workbook and authenticated encrypted packaged-release recovery with private external key | Data classification, retention, production key custody, offsite storage and approved data location remain unresolved |
 | 14.2.1: sensitive request placement | Credentials and patient-directory/visit-queue searches use authenticated JSON bodies; search POSTs require exact Origin and session CSRF; legacy GET q is rejected; API/browser transport cases | Review production proxy, monitoring and diagnostic redaction end to end |
 | 14.2.2, 14.3.2: caching controls | API and release gateway send `Cache-Control: no-store` | Verify chosen production proxies/CDN and browser behavior |
 | 14.3.1, 14.3.3: client cleanup/storage | Staff UI clears identity/drafts on expiry/logout; state remains in memory; browser expiry/logout cases | Independent browser storage and offline-sign-out assessment; `/` is a separate synthetic local-storage demo |
@@ -65,3 +65,22 @@ The [pilot workbook](hospital-pilot-acceptance.md) assigns acceptance gates.
 Before live data, a security reviewer must finish applicability decisions,
 verify requirements against the chosen deployment and resolve material gaps.
 Keep sensitive operational evidence outside this public repository.
+
+
+## Packaged recovery evidence
+
+The [encrypted recovery specification](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md)
+records the exact verification status. The local drill compares restored table
+counts and SHA-256 content digests, schema definitions, ownership and grants
+against the same exported snapshot used for the dump. It authenticates the
+complete archive before interpreting its manifest or invoking restore, then
+checks the recorded API image with anonymous denial, authenticated own-record
+access and foreign-hospital denial. Synthetic target mutations occur only after
+the original baseline matches.
+
+The archive key is not included in its manifest. Configuration and available
+synthetic verification credentials are encrypted; plaintext recovery scratch is
+private and removed after verification or failure. Unsupported schema objects
+are refused rather than silently omitted. These checks do not establish offsite
+availability, independently held production keys, an approved retention period,
+point-in-time recovery or an operator's recovery commitment.

@@ -90,8 +90,9 @@ never become production credentials or production certificate infrastructure.
 Before a live pilot, complete scoped authentication/authorization review,
 redacted monitoring and tested alerts, encrypted offsite backup/restore,
 retention/access controls, incident ownership and measured recovery objectives.
-Existing local backup commands are intentionally limited to the dedicated local
-database; they are not a production backup service. See
+Development backup commands remain limited to their dedicated local database.
+The encrypted packaged-release recovery tooling below is a separate rehearsal;
+neither constitutes an operated production backup service. See
 [release evidence](readiness.md).
 
 The earlier [deployment comparison](../_bmad-output/planning-artifacts/briefs/brief-product-studio-2026-10-12/addendum.md)
@@ -190,9 +191,9 @@ Reverting application code does **not** revert a migrated database. Roll back
 application images only when compatibility with the new schema has been tested;
 otherwise restore a verified full database/configuration backup into an isolated
 replacement and verify it before switching traffic. Never erase a failed database
-as a recovery shortcut. Automated release backup/restore, immutable published
-image tags, upgrade compatibility rehearsal and an operator-run rollback drill
-remain necessary before an installation can hold real patient records.
+as a recovery shortcut. Encrypted release backup and isolated restoration are exercised by the tooling
+below. Immutable published artifacts, upgrade compatibility rehearsal and an
+operator-run rollback drill remain necessary before live patient records.
 
 Implementation references: [Compose startup dependencies](https://docs.docker.com/compose/how-tos/startup-order/),
 [Caddy local HTTPS](https://caddyserver.com/docs/automatic-https),
@@ -204,3 +205,76 @@ checks TypeScript and Vite immediately after the locked installation, so an
 incomplete download fails its install layer instead of being cached as usable.
 See [npm dependency semantics](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/)
 and [locked installation behavior](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
+
+
+## Encrypted packaged-release recovery
+
+The recovery tools target only the owned `medi-release-local` rehearsal. They do
+not expand the development database helper's scope and do not restore over a
+running source installation. Verification status is tracked in the
+[recovery specification](../_bmad-output/implementation-artifacts/spec-encrypted-release-recovery.md).
+
+Create a private archive directory and a separate key file once:
+
+```sh
+install -d -m 700 .local/release-backups
+npm run release:key-init -- .local/recovery.key
+```
+
+Key initialization refuses an existing file. Retain that original key; generating
+a different key does not recover an older archive. The local example is a
+rehearsal, not independent key custody. Before live use, an operator must choose
+protected independent storage and test access to both the archives and their
+matching key. Do not put the key into an archive, Git, a support ticket or chat.
+
+Back up the healthy local release to a new filename, then check recovery:
+
+```sh
+npm run release:backup -- .local/recovery.key .local/release-backups/manual-001.medi
+npm run release:recover-check -- .local/recovery.key .local/release-backups/manual-001.medi
+```
+
+The archive encrypts a consistent PostgreSQL snapshot and its schema/data/grant
+inventory, private release configuration, available synthetic verification fixture,
+and exact running image identities. The backup uses a PostgreSQL exported
+snapshot shared with `pg_dump`; the inventory does not compare the dump to a
+later state. Archive encryption uses AES-256-GCM with a fresh nonce and
+an authenticated format header. Recovery verifies the whole authentication tag
+before using metadata or starting database restoration. See the official
+[PostgreSQL snapshot documentation](https://www.postgresql.org/docs/16/functions-admin.html)
+and [pg_dump snapshot option](https://www.postgresql.org/docs/16/app-pgdump.html).
+
+Recovery uses a generated isolated Compose project with fresh volumes and no
+published ports. It requires the recorded images to be available locally and
+checks the restored baseline before sign-in can create session rows. It removes
+only its generated target resources afterwards. The source project need not be
+running. A successful check is a recovery rehearsal; it does not route hospital
+traffic to a replacement or alter the original database.
+
+Key, archive and scratch paths must be private real paths without symlink
+components: directories mode 700, files mode 600. The initial format limits an
+archive to 1 GiB and its encrypted manifest to 4 MiB. Streaming operations and
+snapshot holding are bounded to 240 seconds; other Docker operations are bounded
+to 180 seconds. These are guardrails for this rehearsal, not measured limits for
+a hospital. Larger datasets need a reviewed backup design and an appropriate
+recovery test. Failures must leave no accepted partial archive; diagnostics must
+not expose database content, configuration or credentials.
+
+The stronger synthetic drill creates a new archive while exercising concurrent
+source activity, then checks isolated recovery with the source stopped and
+restores source availability:
+
+```sh
+npm run release:recovery-drill -- .local/recovery.key .local/release-backups/drill-001.medi
+```
+
+Run the drill only when no one is using the synthetic release. Preserve the
+successful archive and referenced images for subsequent upgrade verification.
+Do not prune those images or replace the key. Moving recovery to another host
+also requires supplying the recorded image artifacts; the encrypted database
+archive is not a container-image export.
+
+Offsite transfer, scheduled execution, retention/deletion policy, key custody,
+backup failure alerts, recovery objectives, operator acceptance and any
+point-in-time recovery remain installation decisions. No tested local duration
+establishes a production recovery SLA.

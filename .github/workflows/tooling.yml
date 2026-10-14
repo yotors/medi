@@ -19,6 +19,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=moderate
       - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:release-recovery
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -68,5 +69,8 @@ jobs:
       - run: npm run release:stop
       - run: npm run release:local
       - run: npm run release:verify
+      - run: install -d -m 700 .local/release-backups
+      - run: npm run release:key-init -- .local/recovery.key
+      - run: npm run release:recovery-drill -- .local/recovery.key .local/release-backups/ci.medi
       - run: npm run release:stop
         if: always()

@@ -33,7 +33,12 @@
     "release:local": "node tooling/release-local.mjs up",
     "release:stop": "node tooling/release-local.mjs stop",
     "release:status": "node tooling/release-local.mjs status",
-    "release:verify": "node tooling/release-verify.mjs"
+    "release:verify": "node tooling/release-verify.mjs",
+    "release:key-init": "node tooling/release-backup.mjs key-init",
+    "release:backup": "node tooling/release-backup.mjs backup",
+    "release:recover-check": "node tooling/release-recovery.mjs",
+    "release:recovery-drill": "node tooling/release-recovery-drill.mjs",
+    "test:release-recovery": "node --test tooling/release-backup.test.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
