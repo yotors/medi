@@ -45,4 +45,25 @@ describe('outpatient domain', () => {
     const overpaid = structuredClone(s); overpaid.visits[0].payments.push({ id: 'payment', amount: 26000, at: new Date().toISOString() }); expect(stateSchema.safeParse(overpaid).success).toBe(false);
     const duplicate = structuredClone(s); duplicate.visits.push({ ...structuredClone(s.visits[0]), id: 'another' }); expect(stateSchema.safeParse(duplicate).success).toBe(false);
   });
+  it('catalog encounters add no invented charges and close after clinical work alone', () => {
+    let s = execute(empty(), { type: 'register', name: 'Catalog fictional patient', contact: '' });
+    s = execute(s, { type: 'checkIn', patientId: s.patients[0].id, financialMode: 'catalog' });
+    const visitId = s.visits[0].id;
+    expect(s.visits[0].charges).toEqual([]); expect(blockers(s.visits[0])).toEqual(['Save a consultation note.']);
+    s = execute(s, { type: 'note', visitId, body: 'Synthetic note' });
+    s = execute(s, { type: 'order', visitId, test: 'Blood count' });
+    expect(s.visits[0].charges).toEqual([]);
+    expect(() => execute(s, { type: 'close', visitId })).toThrow('investigations');
+    s = execute(s, { type: 'advanceOrder', visitId, orderId: s.visits[0].orders[0].id, next: 'cancelled' });
+    expect(() => execute(s, { type: 'settle', visitId })).toThrow('catalog invoice');
+    s = execute(s, { type: 'close', visitId });
+    expect(s.visits[0].status).toBe('closed'); expect(s.visits[0].payments).toEqual([]);
+  });
+  it('catalog JSON rejects even balanced fabricated financial entries', () => {
+    let s = execute(empty(), { type: 'register', name: 'Catalog fictional patient', contact: '' });
+    s = execute(s, { type: 'checkIn', patientId: s.patients[0].id, financialMode: 'catalog' });
+    s.visits[0].charges.push({ id: 'charge', label: 'Invented', amount: 100, reversed: false, paid: true });
+    s.visits[0].payments.push({ id: 'payment', amount: 100, at: new Date().toISOString() });
+    expect(stateSchema.safeParse(s).success).toBe(false);
+  });
 });

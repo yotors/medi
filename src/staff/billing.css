@@ -1,0 +1,21 @@
+.billing-workspace { min-width: 0; }
+.billing-workspace h2:focus { outline: none; }
+.billing-workspace h3 { margin-top: 1.7rem; }
+.billing-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; padding-block: 1rem; border-block: 1px solid var(--border); margin: 1rem 0 1.5rem; }
+.billing-summary dt { color: var(--muted); font-size: .85rem; }
+.billing-summary dd { margin: .3rem 0 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+.billing-services, .billing-draft-lines { list-style: none; padding: 0; margin: 1rem 0; }
+.billing-services li, .billing-draft-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 1rem; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.billing-draft-lines li { grid-template-columns: minmax(0, 1fr) 8rem auto auto; }
+.billing-services small, .billing-draft-lines small { display: block; margin-top: .2rem; color: var(--muted); }
+.billing-services strong, .billing-draft-lines strong, .billing-workspace p { overflow-wrap: anywhere; }
+.billing-draft-lines label { font-size: .8rem; }
+.billing-workspace .billing-confirm { display: flex; align-items: flex-start; gap: .7rem; margin: 1.2rem 0; font-weight: 500; }
+.billing-workspace .billing-confirm input { width: 1.1rem; height: 1.1rem; min-height: 1.1rem; flex: 0 0 auto; margin-top: .2rem; accent-color: var(--teal); }
+.billing-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.billing-form-grid > div:last-child { grid-column: 1 / -1; }
+.billing-payment-form, .billing-void-form { margin-top: 1.5rem; padding-top: .2rem; border-top: 1px solid var(--border); }
+.billing-invalid { color: #a43636; }
+.billing-workspace .invoice-total { display: flex; justify-content: space-between; gap: 1rem; padding-block: 1rem; }
+@media (max-width: 850px) { .billing-summary { grid-template-columns: 1fr 1fr; } .billing-draft-lines li { grid-template-columns: minmax(0, 1fr) auto; } .billing-draft-lines li > div:first-child { grid-column: 1 / -1; } .billing-draft-lines input { max-width: 7rem; } }
+@media (max-width: 650px) { .billing-services li { grid-template-columns: minmax(0, 1fr) auto; } .billing-services li > div { grid-column: 1 / -1; } .billing-form-grid { grid-template-columns: 1fr; } .billing-workspace .section-heading { align-items: flex-start; flex-direction: column; } }

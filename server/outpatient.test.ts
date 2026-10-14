@@ -8,6 +8,7 @@ import { digest, hashPassword } from './auth.ts';
 import { migrate } from './db.ts';
 import { provisionStaff } from './setup.ts';
 import type { StaffRole } from '../shared/registration.ts';
+import { execute } from '../src/domain.ts';
 import type { VisitCommand, VisitView } from '../shared/outpatient.ts';
 
 const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -39,8 +40,16 @@ async function patient(user = auth.receptionist, name = 'Synthetic Outpatient') 
   assert.equal(response.statusCode, 201, response.body);
   return response.json().patient;
 }
-async function visit(): Promise<VisitView> {
-  const p = await patient(); const response = await checkIn(auth.admin, p.id);
+async function visit(legacy = false): Promise<VisitView> {
+  const p = await patient();
+  if (legacy) {
+    const state = execute({ version: 1, revision: 0, patients: [p], visits: [], events: [] }, { type: 'checkIn', patientId: p.id });
+    const v = state.visits[0];
+    await pool.query('INSERT INTO outpatient_visits(id,hospital_id,patient_id,revision,status,opened_at,data) VALUES($1,$2,$3,1,$4,$5,$6)', [v.id, auth.admin.hospitalId, p.id, v.status, v.openedAt, JSON.stringify(v)]);
+    await pool.query("INSERT INTO audit_events(id,hospital_id,actor_id,patient_id,action,visit_id,visit_revision,detail) VALUES($1,$2,$3,$4,'visit.checkIn',$5,1,'Historical demonstration check-in')", [randomUUID(), auth.admin.hospitalId, auth.admin.id, p.id, v.id]);
+    return (await get(auth.admin, `/api/visits/${v.id}`)).json().visit;
+  }
+  const response = await checkIn(auth.admin, p.id);
   assert.equal(response.statusCode, 201, response.body); return response.json().visit;
 }
 async function apply(user: Auth, v: VisitView, value: VisitCommand): Promise<VisitView> {
@@ -66,7 +75,7 @@ before(async () => {
   other = await login('admin', 'beta');
 });
 beforeEach(async () => {
-  await pool.query('TRUNCATE outpatient_requests,outpatient_visits,audit_events,registration_requests,patients');
+  await pool.query('TRUNCATE outpatient_requests,outpatient_visits,audit_events,registration_requests,patients CASCADE');
 });
 after(async () => {
   await app.close(); await pool.end(); await database.query(`DROP SCHEMA ${schema} CASCADE`); await database.end();
@@ -77,10 +86,10 @@ test('department handoffs persist a complete closed visit and attributable histo
   const start = await checkIn(auth.receptionist, p.id);
   assert.equal(start.statusCode, 201);
   let v: VisitView = start.json().visit;
-  assert.equal(v.revision, 1); assert.equal(v.balance, 25000);
+  assert.equal(v.revision, 1); assert.equal(v.balance, 0); assert.equal(v.financialMode, 'catalog'); assert.equal(v.billing?.state, 'unbilled');
   assertSummary(v, 'Consultation');
   v = await apply(auth.clinician, v, { type: 'note', body: 'Synthetic consultation text' });
-  assertSummary(v, 'Billing');
+  assertSummary(v, 'Ready to close');
   v = await apply(auth.clinician, v, { type: 'order', test: 'Blood count' });
   assertSummary(v, 'Diagnostics', 1);
   const orderId = v.orders![0].id;
@@ -89,20 +98,20 @@ test('department handoffs persist a complete closed visit and attributable histo
   v = await apply(auth.lab, v, { type: 'advanceOrder', orderId, next: 'released', result: 'Synthetic result text' });
   assertSummary(v, 'Diagnostics', 1);
   v = await apply(auth.clinician, v, { type: 'advanceOrder', orderId, next: 'reviewed' });
-  assertSummary(v, 'Billing');
+  assertSummary(v, 'Ready to close');
   v = await apply(auth.clinician, v, { type: 'prescribe', instruction: 'Synthetic prescription text' });
   assertSummary(v, 'Pharmacy', 0, 1);
   v = await apply(auth.pharmacist, v, { type: 'fulfill', prescriptionId: v.prescriptions![0].id, next: 'fulfilled' });
-  assertSummary(v, 'Billing');
-  v = await apply(auth.cashier, v, { type: 'settle' });
   assertSummary(v, 'Ready to close');
-  assert.equal(v.payments![0].amount, 43000);
+  assert.equal((await command(auth.cashier, v, { type: 'settle' })).statusCode, 409);
+  assertSummary(v, 'Ready to close');
+  assert.equal((await get(auth.admin, `/api/visits/${v.id}`)).json().visit.payments.length, 0);
   v = await apply(auth.clinician, v, { type: 'close' });
   assert.equal(v.status, 'closed'); assert.deepEqual(v.blockers, []); assert.deepEqual(v.allowedActions, []);
   assertSummary(v, 'Closed');
   await app.close(); app = buildApp({ pool, origin });
   const persisted = (await get(auth.admin, `/api/visits/${v.id}`)).json().visit;
-  assert.equal(persisted.revision, 10); assert.equal(persisted.history.length, 10);
+  assert.equal(persisted.revision, 9); assert.equal(persisted.history.length, 9);
   assert.equal(persisted.notes[0].body, 'Synthetic consultation text');
   assert.equal(persisted.orders[0].result, 'Synthetic result text');
   assert.equal(persisted.prescriptions[0].status, 'fulfilled');
@@ -110,13 +119,13 @@ test('department handoffs persist a complete closed visit and attributable histo
   const closedQueue = (await get(auth.admin, '/api/visits?status=closed')).json();
   assert.equal(closedQueue.total, 1); assertSummary(closedQueue.visits[0], 'Closed');
   const events = (await pool.query('SELECT * FROM audit_events WHERE visit_id=$1 ORDER BY visit_revision', [v.id])).rows;
-  assert.deepEqual(events.map(e => e.actor_id), ['receptionist','clinician','clinician','lab','lab','clinician','clinician','pharmacist','cashier','clinician'].map(role => auth[role as StaffRole].id));
+  assert.deepEqual(events.map(e => e.actor_id), ['receptionist','clinician','clinician','lab','lab','clinician','clinician','pharmacist','clinician'].map(role => auth[role as StaffRole].id));
   assert.deepEqual(events.map(e => [e.subject_type, e.subject_id, e.transition_from, e.transition_to]), [
     ['visit', v.id, null, 'active'], ['note', persisted.notes[0].id, null, 'saved'],
     ['investigation', orderId, null, 'requested'], ['investigation', orderId, 'requested', 'collected'],
     ['investigation', orderId, 'collected', 'released'], ['investigation', orderId, 'released', 'reviewed'],
     ['prescription', persisted.prescriptions[0].id, null, 'pending'], ['prescription', persisted.prescriptions[0].id, 'pending', 'fulfilled'],
-    ['payment', persisted.payments[0].id, null, 'recorded'], ['visit', v.id, 'active', 'closed'],
+    ['visit', v.id, 'active', 'closed'],
   ]);
   assert.doesNotMatch(JSON.stringify(events), /Synthetic consultation text|Synthetic result text|Synthetic prescription text/);
   for (const event of persisted.history) assert.deepEqual(Object.keys(event).sort(), ['actor','at','detail','id']);
@@ -136,7 +145,7 @@ test('role projections contain only authorized sections; queue never exposes cli
   v = await apply(auth.admin, v, { type: 'advanceOrder', orderId, next: 'released', result: 'SECRET RESULT' });
   v = await apply(auth.admin, v, { type: 'prescribe', instruction: 'SECRET PRESCRIPTION' });
   const keys = ['notes', 'orders', 'prescriptions', 'charges', 'payments', 'history'];
-  const permitted: Record<StaffRole, string[]> = { admin: keys, receptionist: [], clinician: ['notes','orders','prescriptions'], lab: ['orders'], pharmacist: ['prescriptions'], cashier: ['charges','payments'], auditor: ['history'] };
+  const permitted: Record<StaffRole, string[]> = { admin: keys, receptionist: [], clinician: ['notes','orders','prescriptions'], lab: ['orders'], pharmacist: ['prescriptions'], cashier: ['charges','payments'], auditor: ['charges','payments','history'] };
   for (const role of roles) {
     const response = await get(auth[role], `/api/visits/${v.id}`);
     assert.equal(response.statusCode, 200);
@@ -185,8 +194,8 @@ test('concurrent check-ins serialize to one active visit and one event with or w
   assert.equal((await checkIn(auth.receptionist, p2.id, key)).json().code, 'IDEMPOTENCY_CONFLICT');
 });
 
-test('concurrent note/payment keys have one effect; retries work after revisions advance', async () => {
-  const initial = await visit(); const key = randomUUID();
+test('legacy concurrent note/payment keys have one effect; retries work after revisions advance', async () => {
+  const initial = await visit(true); const key = randomUUID();
   const value: VisitCommand = { type: 'note', body: 'Exactly one note' };
   const saves = await Promise.all(Array.from({ length: 5 }, () => command(auth.clinician, initial, value, key)));
   assert.ok(saves.every(r => r.statusCode === 200));
@@ -226,8 +235,8 @@ test('stale commands lose no writes and concurrent distinct commands yield one r
   assert.equal((await pool.query('SELECT * FROM outpatient_requests WHERE visit_id=$1', [v.id])).rowCount, 2);
 });
 
-test('unresolved closure is blocked, cancellations follow existing charge rules and released results cannot change', async () => {
-  let v = await visit();
+test('legacy unresolved closure is blocked, cancellations follow existing charge rules and released results cannot change', async () => {
+  let v = await visit(true);
   const blocked = await command(auth.clinician, v, { type: 'close' });
   assert.equal(blocked.statusCode, 409); assert.match(blocked.json().message, /consultation note|balance/);
   v = await apply(auth.admin, v, { type: 'order', test: 'Blood glucose' });
@@ -342,7 +351,7 @@ test('003 rejects missing/null visit identities and null visit audit revisions o
   assert.equal((await pool.query('SELECT * FROM audit_events WHERE visit_id=$1', [v.id])).rowCount, 1);
 });
 
-test('migrations 002 through 006 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
+test('migrations 002 through 007 preserve populated registration/visit data and legacy audit metadata across replay', async () => {
   const oldSchema = `outpatient_migration_${randomUUID().replaceAll('-', '')}`;
   await database.query(`CREATE SCHEMA ${oldSchema}`);
   const old = new pg.Pool({ connectionString, options: `-c search_path=${oldSchema}` });
@@ -366,7 +375,7 @@ test('migrations 002 through 006 preserve populated registration/visit data and 
       VALUES ($1,$2,$3,$4,'visit.checkIn',$5,1,'Legacy check-in')`, [legacyEventId, staff.hospitalId, staff.id, patientId, legacyVisitId]);
     const oldEvents = (await old.query('SELECT id,actor_id,action,visit_id,visit_revision,detail FROM audit_events ORDER BY id')).rows;
     await migrate(old); await migrate(old);
-    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }]);
+    assert.deepEqual((await old.query('SELECT version FROM registration_migrations ORDER BY version')).rows, [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }]);
     assert.equal((await old.query("SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() AND indexname IN ('configuration_department_search','configuration_service_search')")).rowCount, 0);
     assert.equal((await old.query('SELECT id FROM patients')).rows[0].id, patientId);
     assert.deepEqual((await old.query('SELECT data FROM outpatient_visits WHERE id=$1', [legacyVisitId])).rows[0].data, legacyVisit);

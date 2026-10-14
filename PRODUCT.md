@@ -24,7 +24,7 @@ product.
 Published Ethiopian workflow research and a supplied student design inform candidate requirements. Diagnostic return loops, pending departmental work and interruptions matter. Use fictional patient records only during development.
 
 ## Capabilities and Constraints
-The `/` route is a browser-persisted demonstration of the outpatient journey. The separate `/staff` route provides authenticated, hospital-scoped registration, visit check-in, consultation, investigations, prescriptions, demonstration settlement and closed history in PostgreSQL. No live patient data, authenticated clinical use, real payment processing or production deployment. Its role and hospital-boundary checks do not establish production-wide tenant security. No diagnostic recommendations. Product name, hosting, local languages and commercial terms remain open.
+The `/` route is a browser-persisted demonstration of the outpatient journey. The separate `/staff` route provides authenticated, hospital-scoped registration, visit check-in, consultation, investigations, prescriptions, catalog invoices, partial cash/manual-transfer payment records, receipts and closed clinical history in PostgreSQL. No live patient data, authenticated clinical use, real payment processing or production deployment. Its role and hospital-boundary checks do not establish production-wide tenant security. No diagnostic recommendations. Product name, hosting, local languages and commercial terms remain open.
 
 ## Evidence on Hand
 _bmad-output/planning-artifacts/research/domain-ethiopian-hospital-workflows-and-require-2026-10-12/ contains research,24 proposed requirements and the student-design assessment.

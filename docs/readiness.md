@@ -1,6 +1,6 @@
 # Product decisions and release evidence
 
-Status as of 2026-10-13: the first server-backed outpatient milestone is
+Status as of 2026-10-14: the first server-backed outpatient milestone is
 implemented and verified locally and in
 [GitHub Actions](https://github.com/yotors/medi/actions/runs/38390211322).
 The commercial hospital product is unfinished. See the
@@ -18,7 +18,9 @@ server sessions, hospital-scoped access, role-projected records and transactiona
 commands. Hospital-scoped staff onboarding/access management, required password
 replacement, departments and versioned ETB services are also implemented. A
 separate built HTTPS Docker installation uses restricted runtime database
-permissions and an explicit migration job. See its [implementation and limits](staff-workspace.md). The original
+permissions and an explicit migration job. New visits also have catalog invoices,
+partial payment records and immutable receipt history; clinical closure leaves
+billing independently collectible. See its [implementation and limits](staff-workspace.md). The original
 `/` walkthrough remains a separate browser-only demonstration.
 
 See [prototype boundaries](prototype-boundaries.md) for the separation between
@@ -46,7 +48,7 @@ An installed tool or a green fixture test does not complete these items.
 | --- | --- | --- |
 | Core journeys | Acceptance tests including error/retry paths | Server-backed outpatient, multi-role, retry and draft-recovery journeys pass; complete departmental workflows and hospital acceptance pending ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Authorization | Cross-user/tenant tests and administrator endpoint checks | Seven preliminary staff roles, response projections and hospital isolation tested; hospital validation pending ([evidence](staff-workspace.md)) |
-| Data integrity | Relevant race, replay, idempotency and transaction tests | Registration and visit transaction/replay/rollback checks pass; production migration and financial-ledger work remain ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
+| Data integrity | Relevant race, replay, idempotency and transaction tests | Registration and visit transaction/replay/rollback checks pass; catalog invoice/payment/receipt integrity also has dedicated checks; production migration and broader financial controls remain ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Security requirements | Applicable OWASP ASVS 5.0 Level 2 requirements mapped to code/tests; justify exclusions | Initial registration control mapping recorded; complete ASVS/risk assessment pending ([mapping](staff-workspace.md)) |
 | Accessibility | Automated checks plus keyboard and assistive-technology review | Staff desktop/mobile journey, axe and keyboard checks pass; assistive-technology review pending ([evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md)) |
 | Visual quality | Desktop/mobile screenshots and loading/empty/error states | Staff outpatient visual review passed within its captured scope; broader states documented in the [implementation evidence](../_bmad-output/implementation-artifacts/spec-connected-outpatient.md) |

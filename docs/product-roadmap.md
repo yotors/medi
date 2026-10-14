@@ -1,6 +1,6 @@
 # Medi product delivery status
 
-Updated: 2026-10-13. Medi's objective is a commercial hospital management product
+Updated: 2026-10-14. Medi's objective is a commercial hospital management product
 for multiple independent Ethiopian hospitals and medical centers. The current
 outpatient implementation is its first development milestone. It is not the
 whole product or a sellable hospital installation.
@@ -25,7 +25,7 @@ deadline, contract scope or production capacity is implied.
 | Clinical encounters | Authored notes and encounter history, pending-work blockers | Validated clinical forms, triage/observations, accountable signing/amendments, responsible follow-up and urgent-care/downtime procedures |
 | Laboratory | Order, collection, release and clinician-review handoffs | Test catalog/units, specimen rejection/recollection, result corrections, professional validation and external reports |
 | Pharmacy | Prescription and fulfillment/cancellation handoffs | Product catalog, quantities/partial dispensing, batches/expiry, stock movements, returns and concurrent stock integrity |
-| Finance | Fixed invented prices and full demonstration settlement | Connect versioned service tariffs to charges/invoices, partial payments/receipts, discounts/refunds/reversals, shift reconciliation and financial controls |
+| Finance | Versioned catalog invoices, partial cash/manual-transfer records, stable receipts, unpaid invoice voiding and immutable financial history; separate clinical closure | Validated statutory formats/tax policy, discounts/refunds/reversals, shift reconciliation and financial controls |
 | Scheduling/inpatient | Not implemented | Validate appointment and admission/transfer/discharge, bed, nursing and medication-administration coverage before claiming these modules |
 | Reporting/integrations | Basic visit summaries/history | Agreed operational reports and governed exports; payer, payment and statutory interfaces only against verified contracts |
 | Operations | Local Docker DB and restore verification; built local HTTPS installation with restricted runtime grants and separate migration job | Production installation acceptance, monitoring/alerts, encrypted offsite recovery, upgrades, migration rehearsal, support and measured capacity |
@@ -46,12 +46,14 @@ deadline, contract scope or production capacity is implied.
    overlapping commands. Evidence and remaining limits are recorded in the
    [staff administration specification](../_bmad-output/implementation-artifacts/spec-staff-administration.md).
    Departments and versioned ETB service settings/history are also implemented;
-   catalog prices are not yet connected to demonstration visit charges. Branch
+   catalog prices now supply explicit invoices for new encounters. Historical demo
+   records remain unchanged. Branch
    structure, recovery, privileged MFA and validated permissions remain outstanding.
 
-3. **Operational outpatient product — planned.**
+3. **Operational outpatient product — in progress.**
    Complete patient/clinical corrections, lab and pharmacy requirements, and a
-   real financial ledger with configurable prices. Test realistic multi-role
+   broader financial controls. Catalog invoices and partial payment records are
+   implemented; see the [billing specification](../_bmad-output/implementation-artifacts/spec-outpatient-billing.md). Test realistic multi-role
    exceptions: result correction, partial dispensing, duplicate payment retry,
    refund, concurrent last-stock dispense and interrupted work. Clinical closure
    and debt handling need independently validated policies. Departmental users

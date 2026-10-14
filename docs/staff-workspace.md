@@ -129,8 +129,8 @@ also omit restricted sections; permissions are enforced at every command.
 | Clinician | Notes, request/review/cancel tests, prescriptions, close | Consultation, diagnostics, pharmacy |
 | Lab | Collect specimen, release result | Diagnostics |
 | Pharmacist | Fulfill/cancel prescription | Pharmacy |
-| Cashier | Record full demonstration settlement | Billing |
-| Auditor | Read only | History |
+| Cashier | Issue catalog invoices, record partial payments | Billing |
+| Auditor | Read only | Billing, history |
 | Admin | Full synthetic walkthrough | All |
 
 All roles can read the patient directory and visit summaries, including balances
@@ -138,11 +138,43 @@ and closure blockers. That is a provisional policy requiring hospital validation
 Only reception/admin can register patients. Admin clinical permissions exist for
 synthetic demonstrations; production policy needs clinical/security approval.
 
-An active visit requires a note, reviewed or cancelled tests, no pending
-prescriptions and no outstanding balance before closure. Released results and
-closed visits cannot be rewritten. Prices are invented demo tariffs in ETB;
-settlement records a demonstration event, not a bank payment. There is no
-medication catalog, dosing support, pharmacy inventory or insurance processing.
+New visits require a note, reviewed or cancelled tests and no pending prescriptions
+before clinical closure. Clinical records become read-only; billing remains
+collectible. “Not yet billed” is distinct from “Settled.” Historical demonstration
+visits retain their original invented charges, settlement and closure behavior;
+they cannot receive catalog invoices. The browser-only `/` walkthrough is unchanged.
+There is no medication catalog, dosing support, pharmacy inventory or insurance processing.
+
+### Catalog invoices and payment records
+
+In Billing, admin/cashier staff explicitly prepare an invoice from active services.
+Review the captured service version, quantity and total before issuing. The server
+resolves prices and rejects inactive, foreign or stale selections. Issued lines
+are immutable; a later catalog edit does not change them. An administrator can
+void an unpaid invoice with a retained reason and prepare a replacement. Paid
+invoices cannot be voided; refund/correction workflows remain outstanding.
+
+Record a positive partial or full amount in ETB using cash or manual transfer.
+Manual transfers require an external reference; this records an operator's action
+and does not verify or move funds. Each accepted payment receives a stable receipt
+number and attributed history. Amounts cannot exceed the balance. Zero-price
+services are allowed, but zero payments are rejected. Invoice and aggregate
+nonvoid visit totals are bounded to 9,999,999.99 ETB; an invoice has up to 20
+unique service lines with quantities 1–100. Invoices and history use 25-row pages.
+These internal invoice/receipt identifiers are not approved statutory documents.
+
+Unknown save outcomes retain the original request and key for retry. Refreshing a
+stale price or invoice preserves the draft and requires renewed confirmation.
+Financial writes use separate hospital-scoped, immutable tables and do not rewrite
+closed clinical records. Transactions recheck authority after hospital locking;
+concurrent payments cannot overpay. Financial access is admin/cashier/auditor
+(read only for auditor), with voiding restricted to admin. Migration007 adds the
+ledger; the built installation uses explicit insert/read grants and a mutable
+number counter. See [billing implementation evidence](../_bmad-output/implementation-artifacts/spec-outpatient-billing.md).
+
+Tax, discounts, refunds, reconciliation, insurance, bank integration and hospital
+approval of clinical/financial closure policy remain release prerequisites where
+applicable. All current records and tests remain synthetic.
 
 Updates use an expected revision and a UUID retry key. Concurrent changes return
 a conflict instead of overwriting another user's work. Lost responses retain the

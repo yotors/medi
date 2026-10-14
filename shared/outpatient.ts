@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { BillingSummary } from './billing.ts';
 import type { Visit } from '../src/domain.ts';
 import type { RegisteredPatient, StaffRole } from './registration.ts';
 const text = z.string().trim().min(1).max(4000).refine(value => !value.includes('\u0000'));
@@ -24,7 +25,7 @@ export const roleActions: Record<StaffRole, readonly VisitAction[]> = {
 export const roleSections: Record<StaffRole, readonly VisitSection[]> = {
   admin: ['Consultation','Diagnostics','Pharmacy','Billing','History'],
   receptionist: [], clinician: ['Consultation','Diagnostics','Pharmacy'], lab: ['Diagnostics'],
-  pharmacist: ['Pharmacy'], cashier: ['Billing'], auditor: ['History'],
+  pharmacist: ['Pharmacy'], cashier: ['Billing'], auditor: ['Billing','History'],
 };
 export function commandAction(command: VisitCommand): VisitAction {
   if (command.type === 'advanceOrder') return ({ collected:'collect', released:'release', reviewed:'review', cancelled:'cancelOrder' } as const)[command.next];
@@ -32,6 +33,7 @@ export function commandAction(command: VisitCommand): VisitAction {
 }
 export type VisitSummary = {
   id: string; patient: RegisteredPatient; status: 'active' | 'closed'; stage: string;
+  financialMode: 'catalog' | 'legacy_demo'; billing?: BillingSummary;
   revision: number; openedAt: string; closedAt?: string; balance: number;
   blockers: string[]; pendingInvestigations: number; pendingPrescriptions: number;
 };

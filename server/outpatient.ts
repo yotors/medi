@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { balance, blockers, DomainError, execute, type State, type Visit } from '../src/domain.ts';
 import { commandAction, commandRequestSchema, roleActions, roleSections, type VisitCommand, type VisitSummary, type VisitView } from '../shared/outpatient.ts';
 import type { RegisteredPatient, Session, StaffRole } from '../shared/registration.ts';
+import { readBillingSummaries, readBillingSummary } from './billing.ts';
 import { ApiError } from './app.ts';
 import { currentActor, digest } from './auth.ts';
 
@@ -30,7 +31,7 @@ function summary(row: Row): VisitSummary {
   const v = row.data;
   const pendingInvestigations = v.orders.filter(o => !['reviewed', 'cancelled'].includes(o.status)).length;
   const pendingPrescriptions = v.prescriptions.filter(p => p.status === 'pending').length;
-  return { id: v.id, patient: patient(row.patient), status: v.status, revision: row.revision,
+  return { id: v.id, financialMode: v.financialMode === 'catalog' ? 'catalog' : 'legacy_demo', patient: patient(row.patient), status: v.status, revision: row.revision,
     openedAt: v.openedAt, ...(v.closedAt ? { closedAt: v.closedAt } : {}), balance: balance(v), blockers: blockers(v),
     pendingInvestigations, pendingPrescriptions,
     stage: v.status === 'closed' ? 'Closed' : !v.notes.length ? 'Consultation' : pendingInvestigations ? 'Diagnostics'
@@ -38,7 +39,11 @@ function summary(row: Row): VisitSummary {
 }
 async function project(client: pg.PoolClient, row: Row, role: StaffRole, hospitalId: string): Promise<VisitView> {
   const sections = roleSections[role];
-  const view: VisitView = { ...summary(row), sections, allowedActions: row.data.status === 'closed' ? [] : roleActions[role] };
+  const view: VisitView = { ...summary(row), sections, allowedActions: row.data.status === 'closed' ? [] : roleActions[role].filter(action => row.data.financialMode !== 'catalog' || action !== 'settle') };
+  if (row.data.financialMode === 'catalog') {
+    view.billing = await readBillingSummary(client, hospitalId, row.id);
+    view.balance = view.billing.balanceMinor;
+  }
   if (sections.includes('Consultation')) view.notes = row.data.notes;
   if (sections.includes('Diagnostics')) view.orders = row.data.orders;
   if (sections.includes('Pharmacy')) view.prescriptions = row.data.prescriptions;
@@ -89,19 +94,36 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
     const parsed = querySchema.safeParse(request.query);
     if (!parsed.success) throw invalid();
     const { q, status, page } = parsed.data;
-    const hospitalId = sessions.get(request)!.user.hospital.id;
+    const session = sessions.get(request)!;
+    const hospitalId = session.user.hospital.id;
     const client = await pool.connect();
     try {
-      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='5s'");
+      await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query('SELECT id FROM hospitals WHERE id=$1 FOR SHARE', [session.user.hospital.id]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
       const predicate = `v.hospital_id=$1 AND ($2='all' OR v.status=$2)
         AND (p.name ILIKE $3 OR p.record_number ILIKE $3 OR p.contact ILIKE $3 OR p.normalized_name LIKE $4)`;
       const args = [hospitalId, status, literal(q), literal(q.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())];
       const { rows: [count] } = await client.query(`SELECT count(*)::integer AS total FROM outpatient_visits v
         JOIN patients p ON p.id=v.patient_id AND p.hospital_id=v.hospital_id WHERE ${predicate}`, args);
       const { rows } = await client.query<Row>(`${selectVisit} WHERE ${predicate} ORDER BY v.opened_at DESC,v.id DESC LIMIT 25 OFFSET $5`, [...args, (page - 1) * 25]);
+      const billing = await readBillingSummaries(client, hospitalId, rows.filter(row => row.data.financialMode === 'catalog').map(row => row.id));
+      const visits: VisitSummary[] = [];
+      for (const row of rows) {
+        const view = summary(row);
+        if (view.financialMode === 'catalog') { view.billing = billing.get(row.id)!; view.balance = view.billing.balanceMinor; }
+        visits.push(view);
+      }
       await client.query('COMMIT');
-      return { visits: rows.map(summary), total: count.total, page, pageSize: 25 };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
+      return { visits, total: count.total, page, pageSize: 25 };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '57014', '40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw new ApiError(503, 'OUTPATIENT_BUSY', 'The workspace is temporarily busy. Retry the exact same request.');
+      throw error;
+    }
     finally { client.release(); }
   });
   app.get<{ Params: { id: string } }>('/api/visits/:id', async request => {
@@ -110,12 +132,21 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
     const session = sessions.get(request)!;
     const client = await pool.connect();
     try {
-      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='5s'");
+      await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query('SELECT id FROM hospitals WHERE id=$1 FOR SHARE', [session.user.hospital.id]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
       const row = await load(client, session.user.hospital.id, request.params.id);
       const visit = await project(client, row, session.user.role, session.user.hospital.id);
       await client.query('COMMIT');
       return { visit };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '57014', '40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw new ApiError(503, 'OUTPATIENT_BUSY', 'The workspace is temporarily busy. Retry the exact same request.');
+      throw error;
+    }
     finally { client.release(); }
   });
   app.post<{ Params: { id: string } }>('/api/patients/:id/visits', async (request, reply) => {
@@ -129,6 +160,8 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='5s'");
+      await client.query("SET LOCAL statement_timeout='10s'");
       // Hospital-first locks serialize receipt keys, including keys reused on a
       // different patient/visit, and share registration's lock ordering.
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospitalId]);
@@ -146,14 +179,18 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
       }
       const existing = await client.query("SELECT 1 FROM outpatient_visits WHERE hospital_id=$1 AND patient_id=$2 AND status='active'", [hospitalId, p.id]);
       if (existing.rowCount) throw new ApiError(409, 'ACTIVE_VISIT', 'This patient already has an active visit. Open the existing visit.');
-      const state = transition({ version: 1, revision: 0, patients: [patient(p)], visits: [], events: [] }, { type: 'checkIn', patientId: p.id });
+      const state = transition({ version: 1, revision: 0, patients: [patient(p)], visits: [], events: [] }, { type: 'checkIn', patientId: p.id, financialMode: 'catalog' });
       const data = state.visits[0];
       await client.query('INSERT INTO outpatient_visits(id,hospital_id,patient_id,revision,status,opened_at,data) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [data.id, hospitalId, p.id, state.revision, data.status, data.openedAt, JSON.stringify(data)]);
       await record(client, session, state, data, key.data, hash, { type: 'checkIn' });
       const visit = await project(client, { id: data.id, revision: state.revision, data, patient: p }, session.user.role, hospitalId);
       await client.query('COMMIT'); return reply.code(201).send({ visit });
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '57014', '40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw new ApiError(503, 'OUTPATIENT_BUSY', 'The workspace is temporarily busy. Retry the exact same request.');
+      throw error;
+    }
     finally { client.release(); }
   });
   app.post<{ Params: { id: string } }>('/api/visits/:id/commands', { bodyLimit: 32768 }, async request => {
@@ -169,6 +206,8 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='5s'");
+      await client.query("SET LOCAL statement_timeout='10s'");
       await client.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospitalId]);
       const actor = await currentActor(client, session);
       if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
@@ -186,7 +225,11 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
       await record(client, session, state, data, key.data, hash, command, row.data);
       const visit = await project(client, { ...row, revision: state.revision, data }, session.user.role, hospitalId);
       await client.query('COMMIT'); return { visit };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '57014', '40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw new ApiError(503, 'OUTPATIENT_BUSY', 'The workspace is temporarily busy. Retry the exact same request.');
+      throw error;
+    }
     finally { client.release(); }
   });
 }

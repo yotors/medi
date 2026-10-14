@@ -18,8 +18,8 @@ records proposed requirements and the clinical/commercial decisions still open.
 ## Staff outpatient workspace
 
 The `/staff` workspace has staff sign-in, hospital-scoped registration/search,
-visit check-in, consultation, laboratory results, pharmacy handoffs, demonstration
-settlement and closed visit history, persisted in PostgreSQL. It is local synthetic development, not ready
+visit check-in, consultation, laboratory results, pharmacy handoffs, catalog invoices, partial payments and receipts,
+and closed clinical visit history, persisted in PostgreSQL. It is local synthetic development, not ready
 for live hospital records. Follow [staff-workspace.md](docs/staff-workspace.md)
 for database startup, migration, account provisioning and the two server commands.
 On this workstation it is available at `http://127.0.0.1:5173/staff`.

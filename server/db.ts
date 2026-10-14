@@ -25,7 +25,7 @@ export async function migrate(pool: pg.Pool) {
       throw new Error('Refusing to initialize an existing unrelated database schema.');
     }
     await client.query('CREATE TABLE IF NOT EXISTS registration_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-    for (const [version, file] of [[1, '001_registration.sql'], [2, '002_outpatient.sql'], [3, '003_outpatient_integrity.sql'], [4, '004_staff_administration.sql'], [5, '005_hospital_configuration.sql'], [6, '006_configuration_indexes.sql']] as const) {
+    for (const [version, file] of [[1, '001_registration.sql'], [2, '002_outpatient.sql'], [3, '003_outpatient_integrity.sql'], [4, '004_staff_administration.sql'], [5, '005_hospital_configuration.sql'], [6, '006_configuration_indexes.sql'], [7, '007_outpatient_billing.sql']] as const) {
       const applied = await client.query('SELECT 1 FROM registration_migrations WHERE version = $1', [version]);
       if (!applied.rowCount) {
         await client.query(await readFile(new URL(`./migrations/${file}`, import.meta.url), 'utf8'));

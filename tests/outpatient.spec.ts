@@ -83,7 +83,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await activate(page.getByRole('button', { name: 'Mark fulfilled', exact: true }));
   await expect(page.getByText('fulfilled', { exact: true })).toBeVisible();
   await section(page, 'Billing');
-  await activate(page.getByRole('button', { name: 'Record demo settlement', exact: true }));
+  await expect(page.getByRole('region', { name: 'Visit billing' }).getByText('Not yet billed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close visit', exact: true })).toBeEnabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -91,12 +91,12 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await page.getByRole('heading', { name, exact: true }).focus();
   await page.screenshot({ path: `artifacts/outpatient-ui/${info.project.name}-visit.png`, fullPage: true });
   await activate(page.getByRole('button', { name: 'Close visit', exact: true }));
-  await expect(page.getByText('This visit is closed. Its record is read-only.')).toBeVisible();
+  await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
   await page.reload();
   await activate(page.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Outpatient visits', exact: true }));
   await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
   await activate(page.getByRole('button', { name, exact: true }));
-  await expect(page.getByText('This visit is closed. Its record is read-only.')).toBeVisible();
+  await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save note', exact: true })).toHaveCount(0);
   await section(page, 'History');
   await expect(page.getByText('Closed visit.', { exact: true })).toBeVisible();
@@ -106,7 +106,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
 });
 
-test('lost check-in, note and settlement responses retain one request and block navigation', async ({ page }) => {
+test('lost check-in and note responses retain one request and block navigation', async ({ page }) => {
   await signIn(page);
   let loseCheckIn = true;
   await page.route('**/api/patients/*/visits', async route => {
@@ -141,15 +141,11 @@ test('lost check-in, note and settlement responses retain one request and block 
   await page.getByRole('button', { name: 'Retry visit save', exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
   expect(requests[0]).toEqual(requests[1]);
-  await section(page, 'Billing'); lose = true;
-  await page.getByRole('button', { name: 'Record demo settlement', exact: true }).click();
-  await page.getByRole('button', { name: 'Retry visit save', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Record demo settlement', exact: true })).toBeDisabled();
   const final = await currentVisit(page, name);
   expect(final.visit.id).toBe(initial.visit.id);
-  expect(final.visit.notes).toHaveLength(1); expect(final.visit.payments).toHaveLength(1);
-  expect(final.visit.history).toHaveLength(3);
-  expect(requests[2]).toEqual(requests[3]);
+  expect(final.visit.notes).toHaveLength(1);
+  expect(final.visit.financialMode).toBe('catalog');
+  expect(final.visit.history).toHaveLength(2);
 });
 
 test('stale revision refresh preserves the typed draft and session change clears clinical state', async ({ page }) => {
@@ -178,7 +174,7 @@ test('department handoffs complete a visit with permitted API sections and priva
   await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
   const { visit } = await currentVisit(page, name);
-  const allowed: Record<StaffRole, string[]> = { admin: ['notes', 'orders', 'prescriptions', 'charges', 'payments', 'history'], receptionist: [], clinician: ['notes', 'orders', 'prescriptions'], lab: ['orders'], pharmacist: ['prescriptions'], cashier: ['charges', 'payments'], auditor: ['history'] };
+  const allowed: Record<StaffRole, string[]> = { admin: ['notes', 'orders', 'prescriptions', 'history'], receptionist: [], clinician: ['notes', 'orders', 'prescriptions'], lab: ['orders'], pharmacist: ['prescriptions'], cashier: [], auditor: ['history'] };
   for (const role of roles.filter(role => role !== 'admin')) {
     if (role === 'auditor') {
       await page.getByRole('button', { name: 'Sign out', exact: true }).click(); await signIn(page, 'clinician');
@@ -186,7 +182,7 @@ test('department handoffs complete a visit with permitted API sections and priva
       await page.getByRole('button', { name, exact: true }).click(); await section(page, 'Diagnostics');
       await page.getByRole('button', { name: 'Mark reviewed', exact: true }).click();
       await page.getByRole('button', { name: 'Close visit', exact: true }).click();
-      await expect(page.getByText('This visit is closed. Its record is read-only.')).toBeVisible();
+      await expect(page.getByText('Clinical visit closed. Clinical records are read-only; billing remains available.')).toBeVisible();
     }
     await page.getByRole('button', { name: 'Sign out', exact: true }).click(); await signIn(page, role);
     const body = await (await page.request.get(`/api/visits/${visit.id}`)).json();
@@ -215,9 +211,9 @@ test('department handoffs complete a visit with permitted API sections and priva
       await page.getByRole('button', { name: 'Mark fulfilled', exact: true }).click();
       await expect(page.getByText('fulfilled', { exact: true })).toBeVisible();
     } else if (role === 'cashier') {
-      await page.getByRole('button', { name: 'Record demo settlement', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Record demo settlement', exact: true })).toBeDisabled();
-    } else if (role === 'auditor') await expect(page.getByText('Closed visit.', { exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Visit billing' }).getByText('Not yet billed', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Prepare invoice', exact: true })).toBeEnabled();
+    } else if (role === 'auditor') { await section(page, 'History'); await expect(page.getByText('Closed visit.', { exact: true })).toBeVisible(); }
   }
 });
 

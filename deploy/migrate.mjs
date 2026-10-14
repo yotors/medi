@@ -37,6 +37,13 @@ try {
       hospital_service_versions: 'SELECT, INSERT',
       hospital_configuration_events: 'SELECT, INSERT',
       hospital_configuration_requests: 'SELECT, INSERT',
+      billing_invoices: 'SELECT, INSERT',
+      billing_lines: 'SELECT, INSERT',
+      billing_payments: 'SELECT, INSERT',
+      billing_receipts: 'SELECT, INSERT',
+      billing_events: 'SELECT, INSERT',
+      billing_requests: 'SELECT, INSERT',
+      billing_counters: 'SELECT, INSERT, UPDATE',
     };
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows;
     for (const { tablename } of tables) {

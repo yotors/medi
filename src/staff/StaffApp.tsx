@@ -179,6 +179,6 @@ export default function StaffApp() {
         </>}
         </>}
       </>}
-    </main><footer className="staff-footer">Synthetic outpatient workspace · Demonstration prices only. No real payments or medication inventory.</footer>
+    </main><footer className="staff-footer">Synthetic outpatient workspace · No payment processing or medication inventory.</footer>
   </div>;
 }

@@ -71,6 +71,14 @@ function persistenceSnapshot(hospitalCode, records) {
         ['staff_administration_requests','account_id=$4',1],
         ['hospital_configuration_requests',"result->'entry'->>'id' IN ($5::text,$6::text)",4]
       ];
+      if(records.billing) queries.push(
+        ['billing_invoices','visit_id=$3',1],
+        ['billing_lines','invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3)',1],
+        ['billing_payments','invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3)',2],
+        ['billing_receipts','payment_id IN (SELECT id FROM billing_payments WHERE invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3))',2],
+        ['billing_events','invoice_id IN (SELECT id FROM billing_invoices WHERE visit_id=$3)',3],
+        ['billing_requests','visit_id=$3',3]
+      );
       const snapshots=[];
       for(const [table,where,count] of queries) {
         // Cast every parameter in the CTE, even if this row set uses only some.
@@ -208,6 +216,22 @@ try {
   const serviceHistory = await request(`/api/configuration/services/${service.id}/history`, { headers });
   check(serviceHistory.status === 200 && JSON.parse(serviceHistory.text).events.length === 2 && JSON.parse(serviceHistory.text).events[1].snapshot.priceMinor === 12500, 'Versioned service history did not preserve the original price.');
 
+  const financial = async command => {
+    const commandHeaders = { ...headers, 'idempotency-key': randomUUID() };
+    const saved = await request(`/api/visits/${visit.id}/billing/commands`, { method: 'POST', headers: commandHeaders, body: command });
+    check(saved.status === 200, 'Restricted runtime billing save failed.');
+    const retried = await request(`/api/visits/${visit.id}/billing/commands`, { method: 'POST', headers: commandHeaders, body: command });
+    const original = JSON.parse(saved.text), replayed = JSON.parse(retried.text);
+    check(retried.status === 200 && replayed.replayed && original.invoiceId === replayed.invoiceId && original.receiptId === replayed.receiptId && original.receiptNumber === replayed.receiptNumber, 'Billing replay did not preserve the original operation.');
+    return original;
+  };
+  const issued = await financial({ type: 'invoice.issue', lines: [{ serviceId: service.id, serviceRevision: 2, quantity: 1 }] });
+  const firstPayment = await financial({ type: 'payment.record', invoiceId: issued.invoiceId, expectedRevision: 1, amountMinor: 5000, method: 'cash' });
+  const secondPayment = await financial({ type: 'payment.record', invoiceId: issued.invoiceId, expectedRevision: 2, amountMinor: 8000, method: 'manual_transfer', reference: 'SYNTHETIC-RELEASE-TRANSFER' });
+  check(firstPayment.receiptId !== secondPayment.receiptId, 'Distinct payments did not receive distinct receipts.');
+  const financialDetail = await request(`/api/billing/invoices/${issued.invoiceId}`, { headers });
+  check(financialDetail.status === 200 && JSON.parse(financialDetail.text).invoice.balanceMinor === 0 && JSON.parse(financialDetail.text).events.length === 3, 'Restricted runtime billing history or balance failed.');
+
   const packaging = `import {existsSync,readdirSync} from 'node:fs';
     const forbidden=['/app/.env','/app/.local','/app/.agents','/app/.codex','/app/tests','/app/artifacts','/app/node_modules/tsx','/app/node_modules/@playwright/test'];
     const walk=p=>readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p+'/'+e.name):[p+'/'+e.name]);
@@ -218,7 +242,7 @@ try {
     try {
       const r=(await client.query("SELECT current_user AS name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user")).rows[0];
       if(r.name!=='medi_runtime'||r.rolsuper||r.rolcreatedb||r.rolcreaterole) throw Error();
-      for(const sql of ["CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
+      for(const sql of ["CREATE TABLE forbidden_release_probe(id integer)","ALTER TABLE patients ADD COLUMN forbidden_release_probe integer","UPDATE audit_events SET action=action WHERE false","DELETE FROM audit_events WHERE false","DELETE FROM staff_users WHERE false","UPDATE staff_administration_events SET role=role WHERE false","DELETE FROM staff_administration_events WHERE false","UPDATE hospital_configuration_events SET action=action WHERE false","DELETE FROM hospital_configuration_events WHERE false","UPDATE hospital_service_versions SET name=name WHERE false","DELETE FROM hospital_service_versions WHERE false","UPDATE billing_invoices SET number=number WHERE false","DELETE FROM billing_invoices WHERE false","UPDATE billing_lines SET name=name WHERE false","DELETE FROM billing_payments WHERE false","UPDATE billing_receipts SET number=number WHERE false","DELETE FROM billing_events WHERE false","UPDATE billing_requests SET result=result WHERE false","INSERT INTO registration_migrations(version) VALUES (99999)"]) {
         await client.query('BEGIN'); let denied=false;
         try { await client.query(sql); } catch(e) { denied=e.code==='42501'; }
         finally { await client.query('ROLLBACK'); }
@@ -256,12 +280,13 @@ try {
     check((await request('/api/health')).status !== 200, 'Readiness incorrectly passed with the database stopped.');
   } finally { docker(['up', '-d', '--wait', '--wait-timeout', '60', 'database']); }
   check((await request('/api/health')).status === 200, 'API did not recover after the database returned.');
-  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id };
+  fixture.records = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true };
   fixture.recordDigests = persistenceSnapshot(fixture.hospitalCode, fixture.records);
   saveFixture(path, fixture);
   console.log('PASS: isolated project/configuration recovery guards, image contents and database-outage readiness/recovery.');
   console.log('PASS: built HTTPS UI, protected session, Origin/CSRF, persisted registration/retry, restricted runtime SQL, logout.');
   console.log('PASS: restricted-runtime check-in/clinical note, staff onboarding/password replacement, configuration versions/history and retries.');
+  console.log('PASS: catalog invoice, partial cash/manual-transfer payments, stable replay receipts, immutable ledger grants and restart digests.');
   console.log('PASS: built browser sign-in, session restoration on refresh, and sign-out with no runtime errors.');
   console.log('Private synthetic administrator details: .local/release-verification.json. Prior saved records are checked on each subsequent run.');
 } catch (error) {
