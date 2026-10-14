@@ -148,3 +148,14 @@ zero findings. The corrected built HTTPS release passed report reconciliation,
 restricted runtime permissions, persisted-record checks and browser recovery.
 The reporting specification records scope and limitations; GitHub CI validates
 the committed revision separately.
+
+
+## Final operations delivery — 2026-10-14
+
+Implementation65bb78c passed all three
+[delivery CI jobs](https://github.com/yotors/medi/actions/runs/38584302746).
+Local passive web scanning completed with explicitly triaged warnings, not a clean
+scanner exit; see [security evidence](security-evidence.md).
+This closes the scoped operations implementation. Hospital workflow acceptance,
+actual hosting/domain/operator decisions, staging security review and missing
+commercial modules remain open; green CI does not authorize live care.

@@ -1,6 +1,6 @@
 ---
 title: 'Production operations, upgrade safety and installation verification'
-status: 'in-progress'
+status: 'done'
 route: 'dispatch'
 review_loop_iteration: 1
 baseline_commit: c5306163df4b90a05977d8eca287c5a9b2072a31
@@ -231,3 +231,16 @@ Human notification remained false. All generated targets were cleaned; genuine o
 artifacts and original source volumes/accounts were preserved. Local implementation
 handoff is complete; root owns passive runtime scan, final commit and delivery CI.
 Frontmatter remains in-progress until that delivery evidence is attached.
+
+
+## Delivery completion
+
+Implementation commit65bb78cbea643bb98675072cf11afa3e20877143 passed all three
+[GitHub CI jobs](https://github.com/yotors/medi/actions/runs/38584302746):
+source-security, tooling and local-release. This includes the full server/staff/MFA
+regression, genuine older-release fixture, encrypted recovery, fresh alert receipts,
+upgrade/replacement, capacity and runtime installation preflight.
+
+The final evidence-only documentation commit skips CI to avoid repeating identical
+application checks. All scoped engineering acceptance criteria are complete; live
+deployment, hospital acceptance and broader product coverage remain separate gates.

@@ -138,3 +138,9 @@ completed scan supplies application evidence.
 
 No warnings were suppressed or reclassified to produce a green scanner exit.
 Required staging security review and the broader ASVS assessment remain open.
+
+
+Final operations implementation65bb78c passed source-security, tooling and
+local-release in [delivery CI](https://github.com/yotors/medi/actions/runs/38584302746),
+including the final gateway/scanner compatibility changes and full application
+regression. This does not remove the passive-scan warnings or external review gates.

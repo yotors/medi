@@ -205,3 +205,12 @@ actually measured before this gateway-only TLS compatibility change.
 
 The development database was migrated without account resets. The founder admin
 login, session and logout were verified through http://127.0.0.1:5173/staff.
+
+
+Delivery commit65bb78c passed all configured GitHub jobs: source-security, tooling
+and local-release ([exact run](https://github.com/yotors/medi/actions/runs/38584302746)).
+The previously corrected fixtures passed in the full regression. CI also passed
+the genuine old fixture, restart/recovery, alert, upgrade/replacement, capacity and
+preflight rehearsals. The final evidence-only documentation commit skips another
+run of unchanged application code. This completes the scoped engineering work,
+without changing the explicit external launch gates or missing product modules.
