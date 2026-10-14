@@ -410,3 +410,24 @@ provided. Read auditing does not replace clinical/pharmacy review, financial
 policy validation or the outstanding production security assessment. See the
 [report specification](../_bmad-output/implementation-artifacts/spec-operational-reports.md)
 for engineering verification.
+
+
+### Private patient and visit searches
+
+`POST /api/patients/search` accepts `{ q?, page? }`; `POST /api/visits/search`
+accepts `{ q?, page?, status?, assigned? }`. Both require JSON, exact Origin,
+and the current session CSRF token. Pages are JSON integers (1–10000), default
+1; results retain 25-row pages. Queries are literal substrings, with existing
+Unicode name normalization and hospital/role scope. Unknown fields, query
+parameters, NULs, terms over 100 characters and invalid filters are rejected.
+GET lists still support harmless paging/filter fields, but reject any `q`,
+including an empty value. Search terms stay in request bodies and UI memory.
+
+Patient directory and detail reads acquire a bounded hospital SHARE lock and
+recheck the current session, role, active account and password-change requirement
+before reading patient rows. Contention returns a generic retryable 503 and
+rolls back the transaction. Connection acquisition failures, including the
+initial session lookup, return a generic retryable 503 without patient fields. Tests cover revocation while waiting, tenant isolation,
+strict input, private browser transport and pagination. These changes do not
+approve provisional hospital roles or complete production readiness: MFA,
+operational monitoring, deployment and hospital approval gates remain unresolved.

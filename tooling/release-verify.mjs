@@ -348,6 +348,21 @@ try {
   check(reportedProduct && reportedProduct.unit === 'unit' && reportedProduct.current.total === '6' && reportedProduct.current.available === '6' && ['inactive', 'quarantined', 'expired', 'expiryToday'].every(field => reportedProduct.current[field] === '0'), 'Report stock categories did not reconcile to remaining eligible units.');
   check(reportedProduct.period.received === '10' && reportedProduct.period.supplied === '4' && reportedProduct.period.adjustmentNet === '0' && reportedProduct.period.movementNet === '6', 'Report stock movement totals did not reconcile.');
 
+  // Searches must leave source records and immutable histories unchanged.
+  const searchRecords = { patientId: fixture.patientId, visitId: visit.id, accountId: account.id, departmentId: department.id, serviceId: service.id, billing: true, clinical: true, inventoryProductId: product.productId, reportAccessIds };
+  const sourceBeforeSearch = persistenceSnapshot(fixture.hospitalCode, searchRecords);
+  const searchBefore = JSON.parse((await request(`/api/visits/${visit.id}`, { headers })).text);
+  for (const [path, collection] of [['patients', 'patients'], ['visits', 'visits']]) {
+    const response = await request(`/api/${path}/search`, { method: 'POST', headers, body: { q: searchBefore.visit.patient.recordNumber, page: 1, ...(path === 'visits' ? { status: 'all', assigned: 'all' } : {}) } });
+    check(response.status === 200 && JSON.parse(response.text)[collection].some(row => row.id === (path === 'visits' ? visit.id : fixture.patientId)), 'Private release search did not find its scoped fixture.');
+    check((await request(`/api/${path}?q=`, { headers })).status === 400, 'Legacy search query was accepted.');
+    check((await request(`/api/${path}/search?page=1`, { method: 'POST', headers, body: {} })).status === 400, 'Search query parameters were accepted.');
+    check((await request(`/api/${path}/search`, { method: 'POST', headers: { ...headers, 'x-csrf-token': 'incorrect' }, body: {} })).status === 403, 'Private search accepted invalid CSRF.');
+  }
+  check(isDeepStrictEqual(searchBefore, JSON.parse((await request(`/api/visits/${visit.id}`, { headers })).text)), 'Private searches changed source records or history.');
+
+  check(isDeepStrictEqual(sourceBeforeSearch, persistenceSnapshot(fixture.hospitalCode, searchRecords)), 'Private searches changed persisted source records or histories.');
+
   const packaging = `import {existsSync,readdirSync} from 'node:fs';
     const forbidden=['/app/.env','/app/.local','/app/.agents','/app/.codex','/app/tests','/app/artifacts','/app/node_modules/tsx','/app/node_modules/@playwright/test'];
     const walk=p=>readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p+'/'+e.name):[p+'/'+e.name]);
@@ -371,6 +386,7 @@ try {
   docker(['exec', '-T', 'api', 'node', '--input-type=module', '-e', grants]);
   check((await request('/api/auth/logout', { method: 'POST', headers })).status === 204, 'Release logout failed.');
   check((await request('/api/patients', { headers: { cookie } })).status === 401, 'Logged-out release session remained usable.');
+  for (const path of ['patients', 'visits']) check((await request(`/api/${path}/search`, { method: 'POST', headers, body: {} })).status === 401, 'Private search accepted revoked release authority.');
   cookie = undefined;
   const browser = await chromium.launch();
   try {
@@ -408,6 +424,7 @@ try {
   fixture.recordDigests = persistenceSnapshot(fixture.hospitalCode, fixture.records);
   saveFixture(path, fixture);
   console.log('PASS: isolated project/configuration recovery guards, image contents and database-outage readiness/recovery.');
+  console.log('PASS: private JSON searches, denied legacy queries/CSRF/revoked authority, unchanged source records and histories.');
   console.log('PASS: built HTTPS UI, protected session, Origin/CSRF, persisted registration/retry, restricted runtime SQL, logout.');
   console.log('PASS: restricted-runtime check-in/clinical note, staff onboarding/password replacement, configuration versions/history and retries.');
   console.log('PASS: catalog invoice, partial cash/manual-transfer payments, stable replay receipts, immutable ledger grants and restart digests.');

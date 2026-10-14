@@ -121,6 +121,10 @@ test('reviewer loading failure has recovery and unsaved draft survives tab navig
 
 test('laboratory correction reaches assigned clinician in separate sessions with role-specific controls', async ({ page, browser }, info) => {
   await signIn(page); const { v, name } = await seed(page);
+  const secondReviewer = await provisionStaff(pool, { hospitalCode, hospitalName: 'Clinical Fiction Medical Center', username: `reviewer-${randomUUID().slice(0, 8)}`, displayName: 'Other Fictional Clinician', role: 'clinician', password });
+  await page.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Patient directory', exact: true }).click();
+  const second = await seed(page);
+  await post(page, `/api/visits/${second.v.id}/clinical/commands`, { type: 'result.correct', subjectId: second.orderId, expectedVersion: 0, body: 'Other fictional correction', reason: 'Other fictional review', ownerId: secondReviewer.id });
   const labContext = await browser.newContext({ baseURL: origin }); const clinicianContext = await browser.newContext({ baseURL: origin });
   try {
     const lab = await labContext.newPage(); await signIn(lab, 'lab'); await open(lab, name, 'closed');
@@ -130,7 +134,11 @@ test('laboratory correction reaches assigned clinician in separate sessions with
     await expect(lab.getByRole('button', { name: /Acknowledge Blood count|Take over Blood count/ })).toHaveCount(0);
     const clinician = await clinicianContext.newPage(); await signIn(clinician, 'clinician');
     await clinician.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Outpatient visits', exact: true }).click();
-    await clinician.getByLabel('Visit status', { exact: true }).selectOption('corrections'); await clinician.getByLabel('Review assignment', { exact: true }).selectOption('me');
+    await clinician.getByLabel('Visit status', { exact: true }).selectOption('corrections'); await expect(clinician.getByRole('button', { name: second.name, exact: true })).toBeVisible();
+    const assignedRequest = clinician.waitForRequest(request => new URL(request.url()).pathname === '/api/visits/search' && request.postDataJSON().assigned === 'me');
+    await clinician.getByLabel('Review assignment', { exact: true }).selectOption('me');
+    expect((await assignedRequest).postDataJSON()).toEqual({ q: '', status: 'corrections', assigned: 'me', page: 1 });
+    await expect(clinician.getByRole('button', { name: second.name, exact: true })).toHaveCount(0);
     await expect(clinician.getByRole('row').filter({ hasText: name })).toContainText('@clinician'); await clinician.getByRole('button', { name, exact: true }).click(); await section(clinician, 'Diagnostics');
     await expect(clinician.getByRole('button', { name: 'Correct Blood count result', exact: true })).toHaveCount(0);
     await clinician.getByRole('button', { name: 'Read latest Blood count correction', exact: true }).click(); await expect(clinician.locator('[id^="result-correction-subject-"]')).toBeFocused();

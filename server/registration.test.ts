@@ -11,7 +11,7 @@ const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_U
 if (!connectionString) throw new Error('PostgreSQL integration tests require TEST_DATABASE_URL or DATABASE_URL.');
 const schema = `registration_test_${randomUUID().replaceAll('-', '')}`;
 const admin = new pg.Pool({ connectionString });
-const pool = new pg.Pool({ connectionString, options: `-c search_path=${schema}` });
+const pool = new pg.Pool({ connectionString, application_name: schema, options: `-c search_path=${schema}` });
 const origin = 'http://127.0.0.1:5173';
 const password = 'Synthetic-test-password-42';
 let app = buildApp({ pool, origin });
@@ -27,6 +27,7 @@ async function signedIn(username = 'reception', hospitalCode = 'alpha'): Promise
 }
 const headers = (auth: Auth, key: string = randomUUID()) => ({ origin, cookie: auth.cookie, 'x-csrf-token': auth.csrf, 'idempotency-key': key });
 const create = (auth: Auth, body: Record<string, unknown> = { name: 'Synthetic Patient', contact: '' }, key?: string) => app.inject({ method: 'POST', url: '/api/patients', headers: headers(auth, key), payload: body });
+const search = (auth: Auth, payload: Record<string, unknown> = {}) => app.inject({ method: 'POST', url: '/api/patients/search', headers: headers(auth), payload });
 const get = (auth: Auth, url = '/api/patients') => app.inject({ method: 'GET', url, headers: { cookie: auth.cookie } });
 
 before(async () => {
@@ -180,14 +181,14 @@ test('field bounds, unknown fields, query bounds, UUID keys and literal SQL sear
   for (const query of ['q=%00', 'page=0', 'page=10001', 'page=abc', `q=${'x'.repeat(101)}`]) assert.equal((await get(auth, `/api/patients?${query}`)).statusCode, 400);
   const injection = "Robert'); DROP TABLE patients;--";
   assert.equal((await create(auth, { name: injection, age: 120 })).statusCode, 201);
-  assert.equal((await get(auth, `/api/patients?q=${encodeURIComponent(injection)}`)).json().total, 1);
-  assert.equal((await get(auth, '/api/patients?q=%25')).json().total, 0);
+  assert.equal((await search(auth, { q: injection })).json().total, 1);
+  assert.equal((await search(auth, { q: '%' })).json().total, 0);
 });
 
 test('directory pagination is stable newest-first with fixed page size and hospital scope', async () => {
   const auth = await signedIn();
   for (let index = 0; index < 27; index++) assert.equal((await create(auth, { name: `Patient ${index}` })).statusCode, 201);
-  const first = (await get(auth)).json(); const second = (await get(auth, '/api/patients?page=2')).json();
+  const first = (await search(auth)).json(); const second = (await search(auth, { page: 2 })).json();
   assert.equal(first.total, 27); assert.equal(first.pageSize, 25); assert.equal(first.patients.length, 25); assert.equal(second.patients.length, 2);
   assert.equal(first.patients[0].name, 'Patient 26');
   assert.equal(new Set([...first.patients, ...second.patients].map(p => p.id)).size, 27);
@@ -229,10 +230,10 @@ test('directory finds normalized duplicate names with double spaces and fullwidt
   const duplicate = await create(auth, { name: 'synthetic patient' });
   assert.equal(duplicate.json().code, 'DUPLICATE_PATIENT');
   for (const query of ['synthetic patient', 'SYNTHETIC  PATIENT', 'ＳＹＮＴＨＥＴＩＣ　ＰＡＴＩＥＮＴ']) {
-    const directory = (await get(auth, `/api/patients?q=${encodeURIComponent(query)}`)).json();
+    const directory = (await search(auth, { q: query })).json();
     assert.equal(directory.total, 1); assert.equal(directory.patients[0].id, created.json().patient.id);
   }
-  for (const query of ['%', '_', '％', '＿']) assert.equal((await get(auth, `/api/patients?q=${encodeURIComponent(query)}`)).json().total, 0);
+  for (const query of ['%', '_', '％', '＿']) assert.equal((await search(auth, { q: query })).json().total, 0);
 });
 
 test('idle pool errors are handled with sanitized output', async context => {
@@ -273,4 +274,121 @@ test('migration refuses an unrelated populated schema without changing its senti
     await unrelated.end();
     await admin.query(`DROP SCHEMA ${unrelatedSchema} CASCADE`);
   }
+});
+
+test('private patient search is strict JSON, session protected and rejects every legacy q', async () => {
+  const auth = await signedIn();
+  await create(auth);
+  for (const payload of [{ q: '\0' }, { q: 'x'.repeat(101) }, { page: '1' }, { page: null }, { page: 0 }, { page: 10001 }, { unknown: true }, { q: null }]) assert.equal((await search(auth, payload)).statusCode, 400);
+  for (const url of ['/api/patients?q=', '/api/patients?q=anything', '/api/patients/search?page=1']) {
+    const response = url.includes('/search') ? await app.inject({ method: 'POST', url, headers: headers(auth), payload: {} }) : await get(auth, url);
+    assert.equal(response.statusCode, 400);
+  }
+  for (const override of [{ origin: 'https://wrong.invalid' }, { 'x-csrf-token': '' }, { cookie: '' }]) {
+    const response = await app.inject({ method: 'POST', url: '/api/patients/search', headers: { ...headers(auth), ...override }, payload: {} });
+    assert.equal(response.statusCode, 'cookie' in override ? 401 : 403);
+  }
+  assert.equal((await app.inject({ method: 'POST', url: '/api/patients/search', headers: { ...headers(auth), 'content-type': 'text/plain' }, payload: '{}' })).statusCode, 400);
+  assert.equal((await search(await signedIn('reception', 'beta'), { q: 'Synthetic' })).json().total, 0);
+  await pool.query('UPDATE staff_users SET password_change_required=true WHERE id=$1', [auth.userId]);
+  try { assert.equal((await search(auth)).statusCode, 403); }
+  finally { await pool.query('UPDATE staff_users SET password_change_required=false WHERE id=$1', [auth.userId]); }
+});
+
+test('patient search and detail recheck every authority change after waiting for SHARE lock', async () => {
+  for (const mutation of ["UPDATE staff_users SET active=false WHERE id=$1", "UPDATE staff_users SET role='auditor' WHERE id=$1", "UPDATE staff_users SET password_change_required=true WHERE id=$1", 'DELETE FROM staff_sessions WHERE user_id=$1']) {
+    const auth = await signedIn();
+    const p = (await create(auth, { name: `Race ${randomUUID()}` })).json().patient;
+    const hospital = (await get(auth, '/api/auth/session')).json().user.hospital.id;
+    const blocker = await pool.connect();
+    const pending: Promise<Awaited<ReturnType<typeof get>>>[] = [];
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospital]);
+      pending.push(search(auth).then(r => r), get(auth).then(r => r), get(auth, `/api/patients/${p.id}`).then(r => r));
+      let waiting = false;
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const result = await admin.query("SELECT 1 FROM pg_stat_activity WHERE query LIKE 'SELECT%FROM hospitals%FOR SHARE%' AND wait_event_type='Lock' AND application_name=$1", [schema]);
+        if (result.rowCount! >= pending.length) { waiting = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.ok(waiting);
+      await blocker.query(mutation, [auth.userId]);
+      await blocker.query('COMMIT');
+      for (const response of await Promise.all(pending)) { assert.equal(response.statusCode, 401); assert.doesNotMatch(response.body, /patients|recordNumber|total/); }
+    } finally {
+      await blocker.query('ROLLBACK'); blocker.release(); await Promise.all(pending);
+      await pool.query("UPDATE staff_users SET active=true,role='receptionist',password_change_required=false WHERE id=$1", [auth.userId]);
+    }
+  }
+});
+
+test('contended patient search and detail return bounded retryable errors and release clients', async () => {
+  const auth = await signedIn(); const p = (await create(auth)).json().patient;
+  const hospital = (await get(auth, '/api/auth/session')).json().user.hospital.id;
+  const blocker = await pool.connect();
+  try {
+    await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospital]);
+    const results = await Promise.all([search(auth), get(auth, `/api/patients/${p.id}`)]);
+    for (const response of results) { assert.equal(response.statusCode, 503); assert.equal(response.json().code, 'PATIENTS_BUSY'); }
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+  assert.equal((await search(auth)).statusCode, 200);
+  assert.equal((await get(auth, `/api/patients/${p.id}`)).statusCode, 200);
+});
+
+test('private reads bound pool saturation at session entry and route acquisition and recover without PHI', async () => {
+  const auth = await signedIn(); const p = (await create(auth, { name: 'Private saturation fixture' })).json().patient;
+  const hospital = (await get(auth, '/api/auth/session')).json().user.hospital.id;
+  const limited = new pg.Pool({ connectionString, max: 2, connectionTimeoutMillis: 150, application_name: `${schema}_limited`, options: `-c search_path=${schema}` });
+  const isolated = buildApp({ pool: limited, origin });
+  const held: pg.PoolClient[] = []; let occupyAfterSession = false;
+  isolated.addHook('preHandler', async () => { if (occupyAfterSession) { held.push(await limited.connect(), await limited.connect()); } });
+  const requests = [
+    { method: 'POST' as const, url: '/api/patients/search', payload: { q: 'Private saturation fixture' } },
+    { method: 'POST' as const, url: '/api/visits/search', payload: {} },
+    { method: 'GET' as const, url: `/api/patients/${p.id}` },
+  ];
+  const read = (input: typeof requests[number]) => isolated.inject({ ...input, headers: headers(auth) });
+  const blocker = await pool.connect();
+  try {
+    await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospital]);
+    const pending = Array.from({ length: 8 }, (_, index) => read(requests[index % requests.length]).then(r => r));
+    const responses = await Promise.all(pending);
+    assert.ok(responses.some(response => response.json().code === 'READ_UNAVAILABLE'));
+    for (const response of responses) { assert.equal(response.statusCode, 503); assert.doesNotMatch(response.body, /Private saturation|patients|recordNumber|total|SELECT|timeout|connection/); }
+    await blocker.query('ROLLBACK');
+    for (const input of requests) assert.equal((await read(input)).statusCode, 200);
+    // All sessions have already been read when preHandler exhausts this pool.
+    occupyAfterSession = true;
+    for (const input of requests) {
+      const response = await read(input); assert.equal(response.statusCode, 503); assert.equal(response.json().code, 'READ_UNAVAILABLE');
+      held.splice(0).forEach(client => client.release());
+    }
+    occupyAfterSession = false;
+    for (const input of requests) assert.equal((await read(input)).statusCode, 200);
+  } finally { held.splice(0).forEach(client => client.release()); await blocker.query('ROLLBACK'); blocker.release(); await isolated.close(); await limited.end(); }
+});
+
+test('natural wall-clock session expiry denies patient list, search and detail after lock wait', async () => {
+  const auth = await signedIn(); const p = (await create(auth)).json().patient;
+  const hospital = (await get(auth, '/api/auth/session')).json().user.hospital.id;
+  await pool.query("UPDATE staff_sessions SET expires_at=clock_timestamp()+interval '1500 milliseconds' WHERE user_id=$1", [auth.userId]);
+  const blocker = await pool.connect(); const pending: Promise<Awaited<ReturnType<typeof get>>>[] = [];
+  try {
+    await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [hospital]);
+    pending.push(get(auth).then(r => r), search(auth).then(r => r), get(auth, `/api/patients/${p.id}`).then(r => r));
+    let waiting = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const result = await admin.query("SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE '%FOR SHARE%'", [schema]);
+      if (result.rowCount === 3) { waiting = true; break; } await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(waiting); await new Promise(resolve => setTimeout(resolve, 1600)); await blocker.query('COMMIT');
+    for (const response of await Promise.all(pending)) { assert.equal(response.statusCode, 401); assert.doesNotMatch(response.body, /recordNumber|patients|total/); }
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); await Promise.all(pending); }
+});
+
+test('private patient search treats backslashes and combined wildcards literally', async () => {
+  const auth = await signedIn(); await create(auth, { name: 'Fictional \\%_ patient' }); await create(auth, { name: 'Fictional other patient' });
+  for (const q of ['\\', '\\%_', '%_']) assert.equal((await search(auth, { q })).json().total, 1);
+  for (const q of ['\\\\', '\\_%', '\\%x']) assert.equal((await search(auth, { q })).json().total, 0);
 });

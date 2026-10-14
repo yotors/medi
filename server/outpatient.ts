@@ -8,7 +8,7 @@ import { commandAction, commandRequestSchema, roleActions, roleSections, type Vi
 import type { RegisteredPatient, Session, StaffRole } from '../shared/registration.ts';
 import { assignedClinicalVisitPredicate, pendingClinicalVisitTime, pendingClinicalVisitPredicate, readClinicalCounts, readClinicalDetail, readClinicalAssignments } from './clinical.ts';
 import { readBillingSummaries, readBillingSummary } from './billing.ts';
-import { ApiError } from './app.ts';
+import { ApiError, readUnavailable } from './app.ts';
 import { currentActor, digest } from './auth.ts';
 
 const uuid = z.uuid();
@@ -17,7 +17,7 @@ const querySchema = z.strictObject({
   q: z.string().max(100).refine(value => !value.includes('\0')).default(''),
   status: z.enum(['active', 'closed', 'all', 'corrections']).default('active'),
   assigned: z.enum(['all','me']).default('all'),
-  page: z.coerce.number().int().min(1).max(10000).default(1),
+  page: z.number().int().min(1).max(10000).default(1),
 });
 type Row = { id: string; revision: number; data: Visit; patient: Record<string, unknown> };
 const selectVisit = `SELECT v.id,v.revision,v.data,to_jsonb(p) AS patient FROM outpatient_visits v
@@ -103,14 +103,17 @@ async function record(client: pg.PoolClient, session: Session, state: State, vis
     [session.user.hospital.id, key, hash, visit.id]);
 }
 export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, sessions: WeakMap<FastifyRequest, Session>) {
-  app.get('/api/visits', async request => {
-    const parsed = querySchema.safeParse(request.query);
+  const searchVisits = async (request: FastifyRequest) => {
+    const isPost = request.method === 'POST';
+    if (isPost && (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json' || !empty.safeParse(request.query).success)) throw invalid();
+    const parsed = (isPost ? querySchema : querySchema.omit({ q: true }).extend({ page: z.coerce.number().int().min(1).max(10000).default(1) })).safeParse(isPost ? request.body : request.query);
     if (!parsed.success) throw invalid();
-    const { q, status, page, assigned } = parsed.data;
+    const { status, page, assigned } = parsed.data;
+    const q = 'q' in parsed.data && typeof parsed.data.q === 'string' ? parsed.data.q : '';
     const session = sessions.get(request)!;
     const hospitalId = session.user.hospital.id;
     if (assigned === 'me' && !['admin','clinician'].includes(session.user.role)) throw new ApiError(403, 'FORBIDDEN', 'This account cannot filter assigned clinical reviews.');
-    const client = await pool.connect();
+    const client = await pool.connect().catch(() => { throw readUnavailable(); });
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL lock_timeout='5s'");
@@ -144,12 +147,14 @@ export function registerOutpatientRoutes(app: FastifyInstance, pool: pg.Pool, se
       throw error;
     }
     finally { client.release(); }
-  });
+  };
+  app.get('/api/visits', searchVisits);
+  app.post('/api/visits/search', searchVisits);
   app.get<{ Params: { id: string } }>('/api/visits/:id', async request => {
     if (!empty.safeParse(request.query).success) throw invalid();
     if (!uuid.safeParse(request.params.id).success) throw notFound();
     const session = sessions.get(request)!;
-    const client = await pool.connect();
+    const client = await pool.connect().catch(() => { throw readUnavailable(); });
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL lock_timeout='5s'");

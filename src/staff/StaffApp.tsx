@@ -62,7 +62,7 @@ export default function StaffApp() {
     if (!session || session.passwordChangeRequired || accountSurface) return;
     let cancelled = false; const current = generation.current;
     setLoading(true); setRecords(emptyPage); setError('');
-    void request<PatientPage>(`/api/patients?q=${encodeURIComponent(query)}&page=${page}`).then(result => {
+    void request<PatientPage>('/api/patients/search', { method: 'POST', headers: { 'X-CSRF-Token': session.csrfToken }, body: JSON.stringify({ q: query, page }) }).then(result => {
       if (!cancelled && current === generation.current) setRecords(result);
     }).catch(e => { if (!cancelled && current === generation.current) handleError(e); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

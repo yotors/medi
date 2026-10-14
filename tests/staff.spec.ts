@@ -19,6 +19,18 @@ test.beforeAll(async () => {
   await provisionStaff(pool, { hospitalCode, hospitalName: 'Browser Fiction Medical Center', username: 'auditor', displayName: 'Fictional Auditor', role: 'auditor', password });
   await provisionStaff(pool, { hospitalCode: `${hospitalCode}-other`, hospitalName: 'Other Fictional Hospital', username: 'reception', displayName: 'Other Reception', role: 'receptionist', password });
 });
+test.beforeEach(async ({ page }) => {
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (['/api/patients', '/api/visits', '/api/patients/search', '/api/visits/search'].includes(url.pathname)) expect(url.searchParams.has('q')).toBe(false);
+    if (['/api/patients/search', '/api/visits/search'].includes(url.pathname)) {
+      expect(request.method()).toBe('POST'); expect(url.search).toBe('');
+      expect(request.headers()['x-csrf-token']).toBeTruthy();
+      expect(request.headers()['content-type']).toContain('application/json');
+      expect(typeof request.postDataJSON().q).toBe('string');
+    }
+  });
+});
 test.afterAll(async () => { await pool.end(); });
 async function signIn(page: Page, username = 'reception', hospital = hospitalCode) {
   await page.goto('/staff');
@@ -102,14 +114,14 @@ test('lost registration response retries the original write exactly once', async
   await expect(page.getByRole('alert')).toContainText('pending registration');
   await page.getByRole('button', { name: 'Retry registration' }).click();
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(1);
-  const data = await (await page.request.get(`/api/patients?q=${encodeURIComponent(name)}`)).json();
+  const data = await (await page.request.post('/api/patients/search', { headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': (await (await page.request.get('/api/auth/session')).json()).csrfToken }, data: { q: name } })).json();
   expect(data.total).toBe(1);
 });
 
 test('hospital boundary and read-only permissions are enforced by the API', async ({ page }) => {
   await signIn(page); const name = `Boundary Fiction ${randomUUID()}`; await addPatient(page, name);
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(1);
-  const original = await (await page.request.get(`/api/patients?q=${encodeURIComponent(name)}`)).json();
+  const original = await (await page.request.post('/api/patients/search', { headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': (await (await page.request.get('/api/auth/session')).json()).csrfToken }, data: { q: name } })).json();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await signIn(page, 'reception', `${hospitalCode}-other`);
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(0);
@@ -138,6 +150,7 @@ test('revoked sessions clear patient data and logout clears another open tab', a
 
 
 test('directory pagination changes rows and search resets to first page', async ({ page }) => {
+  const bodies: object[] = []; page.on('request', request => { if (new URL(request.url()).pathname === '/api/patients/search') bodies.push(request.postDataJSON()); });
   await signIn(page);
   const session = await (await page.request.get('/api/auth/session')).json();
   for (let index = 0; index < 26; index++) {
@@ -158,6 +171,8 @@ test('directory pagination changes rows and search resets to first page', async 
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Page 1 of 1' })).toBeVisible();
   await expect(page.getByRole('cell', { name: `Pagination Fiction 25 ${suffix}`, exact: true })).toBeVisible();
+  expect(bodies).toContainEqual({ q: '', page: 2 });
+  expect(bodies.at(-1)).toEqual({ q: `Pagination Fiction 25 ${suffix}`, page: 1 });
 });
 
 test('delayed session restoration cannot undo a cross-tab logout', async ({ page }) => {
@@ -191,4 +206,50 @@ test('a lost logout response clears both tabs and can confirm revocation on retr
   await page.getByRole('button', { name: 'Retry sign-out' }).click();
   await expect(page.getByRole('status')).toHaveText('You have signed out.');
   await expect(page.getByRole('button', { name: 'Retry sign-out' })).toHaveCount(0);
+});
+
+test('delayed private search cannot replace a newer search or restore data after logout', async ({ page }) => {
+  await signIn(page);
+  const name = `Private Fiction ${randomUUID().slice(0, 8)}`;
+  await addPatient(page, name);
+  await expect(page.getByRole('cell', { name, exact: true })).toBeVisible();
+  let release!: () => void; let intercepted!: () => void;
+  let gate = new Promise<void>(resolve => { release = resolve; });
+  let received = new Promise<void>(resolve => { intercepted = resolve; });
+  await page.route('**/api/patients/search', async route => {
+    if (route.request().postDataJSON().q !== name) return route.continue();
+    const response = await route.fetch(); intercepted(); await gate; await route.fulfill({ response });
+  });
+  await page.getByLabel('Search name or record number').fill(name);
+  await page.getByRole('button', { name: 'Search', exact: true }).click(); await received;
+  await page.getByLabel('Search name or record number').fill('Absent synthetic record');
+  await page.locator('form.staff-search').evaluate(form => (form as HTMLFormElement).requestSubmit());
+  await expect(page.getByRole('heading', { name: 'No matching patients' })).toBeVisible();
+  const late = page.waitForResponse(response => response.url().endsWith('/api/patients/search') && response.request().postDataJSON().q === name);
+  release(); await late;
+  await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(0);
+  gate = new Promise<void>(resolve => { release = resolve; }); received = new Promise<void>(resolve => { intercepted = resolve; });
+  await page.getByLabel('Search name or record number').fill(name);
+  await page.getByRole('button', { name: 'Search', exact: true }).click(); await received;
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  const loggedOutResponse = page.waitForResponse(response => response.url().endsWith('/api/patients/search'));
+  release(); await loggedOutResponse;
+  await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
+  expect(await page.evaluate(value => [location.href, JSON.stringify(localStorage), JSON.stringify(sessionStorage)].some(text => text.includes(value)), name)).toBe(false);
+});
+
+test('private directory name contact and MRN stay in exact bodies while authenticated', async ({ page }) => {
+  await signIn(page); const marker = `Private${randomUUID().replaceAll('-', '')}`;
+  const session = await (await page.request.get('/api/auth/session')).json();
+  const patient = (await (await page.request.post('/api/patients', { headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': session.csrfToken, 'Idempotency-Key': randomUUID() }, data: { name: `${marker} Name`, contact: `${marker} Contact` } })).json()).patient;
+  const urls: string[] = []; page.on('request', request => urls.push(decodeURIComponent(request.url())));
+  for (const q of [patient.name, patient.contact, patient.recordNumber]) {
+    const sent = page.waitForRequest(request => new URL(request.url()).pathname === '/api/patients/search');
+    await page.getByLabel('Search name or record number').fill(q); await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const request = await sent; expect(request.postDataJSON()).toEqual({ q, page: 1 });
+    expect(request.method()).toBe('POST'); expect(new URL(request.url()).search).toBe('');
+    await expect(page.getByRole('cell', { name: patient.name, exact: true })).toBeVisible();
+    expect(urls.some(url => [marker, patient.recordNumber].some(term => url.includes(term)))).toBe(false);
+    expect(await page.evaluate(terms => [location.href, JSON.stringify(localStorage), JSON.stringify(sessionStorage)].some(value => terms.some(term => value.includes(term))), [marker, patient.recordNumber])).toBe(false);
+  }
 });

@@ -33,7 +33,7 @@ export default function VisitWorkspace({ session, checkInPatient, onPending, onD
   useEffect(() => {
     if (visit || pending) { setLoading(false); return; }
     let cancelled = false; setLoading(true); setQueueError('');
-    void request<VisitPage>(`/api/visits?q=${encodeURIComponent(query)}&status=${status}&assigned=${assigned}&page=${page}`).then(result => {
+    void request<VisitPage>('/api/visits/search', { method: 'POST', headers: { 'X-CSRF-Token': session.csrfToken }, body: JSON.stringify({ q: query, status, assigned, page }) }).then(result => {
       if (!cancelled) setRecords(result);
     }).catch(e => { if (!cancelled) { if (e instanceof ApiError && e.status === 401) onSessionError(e); else setQueueError(e instanceof Error ? e.message : 'Visits could not be loaded.'); } }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

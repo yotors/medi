@@ -16,8 +16,9 @@ import { registerConfigurationRoutes } from './configuration.ts';
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
+export const readUnavailable = () => new ApiError(503, 'READ_UNAVAILABLE', 'The workspace is temporarily unavailable. Retry the exact same request.');
 const uuid = z.uuid();
-const directoryQuery = z.strictObject({ q: z.string().max(100).refine(value => !value.includes('\u0000')).default(''), page: z.coerce.number().int().min(1).max(10000).default(1) });
+const directoryQuery = z.strictObject({ q: z.string().max(100).refine(value => !value.includes('\u0000')).default(''), page: z.number().int().min(1).max(10000).default(1) });
 const emptyQuery = z.strictObject({});
 const normalizeName = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 const literalPattern = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
@@ -46,7 +47,11 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
     }
     const path = request.url.split('?')[0];
     if (path === '/api/auth/login' || (path === '/api/health' && request.method === 'GET')) return;
-    const session = await readSession(pool, request.cookies[SESSION_COOKIE]);
+    const isPrivateRead = (request.method === 'POST' && ['/api/patients/search', '/api/visits/search'].includes(path)) || (['GET', 'HEAD'].includes(request.method) && /^\/api\/(patients|visits)(\/[^/]+)?$/.test(path));
+    const session = await readSession(pool, request.cookies[SESSION_COOKIE]).catch(error => {
+      if (isPrivateRead && !(error instanceof ApiError)) throw readUnavailable();
+      throw error;
+    });
     if (!session) {
       reply.clearCookie(SESSION_COOKIE, cookieOptions);
       throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in to continue.');
@@ -112,31 +117,52 @@ export function buildApp({ pool, origin, trustProxy = false, secureCookies = pro
     reply.clearCookie(SESSION_COOKIE, cookieOptions);
     return reply.code(204).send();
   });
-  app.get('/api/patients', async request => {
-    const parsed = directoryQuery.safeParse(request.query);
+  async function patientRead<T>(session: Session, read: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect().catch(() => { throw readUnavailable(); });
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='5s'");
+      await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query('SELECT id FROM hospitals WHERE id=$1 FOR SHARE', [session.user.hospital.id]);
+      const actor = await currentActor(client, session);
+      if (!actor || actor.password_change_required) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
+      const result = await read(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '57014', '40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw new ApiError(503, 'PATIENTS_BUSY', 'The workspace is temporarily busy. Retry the exact same request.');
+      throw error;
+    } finally { client.release(); }
+  }
+  const searchPatients = async (request: FastifyRequest) => {
+    const isPost = request.method === 'POST';
+    if (isPost && (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json' || !emptyQuery.safeParse(request.query).success)) throw invalid();
+    const parsed = (isPost ? directoryQuery : directoryQuery.omit({ q: true }).extend({ page: z.coerce.number().int().min(1).max(10000).default(1) })).safeParse(isPost ? request.body : request.query);
     if (!parsed.success) throw invalid();
-    const { q, page } = parsed.data;
+    const { page } = parsed.data;
+    const q = 'q' in parsed.data && typeof parsed.data.q === 'string' ? parsed.data.q : '';
     const hospitalId = sessions.get(request)!.user.hospital.id;
     // Escape LIKE syntax so searches are literal substrings.
     const pattern = literalPattern(q);
     const normalizedPattern = literalPattern(normalizeName(q));
     const predicate = "hospital_id=$1 AND (name ILIKE $2 OR record_number ILIKE $2 OR contact ILIKE $2 OR normalized_name LIKE $3)";
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    return patientRead(sessions.get(request)!, async client => {
       const { rows: [count] } = await client.query(`SELECT count(*)::integer AS total FROM patients WHERE ${predicate}`, [hospitalId, pattern, normalizedPattern]);
       const { rows } = await client.query(`SELECT * FROM patients WHERE ${predicate} ORDER BY created_at DESC, id DESC LIMIT 25 OFFSET $4`, [hospitalId, pattern, normalizedPattern, (page - 1) * 25]);
-      await client.query('COMMIT');
       return { patients: rows.map(patient), total: count.total, page, pageSize: 25 };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-  });
+    });
+  };
+  app.get('/api/patients', searchPatients);
+  app.post('/api/patients/search', searchPatients);
   app.get<{ Params: { id: string } }>('/api/patients/:id', async request => {
     if (!emptyQuery.safeParse(request.query).success) throw invalid();
     if (!uuid.safeParse(request.params.id).success) throw new ApiError(404, 'NOT_FOUND', 'The patient was not found.');
-    const { rows: [row] } = await pool.query('SELECT * FROM patients WHERE id=$1 AND hospital_id=$2', [request.params.id, sessions.get(request)!.user.hospital.id]);
-    if (!row) throw new ApiError(404, 'NOT_FOUND', 'The patient was not found.');
-    return { patient: patient(row) };
+    return patientRead(sessions.get(request)!, async client => {
+      const { rows: [row] } = await client.query('SELECT * FROM patients WHERE id=$1 AND hospital_id=$2', [request.params.id, sessions.get(request)!.user.hospital.id]);
+      if (!row) throw new ApiError(404, 'NOT_FOUND', 'The patient was not found.');
+      return { patient: patient(row) };
+    });
   });
   app.post('/api/patients', async (request, reply) => {
     const session = sessions.get(request)!;

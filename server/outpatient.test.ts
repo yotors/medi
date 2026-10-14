@@ -15,7 +15,7 @@ const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_U
 if (!connectionString) throw new Error('PostgreSQL integration tests require TEST_DATABASE_URL or DATABASE_URL.');
 const schema = `outpatient_test_${randomUUID().replaceAll('-', '')}`;
 const database = new pg.Pool({ connectionString });
-const pool = new pg.Pool({ connectionString, options: `-c search_path=${schema}` });
+const pool = new pg.Pool({ connectionString, application_name: schema, options: `-c search_path=${schema}` });
 const origin = 'http://127.0.0.1:5173';
 const password = 'Synthetic-outpatient-password-42';
 const roles: StaffRole[] = ['admin', 'receptionist', 'clinician', 'lab', 'pharmacist', 'cashier', 'auditor'];
@@ -30,6 +30,7 @@ async function login(role: StaffRole, hospitalCode = 'alpha'): Promise<Auth> {
     id: response.json().user.id, hospitalId: response.json().user.hospital.id };
 }
 const headers = (user: Auth, key: string = randomUUID()) => ({ origin, cookie: user.cookie, 'x-csrf-token': user.csrf, 'idempotency-key': key });
+const search = (user: Auth, payload: Record<string, unknown> = {}) => app.inject({ method: 'POST', url: '/api/visits/search', headers: headers(user), payload });
 const get = (user: Auth, url: string) => app.inject({ url, headers: { cookie: user.cookie } });
 const checkIn = (user: Auth, id: string, key: string = randomUUID(), payload: unknown = {}) => app.inject({ method: 'POST', url: `/api/patients/${id}/visits`, headers: headers(user, key), payload: payload as object });
 const command = (user: Auth, visit: Pick<VisitView, 'id' | 'revision'>, value: VisitCommand, key: string = randomUUID()) => app.inject({
@@ -323,12 +324,12 @@ test('strict validation, session, Origin and CSRF checks apply to every outpatie
 test('queue pagination and literal normalized search stay stable and hospital scoped', async () => {
   for (let i = 0; i < 27; i++) { const p = await patient(auth.receptionist, `Synthetic ${i}`); assert.equal((await checkIn(auth.receptionist, p.id)).statusCode, 201); }
   const first = (await get(auth.admin, '/api/visits')).json();
-  const second = (await get(auth.admin, '/api/visits?page=2')).json();
+  const second = (await search(auth.admin, { page: 2 })).json();
   assert.equal(first.total, 27); assert.equal(first.pageSize, 25); assert.equal(first.visits.length, 25); assert.equal(second.visits.length, 2);
   assert.equal(new Set([...first.visits, ...second.visits].map(v => v.id)).size, 27);
-  for (const query of ['%', '_']) assert.equal((await get(auth.admin, `/api/visits?q=${encodeURIComponent(query)}`)).json().total, 0);
+  for (const query of ['%', '_']) assert.equal((await search(auth.admin, { q: query })).json().total, 0);
   const p = await patient(auth.receptionist, 'Ｓｙｎｔｈｅｔｉｃ   Ｎｏｒｍａｌ'); await checkIn(auth.receptionist, p.id);
-  assert.equal((await get(auth.admin, '/api/visits?q=synthetic%20normal')).json().total, 1);
+  assert.equal((await search(auth.admin, { q: 'synthetic normal' })).json().total, 1);
   assert.equal((await get(other, '/api/visits')).json().total, 0);
 });
 
@@ -468,4 +469,86 @@ test('check-in and clinical writes work with SELECT/INSERT-only patient privileg
     await database.query(`REVOKE USAGE ON SCHEMA ${schema} FROM ${role}`);
     await database.query(`DROP ROLE ${role}`);
   }
+});
+
+test('private searches preserve every role projection and reject invalid transports and fields', async () => {
+  let v = await visit();
+  v = await apply(auth.admin, v, { type: 'note', body: 'PRIVATE consultation' });
+  v = await apply(auth.admin, v, { type: 'order', test: 'Blood count' });
+  const subjectId = v.orders![0].id;
+  v = await apply(auth.admin, v, { type: 'advanceOrder', orderId: subjectId, next: 'collected' });
+  v = await apply(auth.admin, v, { type: 'advanceOrder', orderId: subjectId, next: 'released', result: 'PRIVATE original' });
+  const post = async (url: string, payload: object) => { const response = await app.inject({ method: 'POST', url, headers: headers(auth.admin), payload }); assert.equal(response.statusCode, 200, response.body); return response.json(); };
+  await post(`/api/visits/${v.id}/clinical/commands`, { type: 'result.correct', subjectId, expectedVersion: 0, body: 'PRIVATE correction', reason: 'PRIVATE reason', ownerId: auth.clinician.id });
+  const department = await post('/api/configuration/commands', { type: 'department.create', code: 'TEST', name: 'Fictional department' });
+  const service = await post('/api/configuration/commands', { type: 'service.create', code: 'TEST', name: 'Fictional service', departmentId: department.entry.id, priceMinor: 12345 });
+  await post(`/api/visits/${v.id}/billing/commands`, { type: 'invoice.issue', lines: [{ serviceId: service.entry.id, serviceRevision: 1, quantity: 2 }] });
+  for (const role of roles) {
+    const response = await search(auth[role], { q: 'Synthetic' });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), (await get(auth[role], '/api/visits')).json());
+    const row = response.json().visits[0]; assert.equal(row.balance, 24690); assert.equal(row.pendingClinicalReviews, 1);
+    if (['admin', 'clinician', 'lab'].includes(role)) assert.equal(row.clinicalAssignments[0].ownerId, auth.clinician.id); else assert.equal(row.clinicalAssignments, undefined);
+    assert.doesNotMatch(response.body, /PRIVATE/);
+    const directory = await app.inject({ method: 'POST', url: '/api/patients/search', headers: headers(auth[role]), payload: { q: 'Synthetic' } });
+    assert.equal(directory.statusCode, 200); assert.equal(directory.json().total, 1);
+  }
+  assert.equal((await search(other, { q: 'Synthetic' })).json().total, 0);
+  for (const payload of [{ q: '\0' }, { q: 'x'.repeat(101) }, { page: '1' }, { page: 0 }, { page: null }, { unknown: true }, { status: 'invalid' }, { assigned: 'invalid' }]) assert.equal((await search(auth.admin, payload)).statusCode, 400);
+  for (const q of ['', 'anything']) assert.equal((await get(auth.admin, `/api/visits?q=${q}`)).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/visits/search?page=1', headers: headers(auth.admin), payload: {} })).statusCode, 400);
+  for (const override of [{ origin: 'https://wrong.invalid' }, { 'x-csrf-token': '' }, { cookie: '' }]) {
+    const response = await app.inject({ method: 'POST', url: '/api/visits/search', headers: { ...headers(auth.admin), ...override }, payload: {} });
+    assert.equal(response.statusCode, 'cookie' in override ? 401 : 403);
+  }
+  assert.equal((await app.inject({ method: 'POST', url: '/api/visits/search', headers: { ...headers(auth.admin), 'content-type': 'text/plain' }, payload: '{}' })).statusCode, 400);
+});
+
+test('private visit search rechecks revoked authority after SHARE lock and bounds contention', async () => {
+  await visit();
+  const blocker = await pool.connect();
+  let pending: Promise<Awaited<ReturnType<typeof get>>> | undefined;
+  try {
+    await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [auth.admin.hospitalId]);
+    pending = search(auth.admin).then(r => r);
+    let waiting = false;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const result = await database.query("SELECT 1 FROM pg_stat_activity WHERE query LIKE 'SELECT%FROM hospitals%FOR SHARE%' AND wait_event_type='Lock' AND application_name=$1", [schema]);
+      if (result.rowCount) { waiting = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(waiting);
+    await blocker.query('DELETE FROM staff_sessions WHERE user_id=$1', [auth.admin.id]); await blocker.query('COMMIT');
+    assert.equal((await pending).statusCode, 401);
+    await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [auth.admin.hospitalId]);
+    const busy = await search(auth.clinician); assert.equal(busy.statusCode, 503); assert.equal(busy.json().code, 'OUTPATIENT_BUSY');
+  } finally { await blocker.query('ROLLBACK'); blocker.release(); if (pending) await pending; }
+  assert.equal((await search(auth.clinician)).statusCode, 200);
+  auth.admin = await login('admin');
+});
+
+
+test('private visit POST rejects disabled, changed-role and temporary-password actors after lock wait', async () => {
+  await visit();
+  for (const mutation of ["active=false", "role='auditor'", "password_change_required=true"]) {
+    const blocker = await pool.connect(); let pending: Promise<Awaited<ReturnType<typeof get>>> | undefined;
+    try {
+      await blocker.query('BEGIN'); await blocker.query('SELECT id FROM hospitals WHERE id=$1 FOR UPDATE', [auth.clinician.hospitalId]);
+      pending = search(auth.clinician).then(r => r);
+      let waiting = false;
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const result = await database.query("SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND query LIKE '%FOR SHARE%'", [schema]);
+        if (result.rowCount) { waiting = true; break; } await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.ok(waiting); await blocker.query(`UPDATE staff_users SET ${mutation} WHERE id=$1`, [auth.clinician.id]); await blocker.query('COMMIT');
+      const response = await pending; assert.equal(response.statusCode, 401); assert.doesNotMatch(response.body, /visits|recordNumber|total/);
+    } finally { await blocker.query('ROLLBACK'); blocker.release(); if (pending) await pending; await pool.query("UPDATE staff_users SET active=true,role='clinician',password_change_required=false WHERE id=$1", [auth.clinician.id]); }
+  }
+});
+
+test('private visit search treats backslashes and combined wildcards literally', async () => {
+  const p = await patient(auth.admin, 'Fictional \\%_ visit'); await checkIn(auth.admin, p.id);
+  const otherPatient = await patient(auth.admin, 'Fictional other visit'); await checkIn(auth.admin, otherPatient.id);
+  for (const q of ['\\', '\\%_', '%_']) assert.equal((await search(auth.admin, { q })).json().total, 1);
+  for (const q of ['\\\\', '\\_%', '\\%x']) assert.equal((await search(auth.admin, { q })).json().total, 0);
 });

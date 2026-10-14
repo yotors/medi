@@ -19,6 +19,18 @@ test.beforeAll(async () => {
   await prepareBrowserFixture(pool);
   for (const role of roles) await provisionStaff(pool, { hospitalCode, hospitalName: 'Outpatient Fiction Medical Center', username: role, displayName: `Fictional ${role}`, role, password });
 });
+test.beforeEach(async ({ page }) => {
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (['/api/patients', '/api/visits', '/api/patients/search', '/api/visits/search'].includes(url.pathname)) expect(url.searchParams.has('q')).toBe(false);
+    if (['/api/patients/search', '/api/visits/search'].includes(url.pathname)) {
+      expect(request.method()).toBe('POST'); expect(url.search).toBe('');
+      expect(request.headers()['x-csrf-token']).toBeTruthy();
+      expect(request.headers()['content-type']).toContain('application/json');
+      expect(typeof request.postDataJSON().q).toBe('string');
+    }
+  });
+});
 test.afterAll(async () => { await pool.end(); });
 async function activate(control: Locator) {
   await expect(control).toBeEnabled(); await control.focus(); await control.press('Enter');
@@ -45,7 +57,7 @@ async function section(page: Page, name: string) {
 }
 async function apiSession(page: Page) { return (await page.request.get('/api/auth/session')).json(); }
 async function currentVisit(page: Page, name: string) {
-  const data = await (await page.request.get(`/api/visits?q=${encodeURIComponent(name)}`)).json();
+  const data = await (await page.request.post('/api/visits/search', { headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': (await (await page.request.get('/api/auth/session')).json()).csrfToken }, data: { q: name } })).json();
   return (await page.request.get(`/api/visits/${data.visits[0].id}`)).json();
 }
 
@@ -324,6 +336,7 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
 
 test('visit pagination changes rows and search and status reset the second page', async ({ page }) => {
   test.setTimeout(90000);
+  const bodies: object[] = []; page.on('request', request => { if (new URL(request.url()).pathname === '/api/visits/search') bodies.push(request.postDataJSON()); });
   await signIn(page); const prefix = `Queue pagination ${randomUUID().slice(0, 8)}`;
   for (let index = 0; index < 26; index++) await seedVisit(page, `${prefix} ${String(index).padStart(2, '0')}`);
   await page.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Outpatient visits', exact: true }).click();
@@ -346,4 +359,53 @@ test('visit pagination changes rows and search and status reset the second page'
   await page.getByRole('button', { name: 'Search visits', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: '1 visits · Page 1 of 1' })).toBeVisible();
   await expect(page.getByRole('button', { name: `${prefix} 25`, exact: true })).toBeVisible();
+  expect(bodies).toContainEqual({ q: prefix, status: 'active', assigned: 'all', page: 2 });
+  expect(bodies).toContainEqual({ q: prefix, status: 'all', assigned: 'all', page: 1 });
+  expect(bodies.at(-1)).toEqual({ q: `${prefix} 25`, status: 'all', assigned: 'all', page: 1 });
+});
+
+test('delayed private queue search respects changed filters and logout', async ({ page }) => {
+  await signIn(page); const name = await checkIn(page);
+  await activate(page.getByRole('button', { name: 'Back to visit queue', exact: true }));
+  await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  let release!: () => void; let intercepted!: () => void;
+  let gate = new Promise<void>(resolve => { release = resolve; });
+  let received = new Promise<void>(resolve => { intercepted = resolve; });
+  await page.route('**/api/visits/search', async route => {
+    const input = route.request().postDataJSON();
+    if (input.q !== name || input.status !== 'active') return route.continue();
+    const response = await route.fetch(); intercepted(); await gate; await route.fulfill({ response });
+  });
+  await page.getByLabel('Search visits by patient or record number').fill(name);
+  await activate(page.getByRole('button', { name: 'Search visits', exact: true })); await received;
+  await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
+  await expect(page.getByRole('heading', { name: 'No matching visits' })).toBeVisible();
+  const late = page.waitForResponse(response => response.url().endsWith('/api/visits/search') && response.request().postDataJSON().status === 'active');
+  release(); await late;
+  await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+  gate = new Promise<void>(resolve => { release = resolve; }); received = new Promise<void>(resolve => { intercepted = resolve; });
+  await page.getByLabel('Visit status', { exact: true }).selectOption('active'); await received;
+  await activate(page.getByRole('button', { name: 'Sign out', exact: true }));
+  const loggedOutResponse = page.waitForResponse(response => response.url().endsWith('/api/visits/search'));
+  release(); await loggedOutResponse;
+  await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
+  expect(await page.evaluate(value => [location.href, JSON.stringify(localStorage), JSON.stringify(sessionStorage)].some(text => text.includes(value)), name)).toBe(false);
+});
+
+test('private queue name contact and MRN stay in exact bodies while authenticated', async ({ page }) => {
+  await signIn(page); const marker = `Private${randomUUID().replaceAll('-', '')}`;
+  const session = await apiSession(page); const headers = { Origin: origin, 'X-CSRF-Token': session.csrfToken, 'Idempotency-Key': randomUUID() };
+  const patient = (await (await page.request.post('/api/patients', { headers, data: { name: `${marker} Name`, contact: `${marker} Contact` } })).json()).patient;
+  expect((await page.request.post(`/api/patients/${patient.id}/visits`, { headers: { ...headers, 'Idempotency-Key': randomUUID() }, data: {} })).status()).toBe(201);
+  await page.getByRole('navigation', { name: 'Staff workspace' }).getByRole('button', { name: 'Outpatient visits', exact: true }).click();
+  const urls: string[] = []; page.on('request', request => urls.push(decodeURIComponent(request.url())));
+  for (const q of [patient.name, patient.contact, patient.recordNumber]) {
+    const sent = page.waitForRequest(request => new URL(request.url()).pathname === '/api/visits/search');
+    await page.getByLabel('Search visits by patient or record number').fill(q); await activate(page.getByRole('button', { name: 'Search visits', exact: true }));
+    const request = await sent; expect(request.postDataJSON()).toEqual({ q, page: 1, status: 'active', assigned: 'all' });
+    expect(request.method()).toBe('POST'); expect(new URL(request.url()).search).toBe('');
+    await expect(page.getByRole('button', { name: patient.name, exact: true })).toBeVisible();
+    expect(urls.some(url => [marker, patient.recordNumber].some(term => url.includes(term)))).toBe(false);
+    expect(await page.evaluate(terms => [location.href, JSON.stringify(localStorage), JSON.stringify(sessionStorage)].some(value => terms.some(term => value.includes(term))), [marker, patient.recordNumber])).toBe(false);
+  }
 });
