@@ -50,8 +50,8 @@
   margin-top: 12px;
 }
 .configuration-form input[readonly] {
-  background: #f4f7f7;
-  color: #52686d;
+  background: var(--canvas);
+  color: var(--muted);
 }
 .configuration-history ol {
   padding-left: 22px;
@@ -62,7 +62,7 @@
   overflow-wrap: anywhere;
 }
 .configuration-history li + li {
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
   padding-top: 20px;
 }
 .configuration-history p {
@@ -72,9 +72,9 @@
   margin-bottom: 24px;
 }
 .configuration-directory [aria-current='page'] {
-  background: #e6f2ee;
-  color: #12695d;
-  border-color: #12695d;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .configuration-money,
 .configuration-history time {
@@ -119,5 +119,5 @@
   }
 }
 .hospital-configuration input[type='checkbox'] {
-  accent-color: #12695d;
+  accent-color: var(--accent);
 }

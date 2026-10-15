@@ -1,3 +1,4 @@
+import { signOut, accountNavigate } from './account-helpers';
 import { test, expect, type Page, type Dialog } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -163,7 +164,7 @@ test('keyboard onboarding, temporary password replacement, access management and
     path: `artifacts/staff-ui/${info.project.name}-staff-directory.png`,
     fullPage: true,
   });
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'new-clinician', temporary);
   await expect(page.getByRole('heading', { name: 'Change password', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toHaveCount(0);
@@ -192,7 +193,7 @@ test('keyboard onboarding, temporary password replacement, access management and
   await signIn(page, 'new-clinician');
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Staff administration' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Fictional new-clinician', exact: true }).click();
@@ -312,7 +313,8 @@ async function assertSameSurfaceNoDialog(page: Page, label: string) {
     void dialog.accept();
   };
   page.on('dialog', handler);
-  await page.getByRole('link', { name: label, exact: true }).click();
+  if (label === 'Change password') await accountNavigate(page, label);
+  else await page.getByRole('link', { name: label, exact: true }).click();
   page.off('dialog', handler);
   expect(dialogs).toBe(0);
 }
@@ -373,7 +375,7 @@ test('review: same staff and password surfaces preserve dirty navigation protect
   await leave;
   await expect(page.getByLabel('Staff username')).toHaveValue('dirty-review');
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('link', { name: 'Change password', exact: true }).click();
+  await accountNavigate(page, 'Change password');
   await page.getByLabel('Current password', { exact: true }).fill('fictional-dirty-current');
   await assertSameSurfaceNoDialog(page, 'Change password');
   const passwordRejected = page.waitForEvent('dialog');
@@ -447,7 +449,7 @@ test('review: definitive self-password rejection releases fields after an uncert
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('link', { name: 'Change password', exact: true }).click();
+  await accountNavigate(page, 'Change password');
   await page.getByLabel('Current password', { exact: true }).fill('incorrect synthetic password');
   await page.getByLabel('New password', { exact: true }).fill('Synthetic replacement password');
   await page.getByLabel('Confirm new password').fill('Synthetic replacement password');

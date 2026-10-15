@@ -2,8 +2,19 @@ import { useTranslation } from 'react-i18next';
 import { HeartPulse, ArrowRight } from 'lucide-react';
 import { LanguageControl } from '../i18n';
 import './product-home.css';
+import { useEntryState } from './useEntryState';
 export default function ProductHome() {
   const { t } = useTranslation();
+  const entry = useEntryState();
+  const entryLabel = t(
+    entry === 'complete'
+      ? 'public:dashboard'
+      : entry === 'anonymous'
+        ? 'public:signin'
+        : entry === 'gate'
+          ? 'public:continue_signin'
+          : 'public:open_workspace',
+  );
   return (
     <div className="product-home">
       <a href="#product-main" className="skip-link">
@@ -15,7 +26,7 @@ export default function ProductHome() {
         </a>
         <LanguageControl />
         <a href="/staff">
-          {t('public:signin')} <ArrowRight size={16} aria-hidden />
+          {entryLabel} <ArrowRight size={16} aria-hidden />
         </a>
       </header>
       <main id="product-main">
@@ -25,7 +36,7 @@ export default function ProductHome() {
             <p>{t('public:intro')}</p>
             <div className="product-actions">
               <a className="primary" href="/staff">
-                {t('public:signin')} <ArrowRight size={18} aria-hidden />
+                {entryLabel} <ArrowRight size={18} aria-hidden />
               </a>
               <a href="#workflows">{t('public:tour')}</a>
             </div>
@@ -73,7 +84,7 @@ export default function ProductHome() {
           <p>{t('public:securityBody')}</p>
           <p>{t('public:limits')}</p>
           <a href="/staff">
-            {t('public:signin')} <ArrowRight size={18} aria-hidden />
+            {entryLabel} <ArrowRight size={18} aria-hidden />
           </a>
         </section>
       </main>

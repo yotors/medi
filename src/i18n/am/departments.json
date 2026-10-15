@@ -83,5 +83,8 @@
   "previous_label": "ያለፉት የ{{label}} ምርጫዎች",
   "next_label": "ቀጣዮቹ የ{{label}} ምርጫዎች",
   "refresh_label": "የ{{label}} ምርጫዎችን አድስ",
-  "choices_page": "ገጽ {{page}} · {{total}} ምርጫዎች"
+  "choices_page": "ገጽ {{page}} · {{total}} ምርጫዎች",
+  "stale_records": "የሚታዩት መዝገቦች ያረጁ ሊሆኑ ይችላሉ። ከማስቀመጥዎ በፊት መዝገቦቹን ያድሱ።",
+  "loading_history": "የመዝገብ ታሪክ እየታደሰ ነው…",
+  "stale_history": "ታሪኩ ያረጀ ሊሆን ይችላል። ከማተምዎ በፊት እንደገና ይጫኑ።"
 }

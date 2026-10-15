@@ -1190,6 +1190,28 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', () => errors.push('runtime'));
+    const cspViolations = [];
+    await page.exposeFunction('recordReleasePolicyViolation', (directive) => {
+      const safeDirective = [
+        'font-src',
+        'style-src-elem',
+        'style-src-attr',
+        'script-src-elem',
+        'script-src-attr',
+        'script-src',
+        'img-src',
+        'connect-src',
+      ].includes(directive)
+        ? directive
+        : 'other';
+      cspViolations.push(`${verificationStage}/${safeDirective}`);
+    });
+    await page.addInitScript(() =>
+      document.addEventListener(
+        'securitypolicyviolation',
+        (event) => void window.recordReleasePolicyViolation(event.effectiveDirective),
+      ),
+    );
     verificationStage = 'browser-login';
     await page.goto(`${origin}/staff/patients`);
     await page.getByLabel('Hospital code', { exact: true }).fill(fixture.hospitalCode);
@@ -1208,6 +1230,22 @@ try {
     await page.reload();
     verificationStage = 'browser-patient-directory';
     await page.getByRole('heading', { name: 'Patient directory', exact: true }).waitFor();
+    verificationStage = 'browser-workspace-preferences';
+    await page.getByRole('link', { name: 'Inside the workspace', exact: true }).click();
+    await page.getByRole('link', { name: 'Dashboard', exact: true }).first().waitFor();
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Blue', exact: true }).click();
+    await page.getByRole('button', { name: 'Language', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'አማርኛ', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.lang === 'am');
+    await page.getByRole('button', { name: 'ቋንቋ', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'English', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    await page.getByRole('link', { name: 'Dashboard', exact: true }).first().click();
+    await page.getByRole('heading', { name: 'Start your work', exact: true }).waitFor();
     verificationStage = 'browser-report';
     await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
     await page.getByRole('heading', { name: 'Operational reports', exact: true }).waitFor();
@@ -1222,7 +1260,8 @@ try {
       .waitFor();
     await page.getByRole('heading', { name: 'Product stock', exact: true }).waitFor();
     verificationStage = 'browser-security';
-    await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
+    await page.locator('.account-menu button[aria-haspopup="menu"]').click();
+    await page.getByRole('menuitem', { name: 'Authenticator security', exact: true }).click();
     await page.getByLabel('Current password', { exact: true }).waitFor();
     check(
       (await page
@@ -1258,7 +1297,12 @@ try {
       await page.unroute(`**/api/auth/mfa/${operation}`);
     }
     check(errors.length === 0, 'Built browser application reported a runtime error.');
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    check(
+      cspViolations.length === 0,
+      `Built controls violated the content security policy: ${cspViolations.join(', ')}.`,
+    );
+    await page.locator('.account-menu button[aria-haspopup="menu"]').click();
+    await page.getByRole('menuitem', { name: 'Sign out', exact: true }).click();
     await page.getByRole('heading', { name: 'Staff sign-in', exact: true }).waitFor();
     await context.close();
   } finally {

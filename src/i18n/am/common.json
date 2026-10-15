@@ -363,5 +363,14 @@
   "patient_page_one": "{{total}} ታካሚ · ገጽ {{page}} ከ {{pages}}",
   "patient_page_other": "{{total}} ታካሚዎች · ገጽ {{page}} ከ {{pages}}",
   "no_amendments_recorded": "ማሻሻያዎች አልተመዘገቡም።",
-  "no_corrections_recorded": "እርማቶች አልተመዘገቡም።"
+  "no_corrections_recorded": "እርማቶች አልተመዘገቡም።",
+  "appearance": "ገጽታ",
+  "mode": "ሁነታ",
+  "accent": "ዋና ቀለም",
+  "light": "ብርሃን",
+  "dark": "ጨለማ",
+  "device": "የመሣሪያው",
+  "teal": "አረንጓዴ ሰማያዊ",
+  "blue": "ሰማያዊ",
+  "violet": "ሐምራዊ"
 }

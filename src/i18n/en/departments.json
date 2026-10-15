@@ -83,5 +83,8 @@
   "previous_label": "Previous {{label}} choices",
   "next_label": "Next {{label}} choices",
   "refresh_label": "Refresh {{label}} choices",
-  "choices_page": "Page {{page}} · {{total}} choices"
+  "choices_page": "Page {{page}} · {{total}} choices",
+  "stale_records": "Displayed records may be out of date. Refresh records before saving.",
+  "loading_history": "Updating record history…",
+  "stale_history": "History may be out of date. Retry loading before printing."
 }

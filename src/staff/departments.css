@@ -10,16 +10,16 @@
   margin: 20px 0;
 }
 .department-tabs [aria-current='page'] {
-  background: var(--teal, #12685d);
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .department-form,
 .department-detail {
   padding: 24px;
   margin: 24px 0;
-  border: 1px solid var(--border, #d5e2df);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface, #fff);
+  background: var(--surface);
 }
 .department-form > label {
   display: block;
@@ -44,11 +44,11 @@
   width: 100%;
   min-height: 42px;
   padding: 10px;
-  border: 1px solid #a9bbb5;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: white;
+  background: var(--surface);
   font: inherit;
-  color: #153b34;
+  color: var(--ink);
 }
 .department-fields input[type='checkbox'] {
   width: 24px;
@@ -71,7 +71,7 @@
 }
 .department-facts dt {
   text-transform: capitalize;
-  color: #46645d;
+  color: var(--muted);
 }
 .department-facts dd {
   margin: 0;
@@ -84,10 +84,10 @@
 }
 .department-review {
   display: block;
-  color: #874415;
+  color: var(--warning);
 }
 .department-workspace fieldset {
-  border: 1px solid #bdcfca;
+  border: 1px solid var(--border);
   border-radius: 8px;
   margin: 16px 0;
 }
@@ -98,7 +98,7 @@
 .department-workspace input:focus-visible,
 .department-workspace select:focus-visible,
 .department-workspace textarea:focus-visible {
-  outline: 3px solid #157565;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 @media (max-width: 640px) {
@@ -116,7 +116,7 @@
     grid-template-columns: 1fr;
     gap: 3px;
   }
-  .department-tabs button {
+  .department-tabs a {
     flex: 1 1 45%;
   }
 }
@@ -164,7 +164,7 @@
 }
 .department-picker .button-row span {
   font-size: 0.85rem;
-  color: #46645d;
+  color: var(--muted);
 }
 .department-picker button {
   font-size: 0.85rem;
@@ -174,7 +174,7 @@
 }
 .department-detail summary {
   cursor: pointer;
-  color: #295d51;
+  color: var(--accent);
 }
 @media (max-width: 640px) {
   .department-picker {
@@ -198,5 +198,41 @@
 }
 
 .department-workspace .eyebrow {
-  color: #46645d;
+  color: var(--muted);
+}
+
+.department-tabs {
+  gap: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.department-tabs a {
+  padding: 10px 0;
+  text-decoration: none;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+}
+.department-tabs a[aria-current='page'] {
+  background: transparent;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 700;
+}
+.department-tabs a[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.department-records {
+  min-height: 220px;
+}
+.department-read {
+  min-height: 300px;
+}
+.department-read-status {
+  min-height: 24px;
+}
+
+@media print {
+  .department-detail[data-print-blocked='true'] {
+    display: none;
+  }
 }

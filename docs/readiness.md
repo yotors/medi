@@ -1,5 +1,14 @@
 # Release status and acceptance
 
+The workspace appearance/navigation update adds Light/Dark/Device modes, three
+accent palettes, accessible language/appearance menus and a header profile menu
+for password, MFA and sign-out. Department section links retain guarded drafts
+and stable loading. Local browser, accessibility, localization and real dark-mode
+MFA checks passed; the final packaged verification is recorded in the
+[implementation specification](../_bmad-output/implementation-artifacts/spec-workspace-appearance-navigation.md).
+GitHub verification for this update remains **pending**; delivery does not wait
+for CI and does not assume a pass. Earlier release evidence below is historical.
+
 The bilingual experience update is **6bc9548**: public product homepage, role-based
 workspace routes, English/Amharic catalogs, shared locale formatting and local QR
 MFA enrollment. Local format/type/build, catalog/source checks and targeted

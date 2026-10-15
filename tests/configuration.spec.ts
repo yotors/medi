@@ -1,3 +1,5 @@
+import { signOut } from './account-helpers';
+import { chooseLanguage } from './preference-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -99,12 +101,12 @@ test('keyboard department and service configuration, immutable prices, retiremen
       .getByRole('row', { name: /Fictional Consultation/ })
       .getByRole('cell', { name: '123.45', exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'clinician');
   const clinicianRow = page.getByRole('row', { name: /Fictional Consultation/ });
   await expect(clinicianRow.getByRole('cell', { name: '123.45', exact: true })).toBeVisible();
   await expect(clinicianRow.getByRole('button')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page);
   await page.getByRole('button', { name: 'Fictional Consultation', exact: true }).click();
   await page.getByLabel('Price (ETB)', { exact: true }).fill('0.00');
@@ -142,7 +144,7 @@ test('keyboard department and service configuration, immutable prices, retiremen
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
   await expect(page.getByText('Revision 2 · Fictional Outpatient')).toBeVisible();
   await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'clinician');
   await expect(
     page.getByText('No services are currently available.', { exact: true }),
@@ -553,7 +555,7 @@ test('Amharic catalog keeps protocol routes through history revision reload and 
   await signIn(page);
   const code = `AM${randomUUID().slice(0, 6).toUpperCase()}`;
   await createDepartment(page, code, 'Fictional Amharic catalog');
-  await page.getByLabel('Language', { exact: true }).selectOption('am');
+  await chooseLanguage(page, 'am');
   await expect(page.locator('html')).toHaveAttribute('lang', 'am');
   const read = page.waitForResponse(
     (r) => r.url().includes('/api/configuration/departments?') && r.status() === 200,

@@ -1,3 +1,4 @@
+import { signOut, accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -211,13 +212,9 @@ test('lost payment response retains exact payload and key, locks navigation and 
   });
   await payment(page, '20.00');
   await expect(page.getByRole('button', { name: 'Retry billing save', exact: true })).toBeEnabled();
-  for (const label of [
-    'Sign out',
-    'Back to visit queue',
-    'Refresh visit',
-    'All invoices',
-    'Record payment',
-  ])
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  for (const label of ['Back to visit queue', 'Refresh visit', 'All invoices', 'Record payment'])
     await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await expect(page.getByLabel('Amount received (ETB)', { exact: true })).toHaveValue('20.00');
   await expect(page.getByLabel('Amount received (ETB)', { exact: true })).toBeDisabled();
@@ -420,7 +417,7 @@ test('cashier cannot void and auditor can inspect receipts without financial mut
   ).toBeVisible();
   const current = await invoice(page, visit.id);
   for (const role of ['cashier', 'auditor']) {
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await signOut(page);
     await signIn(page, role);
     await page
       .getByRole('navigation', { name: 'Staff workspace' })
@@ -506,7 +503,8 @@ test('lost invoice and void responses preserve exact retries and one effect each
   await page.getByLabel('I reviewed these invoice lines and the total.').check();
   await page.getByRole('button', { name: 'Issue invoice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retry billing save', exact: true })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeDisabled();
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
   await expect(page.getByLabel(`Quantity for ${service.name}`, { exact: true })).toHaveValue('1');
   await page.getByRole('button', { name: 'Retry billing save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Record a payment', exact: true })).toBeVisible();
@@ -613,7 +611,7 @@ test('cashier price refresh identifies an unavailable line and retains other upd
     departmentId: service.departmentId,
     priceMinor: 5000,
   });
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'cashier');
   await page
     .getByRole('navigation', { name: 'Staff workspace' })

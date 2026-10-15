@@ -20,7 +20,10 @@ import { formatETB, parseETB } from '../../shared/configuration';
 import { request, ApiError } from './api';
 import DepartmentPicker from './DepartmentPicker';
 import './departments.css';
+import { isPlainLinkClick } from './navigation';
 type Props = {
+  section: string;
+  onSectionChange: (section: string, replace?: boolean) => boolean;
   session: Session;
   onSessionError: (error: unknown) => void;
   onDirty?: (value: boolean) => void;
@@ -427,6 +430,8 @@ export default function DepartmentWorkspace({
   onSessionError,
   onDirty,
   onPending,
+  section,
+  onSectionChange,
 }: Props) {
   const role = session.user.role,
     categories =
@@ -437,10 +442,12 @@ export default function DepartmentWorkspace({
           : role === 'pharmacist'
             ? ['purchase', 'supplier', 'return']
             : ['shift', 'finance'];
-  const [category, setCategory] = useState(categories[0]),
+  const [category, setCategory] = useState(categories.includes(section) ? section : categories[0]),
     [page, setPage] = useState(1),
+    [loadedPage, setLoadedPage] = useState(1),
     [list, setList] = useState<DepartmentPage | null>(null),
     [loading, setLoading] = useState(true),
+    [stale, setStale] = useState(false),
     [error, setError] = useState(''),
     [refresh, setRefresh] = useState(0),
     [action, setAction] = useState(''),
@@ -449,6 +456,8 @@ export default function DepartmentWorkspace({
     [selected, setSelected] = useState<DepartmentRecord | null>(null),
     [history, setHistory] = useState<DepartmentEvent[]>([]),
     [historyPage, setHistoryPage] = useState(1),
+    [historyLoading, setHistoryLoading] = useState(false),
+    [historyStale, setHistoryStale] = useState(false),
     [busy, setBusy] = useState(false),
     [pending, setPending] = useState<{ key: string; command: DepartmentCommand } | null>(null),
     [notice, setNotice] = useState('');
@@ -477,7 +486,7 @@ export default function DepartmentWorkspace({
     setSelected(null);
     setHistory([]);
     setList(null);
-    setCategory(categories[0]);
+    setCategory(categories.includes(section) ? section : categories[0]);
     setAction('');
   }, [session.user.id, role]);
   useEffect(() => {
@@ -495,44 +504,73 @@ export default function DepartmentWorkspace({
     return () => window.removeEventListener('beforeunload', leave);
   }, [dirty, locked]);
   const fail = (e: unknown) => {
-    if (e instanceof ApiError && [401, 403].includes(e.status)) onSessionError(e);
+    if (e instanceof ApiError && [401, 403].includes(e.status)) {
+      setList(null);
+      setSelected(null);
+      setHistory([]);
+      setDraft({});
+      setChoices({});
+      onSessionError(e);
+    }
     setError(e instanceof Error ? e.message : t('departments:could_not_load_department_records'));
   };
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError('');
-    request<DepartmentPage>(`/api/departments?kind=${category}&page=${page}`)
+    request<DepartmentPage>(`/api/departments?kind=${category}&page=${page}`, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+    })
       .then((data) => {
         if (active) {
+          setStale(false);
           setList(data);
-          setSelected((old) => (old ? (data.entries.find((r) => r.id === old.id) ?? old) : null));
+          setLoadedPage(page);
+          setSelected((old) => (old ? (data.entries.find((r) => r.id === old.id) ?? null) : null));
         }
       })
       .catch((e) => {
-        if (active) fail(e);
+        if (active) {
+          setStale(true);
+          fail(e);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => {
       active = false;
+      controller.abort();
     };
   }, [category, page, refresh, session.user.id, role]);
   useEffect(() => {
     if (!selected) return;
     let active = true;
+    const controller = new AbortController();
+    setHistoryLoading(true);
     request<{ entries: DepartmentEvent[] }>(
       `/api/departments/${selected.id}/history?page=${historyPage}`,
+      { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) },
     )
       .then((r) => {
-        if (active) setHistory(r.entries);
+        if (active) {
+          setHistory(r.entries);
+          setHistoryStale(false);
+        }
       })
       .catch((e) => {
-        if (active) fail(e);
+        if (active) {
+          setHistoryStale(true);
+          fail(e);
+        }
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
       });
     return () => {
       active = false;
+      controller.abort();
     };
   }, [selected?.id, historyPage, refresh]);
   async function send(command: DepartmentCommand, key: string = crypto.randomUUID()) {
@@ -562,7 +600,7 @@ export default function DepartmentWorkspace({
     }
   }
   function submit() {
-    if (!action) return;
+    if (!action || loading || stale) return;
     const values: Record<string, any> = { type: action };
     for (const f of specs[action].fields) {
       if (f.virtual) continue;
@@ -623,11 +661,30 @@ export default function DepartmentWorkspace({
       return next;
     });
   }
-  function navigate(next: string) {
-    if (locked) return;
-    if (dirty && !window.confirm(t('departments:discard_unsaved_department_details'))) return;
+  useEffect(() => {
+    const next = categories.includes(section) ? section : categories[0];
+    if (next !== section) onSectionChange(next, true);
+    if (next === category) return;
+    setCategory(next);
+    setList(null);
+    setLoading(true);
     setDraft({});
     setChoices({});
+    setPage(1);
+    setAction('');
+    setSelected(null);
+    setHistory([]);
+  }, [section]);
+  useEffect(() => {
+    if (actions.length === 1 && !action) setAction(actions[0][0]);
+  }, [category, action]);
+  function navigate(next: string) {
+    if (next === category || locked) return;
+    if (!onSectionChange(next)) return;
+    setDraft({});
+    setChoices({});
+    setList(null);
+    setLoading(true);
     setCategory(next);
     setPage(1);
     setAction('');
@@ -686,7 +743,7 @@ export default function DepartmentWorkspace({
               value={value}
               selectedLabel={choices[f.key] ? choiceLabel(choices[f.key]) : undefined}
               context={context}
-              disabled={locked}
+              disabled={locked || loading || stale}
               required={!f.optional}
               automatic={action === 'return.quality' && f.key === 'qualityBatch'}
               onChoose={(choice) => choose(f, choice)}
@@ -739,7 +796,7 @@ export default function DepartmentWorkspace({
           <select
             id={ident}
             required={!f.optional}
-            disabled={locked}
+            disabled={locked || loading || stale}
             value={value}
             onChange={(e) => change(f.key, e.target.value)}
           >
@@ -754,7 +811,7 @@ export default function DepartmentWorkspace({
             id={ident}
             maxLength={f.key === 'value' ? 1000 : 500}
             required={!f.optional}
-            disabled={locked}
+            disabled={locked || loading || stale}
             value={value}
             onChange={(e) => change(f.key, e.target.value)}
           />
@@ -771,7 +828,7 @@ export default function DepartmentWorkspace({
             }
             maxLength={200}
             required={!f.optional && f.kind !== 'checkbox'}
-            disabled={locked}
+            disabled={locked || loading || stale}
             checked={f.kind === 'checkbox' ? value === 'true' : undefined}
             value={f.kind === 'checkbox' ? undefined : value}
             onChange={(e) =>
@@ -791,26 +848,33 @@ export default function DepartmentWorkspace({
           <h1>{labels[category]}</h1>
           <p>{t('departments:accountable_handoffs_retained_history_and_explicit_approvals')}</p>
         </div>
-        <button disabled={locked} onClick={() => setRefresh((n) => n + 1)}>
+        <button disabled={locked || loading} onClick={() => setRefresh((n) => n + 1)}>
           {' '}
           {t('departments:refresh_records')}{' '}
         </button>
       </header>
       <nav className="department-tabs" aria-label={t('departments:department_workflows')}>
         {categories.map((k) => (
-          <button
+          <a
             key={k}
-            disabled={locked}
+            href={`/staff/departments?section=${k}`}
+            aria-disabled={locked || undefined}
             aria-current={category === k ? 'page' : undefined}
-            onClick={() => navigate(k)}
+            onClick={(event) => {
+              if (isPlainLinkClick(event)) {
+                event.preventDefault();
+                navigate(k);
+              }
+            }}
           >
             {labels[k]}
-          </button>
+          </a>
         ))}
       </nav>
       {error && (
         <p className="notice error" role="alert">
           {interfaceMessage(error)}
+          {list && stale && <span> {t('departments:stale_records')}</span>}
         </p>
       )}
       {notice && (
@@ -839,25 +903,30 @@ export default function DepartmentWorkspace({
           }}
           className="department-form"
         >
-          <label htmlFor="department-action">{t('departments:action')}</label>
-          <select
-            id="department-action"
-            disabled={locked}
-            value={action}
-            onChange={(e) => {
-              if (dirty && !window.confirm(t('departments:discard_unsaved_action_details'))) return;
-              setAction(e.target.value);
-              setDraft({});
-              setChoices({});
-            }}
-          >
-            <option value="">{t('departments:choose_a_workflow')}</option>
-            {actions.map(([key, s]) => (
-              <option key={key} value={key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+          {actions.length > 1 && (
+            <>
+              <label htmlFor="department-action">{t('departments:action')}</label>
+              <select
+                id="department-action"
+                disabled={locked || loading || stale}
+                value={action}
+                onChange={(e) => {
+                  if (dirty && !window.confirm(t('departments:discard_unsaved_action_details')))
+                    return;
+                  setAction(e.target.value);
+                  setDraft({});
+                  setChoices({});
+                }}
+              >
+                <option value="">{t('departments:choose_a_workflow')}</option>
+                {actions.map(([key, s]) => (
+                  <option key={key} value={key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           {action && (
             <>
               <h2>{specs[action].label}</h2>
@@ -871,7 +940,7 @@ export default function DepartmentWorkspace({
                       type="number"
                       min={1}
                       max={20}
-                      disabled={locked}
+                      disabled={locked || loading || stale}
                       value={draft.lineCount ?? 1}
                       onChange={(e) => change('lineCount', e.target.value)}
                     />
@@ -891,7 +960,7 @@ export default function DepartmentWorkspace({
                         selectedLabel={
                           choices[`product${i}`] ? choiceLabel(choices[`product${i}`]) : undefined
                         }
-                        disabled={locked}
+                        disabled={locked || loading || stale}
                         onError={fail}
                         onChoose={(choice) => {
                           setChoices((old) => ({ ...old, [`product${i}`]: choice }));
@@ -920,7 +989,7 @@ export default function DepartmentWorkspace({
                             <input
                               required
                               maxLength={100}
-                              disabled={locked}
+                              disabled={locked || loading || stale}
                               value={draft[`${key}${i}`] ?? ''}
                               onChange={(e) => change(`${key}${i}`, e.target.value)}
                               inputMode="decimal"
@@ -932,7 +1001,7 @@ export default function DepartmentWorkspace({
                           {t('departments:controlled_item')}{' '}
                           <input
                             type="checkbox"
-                            disabled={locked}
+                            disabled={locked || loading || stale}
                             checked={draft[`controlled${i}`] === 'true'}
                             onChange={(e) => change(`controlled${i}`, String(e.target.checked))}
                           />
@@ -949,7 +1018,7 @@ export default function DepartmentWorkspace({
                 {t('departments:cash_and_manual_transfers_record_completed_outcomes')}{' '}
               </p>
               <div className="button-row">
-                <button className="primary" disabled={locked || loading}>
+                <button className="primary" disabled={locked || loading || stale}>
                   {busy ? t('common:saving') : t('departments:save_accountable_record')}
                 </button>
                 <button
@@ -968,12 +1037,19 @@ export default function DepartmentWorkspace({
           )}
         </form>
       )}
-      {loading ? (
-        <p role="status">{t('departments:loading_department_records')}</p>
-      ) : (
-        list && (
+      <div className="department-read" aria-busy={loading}>
+        <p className="department-read-status" role="status">
+          {loading ? t('departments:loading_department_records') : ''}
+        </p>
+        {list && (
           <>
-            <div className="table-region" role="region" aria-label={labels[category]} tabIndex={0}>
+            <div
+              className="table-region department-records"
+              aria-busy={loading}
+              role="region"
+              aria-label={labels[category]}
+              tabIndex={0}
+            >
               <table>
                 <thead>
                   <tr>
@@ -1000,11 +1076,13 @@ export default function DepartmentWorkspace({
                       <td>{r.revision}</td>
                       <td>
                         <button
-                          disabled={locked}
+                          disabled={locked || loading || stale}
                           onClick={() => {
                             setSelected(r);
                             setHistoryPage(1);
                             setHistory([]);
+                            setHistoryLoading(true);
+                            setHistoryStale(false);
                           }}
                         >
                           {' '}
@@ -1023,15 +1101,18 @@ export default function DepartmentWorkspace({
             )}
             <div className="staff-pagination">
               <p>
-                {list.total} {t('departments:records_page')} {page}
+                {list.total} {t('departments:records_page')} {loadedPage}
               </p>
               <div className="button-row">
-                <button disabled={locked || page === 1} onClick={() => setPage((n) => n - 1)}>
+                <button
+                  disabled={locked || loading || page === 1}
+                  onClick={() => setPage((n) => n - 1)}
+                >
                   {' '}
                   {t('departments:previous_records')}{' '}
                 </button>
                 <button
-                  disabled={locked || page * 25 >= list.total}
+                  disabled={locked || loading || page * 25 >= list.total}
                   onClick={() => setPage((n) => n + 1)}
                 >
                   {' '}
@@ -1047,10 +1128,14 @@ export default function DepartmentWorkspace({
                 </article>
               ))}
           </>
-        )
-      )}
+        )}
+      </div>
       {selected && (
-        <article className="department-detail">
+        <article
+          className="department-detail"
+          aria-busy={historyLoading}
+          data-print-blocked={locked || loading || stale || historyLoading || historyStale}
+        >
           <h2>{title(selected)}</h2>
           <Facts data={selected.data} />
           <details>
@@ -1058,6 +1143,17 @@ export default function DepartmentWorkspace({
             <p>{selected.id}</p>
           </details>
           <h3>{t('departments:immutable_history_2')}</h3>
+          {historyLoading && <p role="status">{t('departments:loading_history')}</p>}
+          {historyStale && (
+            <p className="notice error" role="alert">
+              {t('departments:stale_history')}
+            </p>
+          )}
+          {historyStale && (
+            <button disabled={locked || historyLoading} onClick={() => setRefresh((n) => n + 1)}>
+              {t('common:retry_loading')}
+            </button>
+          )}
           <ol className="timeline">
             {history.map((e) => (
               <li key={e.id}>
@@ -1077,20 +1173,32 @@ export default function DepartmentWorkspace({
           </ol>
           <div className="button-row">
             <button
-              disabled={locked || historyPage === 1}
+              disabled={
+                locked || loading || stale || historyLoading || historyStale || historyPage === 1
+              }
               onClick={() => setHistoryPage((n) => n - 1)}
             >
               {' '}
               {t('common:previous_history')}{' '}
             </button>
             <button
-              disabled={locked || history.length < 25}
+              disabled={
+                locked || loading || stale || historyLoading || historyStale || history.length < 25
+              }
               onClick={() => setHistoryPage((n) => n + 1)}
             >
               {' '}
               {t('common:next_history')}{' '}
             </button>
-            <button onClick={() => window.print()}>{t('departments:print_factual_record')}</button>
+            <button
+              disabled={locked || loading || stale || historyLoading || historyStale}
+              onClick={() => {
+                if (!locked && !loading && !stale && !historyLoading && !historyStale)
+                  window.print();
+              }}
+            >
+              {t('departments:print_factual_record')}
+            </button>
           </div>
         </article>
       )}

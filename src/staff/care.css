@@ -1,7 +1,7 @@
 .care-workspace {
   max-width: 1200px;
   margin: 0 auto;
-  color: #162d32;
+  color: var(--ink);
   padding: 24px 16px;
 }
 .care-heading {
@@ -18,7 +18,7 @@
 }
 .care-heading p {
   margin: 0;
-  color: #52686d;
+  color: var(--muted);
 }
 .care-zone {
   font-size: 13px;
@@ -45,12 +45,12 @@
 .care-workspace textarea {
   font: inherit;
   padding: 10px 12px;
-  border: 1px solid #b7c9c7;
+  border: 1px solid var(--border);
   border-radius: 7px;
-  background: #fff;
-  color: #162d32;
+  background: var(--surface);
+  color: var(--ink);
   min-width: 0;
-  caret-color: #12695d;
+  caret-color: var(--accent);
 }
 .care-workspace textarea {
   min-height: 90px;
@@ -58,30 +58,30 @@
 }
 .care-workspace button {
   font: inherit;
-  border: 1px solid #b7c9c7;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 9px 14px;
-  background: #fff;
-  color: #244d48;
+  background: var(--surface);
+  color: var(--ink);
   cursor: pointer;
 }
 .care-workspace button:hover {
-  background: #e6f2ee;
+  background: var(--accent-soft);
 }
 .care-workspace button:disabled {
   opacity: 0.6;
   cursor: default;
 }
 .care-workspace :focus-visible {
-  outline: 3px solid #12695d;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 .care-workspace ::selection {
-  background: #c6e6dc;
+  background: var(--accent-soft);
 }
 .care-identity {
   padding: 16px 0;
-  border-block: 1px solid #dce5e4;
+  border-block: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -94,7 +94,7 @@
 .care-table small,
 .care-table td > span {
   display: block;
-  color: #52686d;
+  color: var(--muted);
   font-size: 13px;
 }
 .care-tabs {
@@ -104,9 +104,9 @@
   margin: 24px 0;
 }
 .care-tabs button[aria-current='page'] {
-  color: #fff;
-  background: #12695d;
-  border-color: #12695d;
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .care-section-heading {
   display: flex;
@@ -126,26 +126,26 @@
 }
 .care-empty {
   padding: 32px 0;
-  color: #52686d;
+  color: var(--muted);
 }
 .care-table {
   overflow: auto;
-  scrollbar-color: #9cbdb5 #f4f7f7;
+  scrollbar-color: var(--border) var(--canvas);
 }
 .care-table table {
   border-collapse: collapse;
   width: 100%;
-  background: #fff;
+  background: var(--surface);
 }
 .care-table th {
   text-align: left;
-  background: #e6f2ee;
+  background: var(--accent-soft);
   padding: 12px;
   font-size: 13px;
 }
 .care-table td {
   padding: 14px 12px;
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
   overflow-wrap: anywhere;
   min-width: 130px;
@@ -156,7 +156,7 @@
   padding: 7px 10px;
 }
 .care-editor {
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
   margin-top: 28px;
   padding-top: 20px;
 }
@@ -186,22 +186,22 @@
   margin-top: 20px;
 }
 .care-actions button:first-child {
-  background: #12695d;
-  color: #fff;
-  border-color: #12695d;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 .care-error {
   padding: 14px;
-  background: #ffeded;
-  color: #a43636;
+  background: var(--error-bg);
+  color: var(--error);
   border-radius: 8px;
 }
 .care-success {
-  color: #12695d;
+  color: var(--success);
 }
 .care-retry {
-  background: #fff4db;
-  color: #875b0d;
+  background: var(--warning-bg);
+  color: var(--warning);
   padding: 16px;
   border-radius: 8px;
 }
@@ -216,7 +216,7 @@
   margin-top: 32px;
 }
 .care-history article {
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
   padding: 16px 0;
 }
 .care-history dl {
@@ -314,8 +314,8 @@ input[type='checkbox'] {
   margin: 0;
 }
 .care-patients button[aria-pressed='true'] {
-  background: #e6f2ee;
-  border-color: #12695d;
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 @media (max-width: 650px) {
   .care-merge form {
@@ -325,6 +325,6 @@ input[type='checkbox'] {
 }
 /* Keep table headings legible against the pale teal surface. */
 .care-table th {
-  color: #244d48;
+  color: var(--ink);
   font-weight: 600;
 }

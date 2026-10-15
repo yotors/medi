@@ -1,3 +1,4 @@
+import { expectSignedIn } from './account-helpers';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadEnvFile } from 'node:process';
 import { type Page, expect } from '@playwright/test';
@@ -43,7 +44,7 @@ export function experienceFixture() {
     await page.getByLabel('Username', { exact: true }).fill(role);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+    await expectSignedIn(page);
   }
   return { pool, hospitalCode, password, roles, prepare, signIn };
 }

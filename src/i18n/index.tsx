@@ -1,7 +1,9 @@
 import i18n from 'i18next';
 import { useState } from 'react';
-import { Globe2, ChevronDown } from 'lucide-react';
+import { Globe2 } from 'lucide-react';
 import { initReactI18next, useTranslation } from 'react-i18next';
+import { PreferenceMenu, PreferenceOption, Menu } from '../components/PreferenceMenu';
+import AppearanceControl from '../appearance/AppearanceControl';
 import { languages, type LanguageCode } from './languages';
 export { languages } from './languages';
 export type { TranslationKey, TranslationNamespace } from './resources';
@@ -94,18 +96,20 @@ export function LanguageControl() {
   const [failed, setFailed] = useState(false);
   return (
     <div className="language-switcher">
-      <label className="language-control">
-        <span className="sr-only">{t('language:label')}</span>
-        <Globe2 className="language-globe" size={17} aria-hidden="true" />
-        <select
-          aria-label={t('language:label')}
-          disabled={busy}
+      <AppearanceControl />
+      <PreferenceMenu
+        disabled={busy}
+        label={t('language:label')}
+        icon={<Globe2 size={17} aria-hidden />}
+      >
+        <Menu.RadioGroup
           value={i18n.resolvedLanguage}
-          onChange={async (e) => {
+          onValueChange={async (code) => {
+            if (busy) return;
             setBusy(true);
             setFailed(false);
             try {
-              await changeLanguage(e.target.value);
+              await changeLanguage(code);
             } catch {
               setFailed(true);
             } finally {
@@ -113,14 +117,13 @@ export function LanguageControl() {
             }
           }}
         >
-          {languages.map((l) => (
-            <option key={l.code} value={l.code} lang={l.code}>
-              {l.name}
-            </option>
+          {languages.map((language) => (
+            <PreferenceOption key={language.code} value={language.code}>
+              <span lang={language.code}>{language.name}</span>
+            </PreferenceOption>
           ))}
-        </select>
-        <ChevronDown className="language-chevron" size={15} aria-hidden="true" />
-      </label>
+        </Menu.RadioGroup>
+      </PreferenceMenu>
       {failed && <p role="alert">{t('common:language_loading_failed')}</p>}
     </div>
   );

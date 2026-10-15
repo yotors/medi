@@ -1,6 +1,6 @@
 .product-home {
-  color: #162d32;
-  background: #f4f7f7;
+  color: var(--ink);
+  background: var(--canvas);
   min-height: 100vh;
 }
 .product-header {
@@ -8,7 +8,7 @@
   align-items: center;
   gap: 28px;
   padding: 24px max(24px, 6vw);
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
 }
 .product-brand {
   display: flex;
@@ -18,7 +18,7 @@
     750 25px 'Manrope Variable',
     sans-serif;
   text-decoration: none;
-  color: #12695d;
+  color: var(--accent);
   margin-right: auto;
 }
 .product-header > a:last-child,
@@ -61,22 +61,22 @@
 }
 .product-actions .primary {
   padding: 14px 20px;
-  background: #12695d;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
   border-radius: 8px;
   text-decoration: none;
 }
 .product-preview {
-  background: white;
-  border: 1px solid #dce5e4;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   min-width: 0;
 }
 .preview-toolbar {
   padding: 18px 24px;
-  background: #102f32;
-  color: white;
+  background: var(--rail);
+  color: var(--rail-text);
   display: flex;
   gap: 10px;
   align-items: center;
@@ -89,7 +89,7 @@
 }
 .preview-body p {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
 }
 .product-preview table {
   width: 100%;
@@ -100,17 +100,17 @@
 .product-preview td {
   text-align: left;
   padding: 17px 8px;
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
   font-size: 14px;
 }
 .product-preview th {
-  color: #52686d;
+  color: var(--muted);
   font-size: 12px;
 }
 .product-workflows {
   padding: 50px 0 70px;
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
 }
 .product-workflows > h2 {
   font-size: 32px;
@@ -120,7 +120,7 @@
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 40px;
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
   padding: 24px 0;
 }
 .product-workflows h3 {
@@ -134,7 +134,7 @@
 }
 .product-security {
   padding: 40px;
-  background: #e6f2ee;
+  background: var(--accent-soft);
   margin-bottom: 64px;
   border-radius: 12px;
 }
@@ -144,11 +144,11 @@
 }
 .product-home footer {
   padding: 28px 6vw;
-  border-top: 1px solid #dce5e4;
-  color: #52686d;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
 }
 .product-home a {
-  color: #12695d;
+  color: var(--accent);
 }
 .product-home a:hover {
   text-decoration-thickness: 2px;

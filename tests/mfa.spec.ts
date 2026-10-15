@@ -1,3 +1,4 @@
+import { signOut, accountNavigate } from './account-helpers';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { test, expect, type Page } from '@playwright/test';
@@ -144,7 +145,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
     await statusGate;
     await route.fulfill({ response });
   });
-  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
+  await accountNavigate(page, 'Authenticator security');
   await expect(page.getByText('Loading authenticator setup…')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Replace authenticator', exact: true }),
@@ -180,7 +181,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   await expect(page.getByRole('heading', { name: 'Save your recovery codes' })).toBeVisible();
   await page.unroute('**/api/auth/mfa/regenerate');
   await page.getByRole('button', { name: 'Continue to workspace' }).click();
-  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
+  await accountNavigate(page, 'Authenticator security');
   await freshProof();
   await page.getByLabel('Current password', { exact: true }).fill(password);
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());
@@ -223,7 +224,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   const currentRecovery = await page.locator('.mfa-codes code').first().textContent();
   if (!currentRecovery) throw Error('Missing recovery');
   await page.getByRole('button', { name: 'Continue to workspace' }).click();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn();
   await freshProof();
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(replacement).generate());
@@ -447,7 +448,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
     await pool.query('UPDATE staff_factors SET last_counter=-1 WHERE user_id=$1', [user.id]);
   };
   await page.route('**/api/auth/mfa/status', (route) => route.abort());
-  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
+  await accountNavigate(page, 'Authenticator security');
   await expect(page.getByRole('button', { name: 'Retry loading setup' })).toBeVisible();
   await capture(page, info.project.name + '-uncertain-maintenance-load-error');
   await page.unroute('**/api/auth/mfa/status');
@@ -465,7 +466,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
   await capture(page, info.project.name + '-uncertain-maintenance-uncertain');
   await page.unroute('**/api/auth/mfa/regenerate');
   await page.route('**/api/auth/session', (route) => route.abort());
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await expect(page.getByRole('button', { name: 'Retry sign-out' })).toBeVisible();
   await page.unroute('**/api/auth/session');
   let crossFamilyPosts = 0;
@@ -490,7 +491,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());
   await page.getByRole('button', { name: 'Verify code' }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory' })).toBeVisible();
-  await page.getByRole('link', { name: 'Authenticator security', exact: true }).click();
+  await accountNavigate(page, 'Authenticator security');
   await freshProof();
   await page.getByLabel('Current password', { exact: true }).fill(password);
   await page.getByLabel('Authenticator code', { exact: true }).fill(totp(secret).generate());
@@ -499,7 +500,7 @@ test('maintenance loading failure and interrupted committed regeneration recover
   const recoveredCodes = await page.locator('.mfa-codes code').first().textContent();
   if (!recoveredCodes) throw Error('Missing recovered codes');
   await page.getByRole('button', { name: 'Continue to workspace' }).click();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn();
   await page.getByRole('button', { name: 'Use a recovery code' }).click();
   await page.getByLabel('Recovery code', { exact: true }).fill(recovery);

@@ -1,8 +1,14 @@
 import React from 'react';
+import { z } from 'zod';
+// Avoid Zod's dynamic-code capability probe under the strict browser CSP.
+z.config({ jitless: true });
+import { initializeAppearance } from './appearance';
+initializeAppearance();
 import ReactDOM from 'react-dom/client';
 import '@fontsource-variable/dm-sans';
 import '@fontsource-variable/manrope';
 import './styles.css';
+import './appearance/tokens.css';
 import '@fontsource/noto-sans-ethiopic';
 import './i18n';
 import { I18nextProvider, useTranslation } from 'react-i18next';

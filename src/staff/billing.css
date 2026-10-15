@@ -86,7 +86,7 @@
   border-top: 1px solid var(--border);
 }
 .billing-invalid {
-  color: #a43636;
+  color: var(--error);
 }
 .billing-workspace .invoice-total {
   display: flex;
@@ -133,7 +133,7 @@
   }
   .billing-panel {
     color: #000;
-    background: #fff;
+    background: var(--surface);
   }
   .invoice {
     break-inside: avoid;

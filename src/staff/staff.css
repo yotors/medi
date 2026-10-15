@@ -6,12 +6,12 @@
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  background: #102f32;
+  background: var(--rail);
   padding: 24px 5%;
-  color: white;
+  color: var(--rail-text);
 }
 .staff-header a {
-  color: #d3e7e1;
+  color: var(--rail-text);
   font-size: 13px;
   text-underline-offset: 4px;
 }
@@ -19,15 +19,15 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: white;
+  color: var(--rail-text);
   font:
     700 21px 'Manrope Variable',
     sans-serif;
   text-decoration: none;
 }
 .staff-environment {
-  background: #e6f2ee;
-  color: #244d48;
+  background: var(--accent-soft);
+  color: var(--ink);
   padding: 12px 5%;
   font-size: 13px;
 }
@@ -48,7 +48,7 @@
   font-size: 29px;
 }
 .staff-login-icon {
-  color: #12695d;
+  color: var(--accent);
   margin-bottom: 16px;
 }
 .staff-login form {
@@ -60,7 +60,7 @@
 }
 .staff-help {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
   margin: 24px 0 0;
   line-height: 1.7;
 }
@@ -71,7 +71,7 @@
   gap: 16px;
   padding-bottom: 24px;
   margin-bottom: 28px;
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
 }
 .staff-identity strong,
 .staff-identity span {
@@ -79,7 +79,7 @@
   overflow-wrap: anywhere;
 }
 .staff-identity span {
-  color: #52686d;
+  color: var(--muted);
   font-size: 13px;
   margin-top: 4px;
 }
@@ -119,7 +119,7 @@
 }
 .staff-pagination p {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
   margin: 0;
 }
 .staff-footer {
@@ -127,17 +127,17 @@
   margin: 0 auto;
   padding: 24px;
   font-size: 12px;
-  color: #52686d;
+  color: var(--muted);
 }
 .staff-shell ::selection {
-  background: #c5e6db;
-  color: #102f32;
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 .staff-shell input {
-  caret-color: #12695d;
+  caret-color: var(--accent);
 }
 .staff-shell a:focus-visible {
-  outline: 3px solid #178b7d;
+  outline: 3px solid var(--accent);
   outline-offset: 4px;
 }
 .staff-main h1:focus {
@@ -146,9 +146,18 @@
 @media (max-width: 650px) {
   .staff-header {
     padding: 20px 18px;
-    align-items: flex-start;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
     gap: 14px;
+  }
+  .staff-header .staff-brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .staff-header .language-switcher,
+  .staff-header > a:not(.staff-brand) {
+    grid-column: 1 / -1;
   }
   .staff-header .staff-brand {
     font-size: 19px;
@@ -203,16 +212,16 @@
   flex-wrap: wrap;
 }
 .staff-navigation button[aria-pressed='true'] {
-  background: #e6f2ee;
-  border-color: #12695d;
-  color: #12695d;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .visit-overview {
   margin-bottom: 24px;
 }
 .visit-overview > div > p {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
   margin: 12px 0 0;
 }
 .visit-overview dl {
@@ -223,7 +232,7 @@
 }
 .visit-overview dt {
   font-size: 12px;
-  color: #52686d;
+  color: var(--muted);
 }
 .visit-overview dd {
   font-size: 22px;
@@ -279,7 +288,7 @@
   border: 0;
   padding: 0;
   min-height: 40px;
-  color: #12695d;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
   white-space: normal;
@@ -365,17 +374,17 @@
 }
 .staff-account-history li {
   padding: 16px 0;
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
 }
 .staff-account-history li p {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
   margin: 6px 0;
 }
 .staff-account-secondary {
   display: block;
   font-size: 12px;
-  color: #52686d;
+  color: var(--muted);
   margin-top: 4px;
 }
 .staff-credential {
@@ -412,7 +421,7 @@
 }
 
 .staff-administration input[type='checkbox'] {
-  accent-color: #12695d;
+  accent-color: var(--accent);
 }
 @media (max-width: 650px) {
   .staff-administration .staff-directory td:first-child {
@@ -434,7 +443,7 @@
 }
 .mfa-secret {
   padding: 16px;
-  background: var(--pale-teal, #e6f2ee);
+  background: var(--pale-teal, var(--accent-soft));
 }
 .mfa-codes {
   padding-left: 24px;
@@ -457,15 +466,15 @@
   display: block;
   padding: 20px;
   min-height: calc(100vh - 140px);
-  background: #fff;
-  border-right: 1px solid #dce5e4;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
 }
 .navigation-group {
   margin-bottom: 24px;
 }
 .navigation-group h2 {
   font-size: 12px;
-  color: #52686d;
+  color: var(--muted);
   margin: 0 12px 8px;
   font-weight: 650;
 }
@@ -473,17 +482,17 @@
   display: block;
   padding: 10px 12px;
   border-radius: 7px;
-  color: #244d48;
+  color: var(--ink);
   text-decoration: none;
   overflow-wrap: anywhere;
   font-size: 14px;
 }
 .navigation-group a:hover {
-  background: #f4f7f7;
+  background: var(--canvas);
 }
 .navigation-group a[aria-current='page'] {
-  background: #e6f2ee;
-  color: #0b574c;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
   font-weight: 750;
 }
 .navigation-group a[aria-disabled='true'] {
@@ -492,15 +501,10 @@
 }
 .staff-breadcrumb {
   font-size: 13px;
-  color: #52686d;
+  color: var(--muted);
   margin-bottom: 26px;
 }
-.staff-header .language-switcher {
-  --language-ink: #eef7f4;
-  --language-surface: #1c3e40;
-  --language-border: #678580;
-  --language-hover: #294d4d;
-}
+
 .home-tasks {
   display: flex;
   flex-wrap: wrap;
@@ -511,10 +515,10 @@
 }
 .home-tasks a {
   display: block;
-  background: #e6f2ee;
+  background: var(--accent-soft);
   padding: 14px 18px;
   border-radius: 8px;
-  color: #0b574c;
+  color: var(--accent-hover);
 }
 .home-queue {
   list-style: none;
@@ -525,7 +529,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 16px 0;
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
 .workspace-home > p {
@@ -534,13 +538,13 @@
 .mfa-qr svg {
   max-width: 100%;
   height: auto;
-  background: white;
+  background: #fff;
 }
 .staff-main {
   min-width: 0;
 }
 .staff-breadcrumb a {
-  color: #12695d;
+  color: var(--accent);
 }
 @media (max-width: 900px) {
   .staff-routed .staff-main {
@@ -551,7 +555,7 @@
     position: static;
     width: auto;
     min-height: 0;
-    border: 1px solid #dce5e4;
+    border: 1px solid var(--border);
     padding: 12px;
     margin-bottom: 24px;
     display: flex;

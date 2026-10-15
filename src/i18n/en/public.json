@@ -1,7 +1,7 @@
 {
   "title": "Keep every hospital handoff in view.",
   "intro": "Medi brings registration, care, diagnostic work, pharmacy and hospital administration into one shared staff workspace.",
-  "signin": "Staff sign-in",
+  "signin": "Sign in",
   "tour": "Explore the workflows",
   "preview": "Inside the workspace",
   "fictional": "Illustrative preview · fictional records",
@@ -21,5 +21,8 @@
   "securityTitle": "A private workspace for your hospital",
   "securityBody": "Hospital-scoped access, role permissions and mandatory authenticator sign-in protect staff workflows. English and Amharic interface choices are independent from hospital calendar settings.",
   "limits": "Medi records cash and manual transfers. Live payment-provider integration is not available. Hospital clinical and operational acceptance is required before use with real patients.",
-  "footer": "Built for independent hospitals and medical centers in Ethiopia."
+  "footer": "Built for independent hospitals and medical centers in Ethiopia.",
+  "dashboard": "Dashboard",
+  "continue_signin": "Continue sign-in",
+  "open_workspace": "Open workspace"
 }

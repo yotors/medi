@@ -7,13 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { LanguageControl } from '../i18n';
 import { destinations, routeSurface, surfacePath, type Surface } from './navigation';
 import WorkspaceHome from './WorkspaceHome';
+import AccountMenu from './AccountMenu';
 import { configureHospitalDates, defaultAppearance } from './date';
 import type { HospitalAppearance } from '../../shared/hospital-format';
 import { CareWorkspace } from './CareWorkspace';
 import DepartmentWorkspace from './DepartmentWorkspace';
 import HospitalWorkspace from './HospitalWorkspace';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { HeartPulse, LogOut, Plus, Search, ShieldCheck, ArrowLeft, RefreshCw } from 'lucide-react';
+import { HeartPulse, Plus, Search, ShieldCheck, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { PatientPage, Registration, Session } from '../../shared/registration';
 import './staff.css';
 import { ApiError, request } from './api';
@@ -30,6 +31,9 @@ const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 }
 export default function StaffApp() {
   const { t } = useTranslation();
   const [route, setRoute] = useState<Surface | null>(() => routeSurface(window.location.pathname));
+  const [departmentSection, setDepartmentSection] = useState(
+    () => new URLSearchParams(window.location.search).get('section') ?? '',
+  );
   const historyIndex = useRef<number>(window.history.state?.mediIndex ?? 0);
   const mfaReturn = useRef<Surface>(routeSurface(window.location.pathname) ?? 'home');
   const restoringHistory = useRef(false);
@@ -333,7 +337,14 @@ export default function StaffApp() {
       title.tabIndex = -1;
       title.focus();
     }
-  }, [route, registering, session?.user.id, session?.authState, session?.passwordChangeRequired]);
+  }, [
+    route,
+    departmentSection,
+    registering,
+    session?.user.id,
+    session?.authState,
+    session?.passwordChangeRequired,
+  ]);
   function mayDiscardVisit() {
     return (
       (!visitDirty && !accountDirty && !(registering && (name || age || contact))) ||
@@ -347,6 +358,11 @@ export default function StaffApp() {
     if (historyMode === 'push' && (pending || visitPending || accountPending || !mayDiscardVisit()))
       return false;
     if (id === 'mfa' && route && route !== 'mfa') mfaReturn.current = route;
+    const destination =
+      surfacePath(id) +
+      (id === 'departments' && departmentSection
+        ? `?section=${encodeURIComponent(departmentSection)}`
+        : '');
     setCheckInPatient(null);
     setAccountDirty(false);
     setVisitDirty(false);
@@ -362,10 +378,10 @@ export default function StaffApp() {
     setVisitsOpen(id === 'visits');
     if (historyMode === 'push') {
       historyIndex.current++;
-      window.history.pushState({ mediIndex: historyIndex.current }, '', surfacePath(id));
+      window.history.pushState({ mediIndex: historyIndex.current }, '', destination);
     }
     if (historyMode === 'replace')
-      window.history.replaceState({ mediIndex: historyIndex.current }, '', surfacePath(id));
+      window.history.replaceState({ mediIndex: historyIndex.current }, '', destination);
     return true;
   }
   useEffect(() => {
@@ -381,6 +397,7 @@ export default function StaffApp() {
         return;
       }
       historyIndex.current = target;
+      setDepartmentSection(new URLSearchParams(window.location.search).get('section') ?? '');
       const desired = routeSurface(window.location.pathname);
       if (desired) goTo(desired, 'pop');
       else {
@@ -558,6 +575,20 @@ export default function StaffApp() {
         <a href="/" onClick={guardNavigation}>
           {t('public:preview')}
         </a>
+        {session && (
+          <AccountMenu
+            session={session}
+            route={route}
+            settingsAvailable={
+              session.authState === 'complete' &&
+              !session.passwordChangeRequired &&
+              !recoveryCodes.length
+            }
+            blocked={busy || Boolean(pending) || visitPending || accountPending}
+            onNavigate={goTo}
+            onSignOut={() => void logout()}
+          />
+        )}
       </header>
       <aside className="staff-environment" aria-label={t('common:workspace_environment')}>
         {import.meta.env.DEV
@@ -657,12 +688,6 @@ export default function StaffApp() {
                     : presentationLabel(session.user.role)}
                 </span>
               </div>
-              <button
-                onClick={() => void logout()}
-                disabled={busy || Boolean(pending) || visitPending || accountPending}
-              >
-                <LogOut size={16} /> {t('common:sign_out')}{' '}
-              </button>
             </div>
             {session.authState === 'complete' &&
               !recoveryCodes.length &&
@@ -671,7 +696,7 @@ export default function StaffApp() {
                   className="staff-navigation staff-primary-navigation"
                   aria-label={t('navigation:label')}
                 >
-                  {(['work', 'management', 'account'] as const).map((group) => (
+                  {(['work', 'management'] as const).map((group) => (
                     <div className="navigation-group" key={group}>
                       <h2>{t(`navigation:${group}`)}</h2>
                       {destinations(session.user.role)
@@ -792,6 +817,20 @@ export default function StaffApp() {
                 onDirty={setAccountDirty}
                 onPending={setAccountPending}
                 onSessionError={handleError}
+                section={departmentSection}
+                onSectionChange={(section, replace = false) => {
+                  if (!replace && (pending || accountPending || !mayDiscardVisit())) return false;
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('section', section);
+                  if (!replace) historyIndex.current++;
+                  window.history[replace ? 'replaceState' : 'pushState'](
+                    { mediIndex: historyIndex.current },
+                    '',
+                    url,
+                  );
+                  setDepartmentSection(section);
+                  return true;
+                }}
               />
             ) : accountSurface === 'hospital' ? (
               <HospitalWorkspace

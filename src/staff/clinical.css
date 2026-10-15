@@ -1,14 +1,14 @@
 .clinical-corrections {
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid #dce5e4;
+  border-top: 1px solid var(--border);
 }
 .clinical-corrections > p {
   max-width: 72ch;
 }
 .clinical-subject {
   padding: 20px 0;
-  border-bottom: 1px solid #dce5e4;
+  border-bottom: 1px solid var(--border);
 }
 .clinical-subject h3,
 .clinical-draft h3 {
@@ -32,13 +32,13 @@
   margin: 8px 0;
 }
 .clinical-pending {
-  color: #875b0d;
+  color: var(--warning);
 }
 .clinical-history {
   margin: 16px 0;
 }
 .clinical-history summary {
-  color: #12695d;
+  color: var(--accent);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -50,8 +50,8 @@
 .clinical-draft {
   margin-top: 24px;
   padding: 20px;
-  background: #f4f7f7;
-  border: 1px solid #dce5e4;
+  background: var(--canvas);
+  border: 1px solid var(--border);
   border-radius: 12px;
 }
 .clinical-draft textarea {
@@ -61,7 +61,7 @@
   margin-top: 16px;
 }
 .clinical-corrections small {
-  color: #52686d;
+  color: var(--muted);
 }
 @media (max-width: 650px) {
   .clinical-draft {

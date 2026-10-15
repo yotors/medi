@@ -1,3 +1,4 @@
+import { signOut, accountItem } from './account-helpers';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -357,7 +358,8 @@ test('lost check-in and note responses retain one request and block navigation',
     'One durable note despite a lost response.',
   );
   await expect(page.getByLabel('Consultation note', { exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeDisabled();
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
   await expect(
     page.getByRole('button', { name: 'Back to visit queue', exact: true }),
   ).toBeDisabled();
@@ -436,7 +438,7 @@ test('department handoffs complete a visit with permitted API sections and priva
   };
   for (const role of roles.filter((role) => role !== 'admin')) {
     if (role === 'auditor') {
-      await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+      await signOut(page);
       await signIn(page, 'clinician');
       await page
         .getByRole('navigation', { name: 'Staff workspace' })
@@ -452,7 +454,7 @@ test('department handoffs complete a visit with permitted API sections and priva
         ),
       ).toBeVisible();
     }
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await signOut(page);
     await signIn(page, role);
     const body = await (await page.request.get(`/api/visits/${visit.id}`)).json();
     for (const field of allowed.admin)
@@ -715,12 +717,14 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
       .getByRole('navigation', { name: 'Staff workspace' })
       .getByRole('link', { name: 'Patient directory', exact: true }),
     page.getByRole('link', { name: 'Inside the workspace' }),
-    page.getByRole('button', { name: 'Sign out', exact: true }),
   ]) {
     page.once('dialog', (dialog) => dialog.dismiss());
     await control.click();
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   }
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await signOut(page);
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Discard result draft', exact: true }).first().click();
   await expect(preservedBlood).toHaveCount(0);
   await expect(page.getByLabel('Unsaved Urinalysis result draft', { exact: true })).toBeVisible();
@@ -831,7 +835,7 @@ test('delayed private queue search respects changed filters and logout', async (
   });
   await page.getByLabel('Visit status', { exact: true }).selectOption('active');
   await received;
-  await activate(page.getByRole('button', { name: 'Sign out', exact: true }));
+  await activate(await accountItem(page, 'Sign out'));
   const loggedOutResponse = page.waitForResponse((response) =>
     response.url().endsWith('/api/visits/search'),
   );

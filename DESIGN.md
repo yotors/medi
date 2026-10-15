@@ -2,71 +2,71 @@
 name: Hospital workspace
 description: Calm outpatient workspace with clear patient lists
 colors:
-  primary: "#12695d"
-  primary-hover: "#0b574c"
-  background: "#f4f7f7"
-  surface: "#ffffff"
-  ink: "#162d32"
-  muted: "#52686d"
-  pale-teal: "#e6f2ee"
-  rail: "#102f32"
-  border: "#dce5e4"
-  warning: "#875b0d"
-  warning-background: "#fff4db"
-  error: "#a43636"
-  error-background: "#ffeded"
+  primary: '#12695d'
+  primary-hover: '#0b574c'
+  background: '#f4f7f7'
+  surface: '#ffffff'
+  ink: '#162d32'
+  muted: '#52686d'
+  pale-teal: '#e6f2ee'
+  rail: '#102f32'
+  border: '#dce5e4'
+  warning: '#875b0d'
+  warning-background: '#fff4db'
+  error: '#a43636'
+  error-background: '#ffeded'
 typography:
   heading:
-    fontFamily: "Manrope Variable, sans-serif"
-    fontSize: "32px"
+    fontFamily: 'Manrope Variable, sans-serif'
+    fontSize: '32px'
     fontWeight: 750
     lineHeight: 1.25
-    letterSpacing: "-1px"
+    letterSpacing: '-1px'
   title:
-    fontFamily: "Manrope Variable, sans-serif"
-    fontSize: "18px"
+    fontFamily: 'Manrope Variable, sans-serif'
+    fontSize: '18px'
     fontWeight: 750
     lineHeight: 1.4
   body:
-    fontFamily: "DM Sans Variable, sans-serif"
-    fontSize: "15px"
+    fontFamily: 'DM Sans Variable, sans-serif'
+    fontSize: '15px'
     lineHeight: 1.5
   ethiopic:
-    fontFamily: "Noto Sans Ethiopic, sans-serif"
-    fontSize: "15px"
+    fontFamily: 'Noto Sans Ethiopic, sans-serif'
+    fontSize: '15px'
     lineHeight: 1.5
 rounded:
-  input: "7px"
-  control: "8px"
-  panel: "12px"
-  dialog: "14px"
+  input: '7px'
+  control: '8px'
+  panel: '12px'
+  dialog: '14px'
 spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "16px"
-  lg: "24px"
-  xl: "32px"
+  xs: '4px'
+  sm: '8px'
+  md: '16px'
+  lg: '24px'
+  xl: '32px'
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.control}"
-    padding: "9px 14px"
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.surface}'
+    rounded: '{rounded.control}'
+    padding: '9px 14px'
   button-primary-hover:
-    backgroundColor: "{colors.primary-hover}"
+    backgroundColor: '{colors.primary-hover}'
   button-default:
-    backgroundColor: "{colors.surface}"
-    textColor: "#244d48"
-    rounded: "{rounded.control}"
-    padding: "9px 14px"
+    backgroundColor: '{colors.surface}'
+    textColor: '#244d48'
+    rounded: '{rounded.control}'
+    padding: '9px 14px'
   input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.input}"
-    padding: "10px 12px"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.input}'
+    padding: '10px 12px'
   panel:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.panel}"
+    backgroundColor: '{colors.surface}'
+    rounded: '{rounded.panel}'
 ---
 
 # Design System: Hospital workspace
@@ -81,6 +81,7 @@ CSS; it preserves that direction. The interface supports reception and outpatien
 work on shared workstations. Working title only; final branding remains undecided.
 
 **Key Characteristics:**
+
 - Readable patient lists and explicit workflow actions.
 - Restrained teal navigation and paper-white surfaces.
 - Text-labelled status and computed operational summaries.
@@ -146,7 +147,7 @@ confirmation. Operational summaries derive from actual demo state.
 ## Do's and Don'ts
 
 - Do keep actions labelled and patient names visibly actionable.
-- Do preserve the light background, teal accents and clear patient lists.
+- Do preserve Light/Teal defaults and clear patient lists while supporting chosen Dark/Device modes and Blue/Violet accents.
 - Do show pending work and recovery instructions in plain language.
 - Keep a public showcase at `/` and authenticated workspaces under `/staff`; financial entries record cash/manual transfer outcomes.
 - Don't use decorative charts, fictional avatars or color-only statuses.
@@ -164,3 +165,25 @@ The public story uses a fluid 36–62px display heading, 32px workflow heading,
 22–23px preview and workflow titles, and 12–14px table/metadata text. These extend
 the existing workspace hierarchy for a public reading surface; the palette and
 workspace form sizes remain consistent with the approved identity.
+
+## Workspace appearance and navigation
+
+Operational surfaces use semantic canvas, surface, ink, muted, border, accent and
+status tokens from `src/appearance/tokens.css`. Light/Teal remains the default;
+Dark and Device modes and Blue/Violet accents cover public, authentication and
+staff surfaces. Status amber/red keep their meanings independently of accent.
+MFA QR remains black on white; print uses a readable light palette. Preferences
+change CSS attributes without remounting forms or changing session identity.
+
+Radix Dropdown Menu supplies language and grouped mode/accent menu semantics,
+selected indicators, arrow/typeahead navigation, dismissal and focus return.
+Department sections are compact links with underlined current location, separated
+from consequential commands. Same-section reads retain visibly updating rows;
+category changes reserve list space and never present the preceding category.
+
+Account/security actions live in a conventional top-right header profile menu with
+a consistent profile icon and the current staff name. Password and authenticator
+settings use true links; sign-out is a single explicit menu action. The hospital
+workflow sidebar contains only work/management navigation. Gated sessions expose
+sign-out alone. Pending writes disable menu actions without disabling the trigger;
+the existing dirty-draft confirmations still own navigation and sign-out decisions.

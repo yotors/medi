@@ -1,3 +1,5 @@
+import { accountItem } from './account-helpers';
+import { chooseLanguage, chooseAction } from './preference-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -51,9 +53,9 @@ test('laboratory catalog form preserves explicitly configured thresholds with ac
   await signIn(page);
   await page
     .getByRole('navigation', { name: 'Department workflows' })
-    .getByRole('button', { name: 'Laboratory catalog', exact: true })
+    .getByRole('link', { name: 'Laboratory catalog', exact: true })
     .click();
-  await page.getByLabel('Action', { exact: true }).selectOption('lab.catalog');
+  await chooseAction(page, 'lab.catalog');
   const code = `L${randomUUID().slice(0, 8)}`;
   await page.getByLabel('Test code', { exact: true }).fill(code);
   await page.getByLabel('Test name', { exact: true }).fill(`Fictional laboratory ${code}`);
@@ -83,10 +85,10 @@ test('cashier opens signs and closes a real shift and history retains ETB differ
   page,
 }) => {
   await signIn(page, 'cashier');
-  await page.getByLabel('Action', { exact: true }).selectOption('shift.open');
+  await chooseAction(page, 'shift.open');
   await page.getByLabel('Opening cash (ETB)', { exact: true }).fill('200.00');
   await save(page);
-  await page.getByLabel('Action', { exact: true }).selectOption('shift.close');
+  await chooseAction(page, 'shift.close');
   const records = await (await page.request.get('/api/departments?kind=shift&page=1')).json();
   const shift = records.entries.find((r: any) => r.data.status === 'open');
   await page.getByLabel('Cashier shift', { exact: true }).selectOption(shift.id);
@@ -107,11 +109,11 @@ test('pharmacy supplier draft departure is explicit and supplier creation persis
 }) => {
   await signIn(page, 'pharmacist');
   const navigation = page.getByRole('navigation', { name: 'Department workflows' });
-  await navigation.getByRole('button', { name: 'Suppliers', exact: true }).click();
-  await page.getByLabel('Action', { exact: true }).selectOption('supplier.create');
+  await navigation.getByRole('link', { name: 'Suppliers', exact: true }).click();
+  await chooseAction(page, 'supplier.create');
   await page.getByLabel('Supplier name', { exact: true }).fill('Fictional unsaved supplier');
   page.once('dialog', (d) => d.dismiss());
-  await navigation.getByRole('button', { name: 'Purchase orders', exact: true }).click();
+  await navigation.getByRole('link', { name: 'Purchase orders', exact: true }).click();
   await expect(page.getByLabel('Supplier name', { exact: true })).toHaveValue(
     'Fictional unsaved supplier',
   );
@@ -156,9 +158,9 @@ async function workflow(page: Page, category: string, action: string) {
   await page.getByRole('link', { name: 'Department operations', exact: true }).click();
   await page
     .getByRole('navigation', { name: 'Department workflows' })
-    .getByRole('button', { name: category, exact: true })
+    .getByRole('link', { name: category, exact: true })
     .click();
-  await page.getByLabel('Action', { exact: true }).selectOption(action);
+  await chooseAction(page, action);
 }
 test('configured custom test orders and specimen handoffs use patient and clinician choices without identifier entry', async ({
   page,
@@ -196,18 +198,18 @@ test('configured custom test orders and specimen handoffs use patient and clinic
   await expect(page.getByLabel(/Encounter ID|order ID|Expected.*revision/)).toHaveCount(0);
   await save(page);
   for (const action of ['lab.collect', 'lab.receive', 'lab.result', 'lab.release']) {
-    await page.getByLabel('Action', { exact: true }).selectOption(action);
+    await chooseAction(page, action);
     await choose(page, 'Specimen', `ACCESSION-${code}`);
     if (action === 'lab.collect') {
       const selected = await page.getByLabel('Specimen', { exact: true }).inputValue();
-      await page.getByLabel('Language', { exact: true }).selectOption('am');
+      await chooseLanguage(page, 'am');
       const specimen = page.getByLabel('ናሙና', { exact: true });
       await expect(specimen).toHaveValue(selected);
       await expect(specimen.locator('option:checked')).toContainText(patientName);
       await expect(specimen.locator('option:checked')).toContainText(name);
       await expect(specimen.locator('option:checked')).toContainText('ተመዝግቧል');
       await expect(specimen.locator('option:checked')).toContainText('የናሙና መለያ');
-      await page.getByLabel('ቋንቋ', { exact: true }).selectOption('en');
+      await chooseLanguage(page, 'en');
       await expect(page.getByLabel('Specimen', { exact: true })).toHaveValue(selected);
     }
 
@@ -272,7 +274,7 @@ test('invoice credit refund and cash allocation use factual patient invoice rece
   await page.getByLabel('Amount (ETB)', { exact: true }).fill('20.00');
   await page.getByLabel('Reason', { exact: true }).fill('Approved fictional credit');
   await save(page);
-  await page.getByLabel('Action', { exact: true }).selectOption('payment.refund');
+  await chooseAction(page, 'payment.refund');
   await choose(page, 'Patient invoice', patientName);
   await choose(page, 'Original receipt', '100.00 ETB');
   await page.getByLabel('Amount (ETB)', { exact: true }).fill('20.00');
@@ -287,7 +289,7 @@ test('invoice credit refund and cash allocation use factual patient invoice rece
   await page.getByLabel('Opening cash (ETB)', { exact: true }).fill('0.00');
   await save(page);
   for (const needle of ['cash received', 'cash paid out']) {
-    await page.getByLabel('Action', { exact: true }).selectOption('shift.allocate');
+    await chooseAction(page, 'shift.allocate');
     await choose(page, 'Cashier shift', 'Opening 0.00 ETB');
     await page.getByLabel('Find cash receipt or refund', { exact: true }).fill(patientName);
     await page
@@ -310,19 +312,19 @@ test('invoice credit refund and cash allocation use factual patient invoice rece
     const selectedCash = await page
       .getByLabel('Cash receipt or refund', { exact: true })
       .inputValue();
-    await page.getByLabel('Language', { exact: true }).selectOption('am');
+    await chooseLanguage(page, 'am');
     const cashChoice = page.getByLabel('የጥሬ ገንዘብ ማረጋገጫ ወይም ተመላሽ', { exact: true });
     await expect(cashChoice).toHaveValue(selectedCash);
     await expect(cashChoice.locator('option:checked')).toContainText(patientName);
     await expect(cashChoice.locator('option:checked')).toContainText('ጥሬ ገንዘብ');
-    await page.getByLabel('ቋንቋ', { exact: true }).selectOption('en');
+    await chooseLanguage(page, 'en');
 
     await expect(
       page.getByLabel(/Expected.*revision|Invoice ID|Payment ID|Cash payment ID/),
     ).toHaveCount(0);
     await save(page);
   }
-  await page.getByLabel('Action', { exact: true }).selectOption('shift.close');
+  await chooseAction(page, 'shift.close');
   await choose(page, 'Cashier shift', 'Opening 0.00 ETB');
   await page.getByLabel('Counted cash (ETB)', { exact: true }).fill('80.00');
   await page.getByLabel('Closing signature', { exact: true }).fill('Fictional signed cash count');
@@ -388,7 +390,7 @@ test('patient dispense return and original batch quality decision need no copied
     await page.request.get(`/api/inventory/products/${product.productId}/batches`)
   ).json();
   expect(stock.entries[0].balance).toBe(7);
-  await page.getByLabel('Action', { exact: true }).selectOption('return.quality');
+  await chooseAction(page, 'return.quality');
   await choose(page, 'Patient return', patientName);
   await expect(page.getByLabel('Original stock batch', { exact: true })).toContainText(code);
   await expect(page.getByLabel('Original stock batch', { exact: true })).not.toHaveValue('');
@@ -410,4 +412,330 @@ test('patient dispense return and original batch quality decision need no copied
     path: `artifacts/departments-ui/${info.project.name}-return-picker.png`,
     fullPage: true,
   });
+});
+
+test('department section links preserve drafts and history and keep refreshing rows', async ({
+  page,
+}) => {
+  const retained = 'Fictional retained catalog row';
+  await page.route('**/api/departments?kind=catalog*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        entries: [
+          { id: 'retained-catalog', kind: 'catalog', revision: 1, data: { name: retained } },
+        ],
+        total: 1,
+        page: 1,
+      }),
+    }),
+  );
+  await signIn(page);
+  const nav = page.getByRole('navigation', { name: 'Department workflows' });
+  await nav.getByRole('link', { name: 'Laboratory catalog', exact: true }).click();
+  await expect(page).toHaveURL(/section=catalog/);
+  await page.getByLabel('Test code', { exact: true }).fill('Unsaved fictional code');
+  await nav.getByRole('link', { name: 'Laboratory catalog', exact: true }).click();
+  await expect(page.getByLabel('Test code', { exact: true })).toHaveValue('Unsaved fictional code');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await nav.getByRole('link', { name: 'Suppliers', exact: true }).click();
+  await expect(page).toHaveURL(/section=catalog/);
+  await expect(page.getByLabel('Test code', { exact: true })).toHaveValue('Unsaved fictional code');
+  page.once('dialog', (dialog) => dialog.accept());
+  await nav.getByRole('link', { name: 'Suppliers', exact: true }).click();
+  await expect(page).toHaveURL(/section=supplier/);
+  await expect(page.getByRole('heading', { name: 'Suppliers', exact: true })).toBeFocused();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Suppliers', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/section=catalog/);
+  await expect(
+    page.getByRole('heading', { name: 'Laboratory catalog', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toContainText(
+    retained,
+  );
+  let release!: () => void;
+  const delay = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/departments?kind=catalog*', async (route) => {
+    await delay;
+    await route.fallback();
+  });
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: 'Laboratory catalog', exact: true }),
+  ).toHaveAttribute('aria-busy', 'true');
+  await expect(
+    page.getByRole('button', { name: 'Save accountable record', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toContainText(
+    retained,
+  );
+  release();
+  await expect(
+    page.getByRole('region', { name: 'Laboratory catalog', exact: true }),
+  ).toHaveAttribute('aria-busy', 'false');
+  await page
+    .getByRole('navigation', { name: 'Staff workspace', exact: true })
+    .getByRole('link', { name: 'Workspace home', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Staff workspace', exact: true })
+    .getByRole('link', { name: 'Department operations', exact: true })
+    .click();
+  await expect(page).toHaveURL(/section=catalog/);
+  await page.goto('/staff/departments?section=invalid');
+  await expect(page).toHaveURL(/section=catalog/);
+});
+
+test('stale department reads cannot authorize saves and superseded categories stay separate', async ({
+  page,
+}) => {
+  await signIn(page);
+  const nav = page.getByRole('navigation', { name: 'Department workflows' });
+  await nav.getByRole('link', { name: 'Laboratory catalog', exact: true }).click();
+  const region = page.getByRole('region', { name: 'Laboratory catalog', exact: true });
+  await expect(region).toHaveAttribute('aria-busy', 'false');
+  await page.route('**/api/departments?kind=catalog*', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
+  );
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Displayed records may be out of date.');
+  await expect(region).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Save accountable record', exact: true }),
+  ).toBeDisabled();
+  await page.unroute('**/api/departments?kind=catalog*');
+  let release!: () => void;
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/departments?kind=catalog*', async (route) => {
+    await delayed;
+    await route
+      .fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entries: [{ id: 'superseded', revision: 1, data: { name: 'Obsolete catalog record' } }],
+          total: 1,
+        }),
+      })
+      .catch(() => {});
+  });
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(region).toHaveAttribute('aria-busy', 'true');
+  await nav.getByRole('link', { name: 'Suppliers', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Suppliers', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  );
+  release();
+  await expect(page.getByText('Obsolete catalog record')).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Suppliers', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+test('pending department writes block section history and retain exact retry payload', async ({
+  page,
+}) => {
+  await signIn(page);
+  const nav = page.getByRole('navigation', { name: 'Department workflows' });
+  await nav.getByRole('link', { name: 'Laboratory catalog', exact: true }).click();
+  await page.getByLabel('Test code', { exact: true }).fill('FICTIONAL');
+  await page.getByLabel('Test name', { exact: true }).fill('Fictional retry test');
+  await page.getByLabel('Specimen type', { exact: true }).fill('Fictional specimen');
+  await page.getByLabel('Result unit', { exact: true }).fill('Configured unit');
+  const attempts: { payload: string | null; key: string | undefined }[] = [];
+  await page.route('**/api/departments/commands', async (route) => {
+    attempts.push({
+      payload: route.request().postData(),
+      key: route.request().headers()['idempotency-key'],
+    });
+    if (attempts.length === 1) await route.abort('failed');
+    else await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.getByRole('button', { name: 'Save accountable record', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Retry exact request', exact: true }),
+  ).toBeVisible();
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await expect(
+    page.getByRole('menuitem', { name: 'Change password', exact: true }),
+  ).toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
+  const retained = page.url();
+  await expect(nav.getByRole('link', { name: 'Suppliers', exact: true })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await nav.getByRole('link', { name: 'Suppliers', exact: true }).click({ force: true });
+  await expect(page).toHaveURL(retained);
+  await page.goBack();
+  await expect(page).toHaveURL(retained);
+  await expect(page.getByLabel('Test name', { exact: true })).toHaveValue('Fictional retry test');
+  await page.getByRole('button', { name: 'Retry exact request', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Saved accountable record' }),
+  ).toBeVisible();
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).toEqual(attempts[0]);
+});
+
+test('department unauthorized refresh clears private records and unsaved draft', async ({
+  page,
+}) => {
+  let authorized = true;
+  await page.route('**/api/departments?kind=catalog*', (route) =>
+    route.fulfill(
+      authorized
+        ? {
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              entries: [
+                {
+                  id: 'fictional-private-record',
+                  kind: 'catalog',
+                  revision: 1,
+                  data: { name: 'Fictional private laboratory record' },
+                },
+              ],
+              total: 1,
+              page: 1,
+            }),
+          }
+        : {
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ code: 'SESSION_EXPIRED' }),
+          },
+    ),
+  );
+  await signIn(page);
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toContainText(
+    'Fictional private laboratory record',
+  );
+  await page.getByLabel('Test code', { exact: true }).fill('Fictional private draft');
+  authorized = false;
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Staff sign-in', exact: true })).toBeVisible();
+  await expect(page.getByText('Fictional private laboratory record')).toHaveCount(0);
+  await expect(page.locator('input[value="Fictional private draft"]')).toHaveCount(0);
+  await expect(page.locator('.account-menu')).toHaveCount(0);
+});
+
+test('department retained page and history reads expose pending stale and print guards', async ({
+  page,
+}) => {
+  let listMode = 'ok',
+    historyMode = 'hold';
+  let releasePage!: () => void, releaseHistory!: () => void;
+  const heldPage = new Promise<void>((resolve) => {
+    releasePage = resolve;
+  });
+  const heldHistory = new Promise<void>((resolve) => {
+    releaseHistory = resolve;
+  });
+  await page.route('**/api/departments?kind=catalog*', async (route) => {
+    const requested = Number(new URL(route.request().url()).searchParams.get('page'));
+    if (requested === 2) await heldPage;
+    await route.fulfill(
+      listMode === 'fail'
+        ? { status: 503, contentType: 'application/json', body: '{}' }
+        : {
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              entries: [
+                {
+                  id: `retained-${requested}`,
+                  kind: 'catalog',
+                  revision: 1,
+                  data: { name: `Fictional loaded page ${requested}` },
+                },
+              ],
+              total: 50,
+              page: requested,
+            }),
+          },
+    );
+  });
+  await page.route('**/api/departments/*/history?*', async (route) => {
+    if (historyMode === 'hold') await heldHistory;
+    await route.fulfill(
+      historyMode === 'fail'
+        ? { status: 503, contentType: 'application/json', body: '{}' }
+        : {
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              entries: Array.from({ length: 25 }, (_, i) => ({
+                id: `event-${i}`,
+                at: '2026-10-15T00:00:00Z',
+                actorName: 'Fictional actor',
+                actorId: 'fictional',
+                action: 'lab.catalog',
+                snapshot: { command: { note: 'Fictional retained history' } },
+              })),
+            }),
+          },
+    );
+  });
+  await signIn(page);
+  await page.getByLabel('Test code', { exact: true }).fill('Fictional discardable draft');
+  await page.getByRole('button', { name: 'View record and history', exact: true }).click();
+  const print = page.getByRole('button', { name: 'Print factual record', exact: true });
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Updating record history' }),
+  ).toBeVisible();
+  await expect(print).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Next history', exact: true })).toBeDisabled();
+  historyMode = 'ok';
+  releaseHistory();
+  await expect(print).toBeEnabled();
+  historyMode = 'fail';
+  await page.getByRole('button', { name: 'Next history', exact: true }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'History may be out of date.' }),
+  ).toBeVisible();
+  await expect(page.getByText('Fictional retained history', { exact: true }).first()).toBeVisible();
+  await expect(print).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Previous history', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Discard draft', exact: true }).click();
+  await expect(page.getByLabel('Test code', { exact: true })).toHaveValue('');
+  historyMode = 'ok';
+  await page.getByRole('button', { name: 'Retry loading', exact: true }).click();
+  await expect(print).toBeEnabled();
+  await page.getByLabel('Test code', { exact: true }).fill('Fictional stale list draft');
+  listMode = 'fail';
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Displayed records may be out of date.' }),
+  ).toBeVisible();
+  await expect(print).toBeDisabled();
+  await page.getByRole('button', { name: 'Discard draft', exact: true }).click();
+  await expect(page.getByLabel('Test code', { exact: true })).toHaveValue('');
+  listMode = 'ok';
+  await page.getByRole('button', { name: 'Refresh records', exact: true }).click();
+  await expect(print).toBeEnabled();
+  await page.getByRole('button', { name: 'Next records', exact: true }).click();
+  await expect(page.locator('.staff-pagination p')).toContainText('Page 1');
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toContainText(
+    'Fictional loaded page 1',
+  );
+  await expect(page.getByRole('button', { name: 'Previous records', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Next records', exact: true })).toBeDisabled();
+  await expect(print).toBeDisabled();
+  releasePage();
+  await expect(page.locator('.staff-pagination p')).toContainText('Page 2');
+  await expect(page.getByRole('region', { name: 'Laboratory catalog', exact: true })).toContainText(
+    'Fictional loaded page 2',
+  );
 });

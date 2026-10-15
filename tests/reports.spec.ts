@@ -1,3 +1,4 @@
+import { signOut } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -259,7 +260,7 @@ test('combined report uses keyboard, exact amounts, accessible tables and invent
   await expect(page.getByRole('heading', { name: /^Report for / })).toBeInViewport();
   await page.getByRole('button', { name: 'Previous report products', exact: true }).click();
   await expect(page.getByText(/products · Page 1/)).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await expect(page.getByRole('heading', { name: 'Staff sign-in', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Product stock', exact: true })).toHaveCount(0);
 });
@@ -338,7 +339,7 @@ test('each role sees only its authorized sections and denied roles have no repor
         await capture(page, `${info.project.name}-${role}`);
       }
     }
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await signOut(page);
   }
 });
 test('navigation respects an existing inventory draft and session expiry clears report data', async ({
@@ -519,7 +520,7 @@ test('delayed completed report responses cannot restore results after navigation
           { exact: true },
         ),
       ).toBeVisible();
-      await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+      await signOut(page);
     }
   }
 });

@@ -127,6 +127,6 @@
   text-underline-offset: 3px;
 }
 .inventory-identity summary:focus-visible {
-  outline: 3px solid #178b7d;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }

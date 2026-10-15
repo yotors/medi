@@ -1,3 +1,4 @@
+import { accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -280,7 +281,9 @@ test('lost supply response preserves exact retry and guards navigation, then can
     page.getByRole('button', { name: 'Retry pharmacy save', exact: true }),
   ).toBeEnabled();
   await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('1');
-  for (const name of ['Sign out', 'Back to visit queue', 'Refresh visit'])
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  for (const name of ['Back to visit queue', 'Refresh visit'])
     await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry pharmacy save', exact: true }).click();
   await expect(

@@ -1,3 +1,4 @@
+import { accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -216,7 +217,9 @@ test('lost correction response preserves exact payload and draft while navigatio
     'Corrected fictional result.',
   );
   await expect(page.getByLabel('Corrected result text', { exact: true })).toBeDisabled();
-  for (const label of ['Sign out', 'Back to visit queue', 'Refresh visit'])
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  for (const label of ['Back to visit queue', 'Refresh visit'])
     await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry clinical save', exact: true }).click();
   await expect(

@@ -363,5 +363,14 @@
   "patient_page_one": "{{total}} patient · Page {{page}} of {{pages}}",
   "patient_page_other": "{{total}} patients · Page {{page}} of {{pages}}",
   "no_amendments_recorded": "No amendments recorded.",
-  "no_corrections_recorded": "No corrections recorded."
+  "no_corrections_recorded": "No corrections recorded.",
+  "appearance": "Appearance",
+  "mode": "Mode",
+  "accent": "Accent",
+  "light": "Light",
+  "dark": "Dark",
+  "device": "Device",
+  "teal": "Teal",
+  "blue": "Blue",
+  "violet": "Violet"
 }

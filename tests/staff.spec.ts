@@ -1,3 +1,4 @@
+import { signOut, accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -150,7 +151,7 @@ test('staff sign-in, duplicate confirmation, search, reload and sign-out', async
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   expect((await page.request.get('/api/patients')).status()).toBe(401);
 });
@@ -171,7 +172,8 @@ test('lost registration response retries the original write exactly once', async
   await expect(page.getByRole('button', { name: 'Retry registration' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toHaveValue(name);
   await expect(page.getByLabel('Full name')).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeDisabled();
+  await expect(await accountItem(page, 'Sign out')).toBeDisabled();
+  await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Inside the workspace' }).click();
   await expect(page).toHaveURL(/\/staff\/patients$/);
   await expect(page.getByRole('alert')).toContainText('pending registration');
@@ -203,11 +205,11 @@ test('hospital boundary and read-only permissions are enforced by the API', asyn
       data: { q: name },
     })
   ).json();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'reception', `${hospitalCode}-other`);
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(0);
   expect((await page.request.get(`/api/patients/${original.patients[0].id}`)).status()).toBe(404);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await signIn(page, 'auditor');
   await expect(page.getByRole('button', { name: 'Register patient', exact: true })).toHaveCount(0);
   const session = await (await page.request.get('/api/auth/session')).json();
@@ -235,7 +237,7 @@ test('revoked sessions clear patient data and logout clears another open tab', a
   const other = await context.newPage();
   await other.goto('/staff/patients');
   await expect(other.getByRole('heading', { name: 'Patient directory' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await expect(other.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   await expect(other.getByRole('region', { name: 'Registered patients' })).toHaveCount(0);
 });
@@ -334,7 +336,7 @@ test('a lost logout response clears both tabs and can confirm revocation on retr
     expect(response.status()).toBe(204);
     await route.abort('failed');
   });
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   await expect(other.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
   await page.unroute('**/api/auth/logout');
@@ -390,7 +392,7 @@ test('delayed private search cannot replace a newer search or restore data after
   await page.getByLabel('Search name or record number').fill(name);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await received;
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await signOut(page);
   const loggedOutResponse = page.waitForResponse((response) =>
     response.url().endsWith('/api/patients/search'),
   );
