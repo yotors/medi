@@ -147,16 +147,6 @@
   border-top: 1px solid #dce5e4;
   color: #52686d;
 }
-.language-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.language-control select {
-  width: auto;
-  max-width: 160px;
-}
 .product-home a {
   color: #12695d;
 }

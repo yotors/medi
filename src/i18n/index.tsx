@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { useState } from 'react';
+import { Globe2, ChevronDown } from 'lucide-react';
 import { initReactI18next, useTranslation } from 'react-i18next';
 import { languages, type LanguageCode } from './languages';
 export { languages } from './languages';
@@ -92,9 +93,10 @@ export function LanguageControl() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   return (
-    <div>
+    <div className="language-switcher">
       <label className="language-control">
-        <span>{t('language:label')}</span>
+        <span className="sr-only">{t('language:label')}</span>
+        <Globe2 className="language-globe" size={17} aria-hidden="true" />
         <select
           aria-label={t('language:label')}
           disabled={busy}
@@ -117,6 +119,7 @@ export function LanguageControl() {
             </option>
           ))}
         </select>
+        <ChevronDown className="language-chevron" size={15} aria-hidden="true" />
       </label>
       {failed && <p role="alert">{t('common:language_loading_failed')}</p>}
     </div>

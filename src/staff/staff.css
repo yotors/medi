@@ -495,12 +495,11 @@
   color: #52686d;
   margin-bottom: 26px;
 }
-.staff-header .language-control {
-  color: white;
-}
-.staff-header .language-control select {
-  color: #162d32;
-  background: white;
+.staff-header .language-switcher {
+  --language-ink: #eef7f4;
+  --language-surface: #1c3e40;
+  --language-border: #678580;
+  --language-hover: #294d4d;
 }
 .home-tasks {
   display: flex;
