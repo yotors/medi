@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { accountItem } from './account-helpers';
 import { chooseLanguage, chooseAction } from './preference-helpers';
 import { test, expect, type Page } from '@playwright/test';
@@ -39,6 +40,7 @@ async function signIn(page: Page, role = 'admin') {
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Department operations', exact: true }).click();
 }
 async function save(page: Page) {
@@ -144,6 +146,7 @@ async function choose(page: Page, label: string, needle: string) {
   await select.selectOption({ label: (await option.textContent())!.trim() });
 }
 async function openVisit(page: Page, name: string) {
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -155,6 +158,7 @@ async function openVisit(page: Page, name: string) {
     .click();
 }
 async function workflow(page: Page, category: string, action: string) {
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Department operations', exact: true }).click();
   await page
     .getByRole('navigation', { name: 'Department workflows' })
@@ -479,10 +483,12 @@ test('department section links preserve drafts and history and keep refreshing r
   await expect(
     page.getByRole('region', { name: 'Laboratory catalog', exact: true }),
   ).toHaveAttribute('aria-busy', 'false');
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Workspace home', exact: true })
     .click();
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Department operations', exact: true })

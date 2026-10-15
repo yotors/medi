@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut } from './account-helpers';
 import { chooseLanguage, chooseAction } from './preference-helpers';
 import { randomUUID } from 'node:crypto';
@@ -125,6 +126,7 @@ test('clinical protocol selections and entered content survive language changes 
     data: { name, contact: 'fictional' },
   });
   expect(registered.status()).toBe(201);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill(name);
   await page.getByRole('button', { name: 'Search patients', exact: true }).click();

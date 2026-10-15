@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut, accountNavigate } from './account-helpers';
 import { test, expect, type Page, type Dialog } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -49,6 +50,7 @@ async function signIn(page: Page, username = 'admin', value = password) {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 async function createDraft(page: Page, username: string) {
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Create staff account', exact: true }).click();
   await page.getByLabel('Staff display name').fill(`Fictional ${username}`);
@@ -61,6 +63,7 @@ test('review2: keyboard create and back restore focus and a role-only draft is g
   page,
 }) => {
   await signIn(page, 'review2-admin');
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Create staff account', exact: true }).focus();
   await page.keyboard.press('Enter');
@@ -195,6 +198,7 @@ test('keyboard onboarding, temporary password replacement, access management and
   await expect(page.getByRole('link', { name: 'Staff administration' })).toHaveCount(0);
   await signOut(page);
   await signIn(page);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Fictional new-clinician', exact: true }).click();
   await page.getByLabel('Active account', { exact: true }).uncheck();
@@ -231,6 +235,7 @@ test('lost command response retries once, failed load recovers and dirty draft b
       });
     } else await route.continue();
   });
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable');
   fail = false;
@@ -240,6 +245,7 @@ test('lost command response retries once, failed load recovers and dirty draft b
   ).toBeVisible();
   await createDraft(page, 'retry-clinician');
   page.once('dialog', (dialog) => dialog.dismiss());
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await expect(page.getByLabel('Staff username')).toHaveValue('retry-clinician');
   let lose = true;
@@ -314,7 +320,10 @@ async function assertSameSurfaceNoDialog(page: Page, label: string) {
   };
   page.on('dialog', handler);
   if (label === 'Change password') await accountNavigate(page, label);
-  else await page.getByRole('link', { name: label, exact: true }).click();
+  else {
+    await revealWorkspaceNavigation(page);
+    await page.getByRole('link', { name: label, exact: true }).click();
+  }
   page.off('dialog', handler);
   expect(dialogs).toBe(0);
 }
@@ -346,6 +355,7 @@ test('review: same visit navigation retains dirty guard and generic navigation n
     'Unsaved navigation regression note.',
   );
   const rejected = page.waitForEvent('dialog');
+  await revealWorkspaceNavigation(page);
   const leave = page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await (await rejected).dismiss();
   await leave;
@@ -353,10 +363,12 @@ test('review: same visit navigation retains dirty guard and generic navigation n
     'Unsaved navigation regression note.',
   );
   page.once('dialog', (dialog) => dialog.accept());
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Staff administration', exact: true }),
   ).toBeVisible();
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Outpatient visits', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Outpatient visits', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
@@ -370,6 +382,7 @@ test('review: same staff and password surfaces preserve dirty navigation protect
   await createDraft(page, 'dirty-review');
   await assertSameSurfaceNoDialog(page, 'Staff administration');
   const rejected = page.waitForEvent('dialog');
+  await revealWorkspaceNavigation(page);
   const leave = page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await (await rejected).dismiss();
   await leave;
@@ -379,6 +392,7 @@ test('review: same staff and password surfaces preserve dirty navigation protect
   await page.getByLabel('Current password', { exact: true }).fill('fictional-dirty-current');
   await assertSameSurfaceNoDialog(page, 'Change password');
   const passwordRejected = page.waitForEvent('dialog');
+  await revealWorkspaceNavigation(page);
   const passwordLeave = page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await (await passwordRejected).dismiss();
   await passwordLeave;

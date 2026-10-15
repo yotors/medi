@@ -1247,7 +1247,10 @@ try {
     await page.getByRole('link', { name: 'Dashboard', exact: true }).first().click();
     await page.getByRole('heading', { name: 'Start your work', exact: true }).waitFor();
     verificationStage = 'browser-report';
-    await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
+    await page
+      .locator('#workspace-navigation')
+      .getByRole('link', { name: 'Operational reports', exact: true })
+      .click();
     await page.getByRole('heading', { name: 'Operational reports', exact: true }).waitFor();
     await page.getByLabel('From date', { exact: true }).fill(reportRange.from);
     await page.getByLabel('Through date', { exact: true }).fill(reportRange.to);
@@ -1258,7 +1261,7 @@ try {
         exact: true,
       })
       .waitFor();
-    await page.getByRole('heading', { name: 'Product stock', exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Current product stock', exact: true }).waitFor();
     verificationStage = 'browser-security';
     await page.locator('.account-menu button[aria-haspopup="menu"]').click();
     await page.getByRole('menuitem', { name: 'Authenticator security', exact: true }).click();

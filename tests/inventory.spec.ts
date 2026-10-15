@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -96,6 +97,7 @@ async function seed(page: Page) {
   return { code, name, productId: p.productId, batchId: b.batchId, v };
 }
 async function openVisit(page: Page, v: VisitView) {
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -154,6 +156,7 @@ test('catalog and batch receive, adjustment and quarantine use explicit units wi
   page,
 }, info) => {
   await signIn(page, 'pharmacist');
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   const code = `U${randomUUID().slice(0, 8).toUpperCase()}`,
     name = `Fictional catalog ${code}`;
@@ -310,6 +313,7 @@ test('inventory uncertain retry preserves product creation and blocks navigation
   page,
 }) => {
   await signIn(page);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   const code = `R${randomUUID().slice(0, 8).toUpperCase()}`;
@@ -522,6 +526,7 @@ test('multiple prescriptions retain editor context, recorded expiry and distinct
       'Second distinct fictional instruction.',
     );
     await pharmacist.getByRole('button', { name: 'Discard pharmacy draft' }).click();
+    await revealWorkspaceNavigation(pharmacist);
     await pharmacist.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
     await pharmacist.getByLabel('Search product name or code').fill(fixture.code);
     await pharmacist.getByRole('button', { name: 'Search products', exact: true }).click();
@@ -622,6 +627,7 @@ test('inventory stale refresh and status conflict keep the intended action and r
 }, info) => {
   await signIn(page);
   const fixture = await seed(page);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByLabel('Search product name or code').fill(fixture.code);
   await page.getByRole('button', { name: 'Search products', exact: true }).click();
@@ -749,6 +755,7 @@ test('catalog and history pagination, search reset and later-page batch supply r
       lot: `EMPTY-${index}`,
       expiry: '2000-01-01',
     });
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Next products', exact: true }).click();
   await expect(page.getByText(/products · Page 2/)).toBeVisible();

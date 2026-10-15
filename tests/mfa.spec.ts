@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut, accountNavigate } from './account-helpers';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
@@ -252,6 +253,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
       json: { ...body, expiresAt: grantRow.expires_at.toISOString() },
     });
   });
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Staff administration', exact: true }).click();
   await page.getByRole('button', { name: 'Manage Grant recipient', exact: true }).click();
   await page.getByLabel('Your current password').fill(password);
@@ -296,6 +298,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Issue enrollment grant' })).toBeDisabled();
   await capture(page, info.project.name + '-admin-ineligible');
+  await revealWorkspaceNavigation(page);
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/patients') && r.status() === 200),
     page.getByRole('link', { name: 'Patient directory', exact: true }).click(),

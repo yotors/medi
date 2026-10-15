@@ -14,7 +14,24 @@ import { CareWorkspace } from './CareWorkspace';
 import DepartmentWorkspace from './DepartmentWorkspace';
 import HospitalWorkspace from './HospitalWorkspace';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { HeartPulse, Plus, Search, ShieldCheck, ArrowLeft, RefreshCw } from 'lucide-react';
+import {
+  HeartPulse,
+  Plus,
+  Search,
+  ShieldCheck,
+  ArrowLeft,
+  RefreshCw,
+  Menu,
+  X,
+  LayoutDashboard,
+  Users,
+  Stethoscope,
+  Boxes,
+  ChartNoAxesCombined,
+  Settings,
+  Building2,
+  ClipboardList,
+} from 'lucide-react';
 import type { PatientPage, Registration, Session } from '../../shared/registration';
 import './staff.css';
 import { ApiError, request } from './api';
@@ -31,6 +48,38 @@ const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 }
 export default function StaffApp() {
   const { t } = useTranslation();
   const shellRef = useRef<HTMLDivElement>(null);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationToggle = useRef<HTMLButtonElement>(null);
+  const navIcons = {
+    home: LayoutDashboard,
+    patients: Users,
+    visits: Stethoscope,
+    care: HeartPulse,
+    departments: ClipboardList,
+    configuration: Settings,
+    inventory: Boxes,
+    reports: ChartNoAxesCombined,
+    hospital: Building2,
+    staff: Users,
+    password: ShieldCheck,
+    mfa: ShieldCheck,
+  };
+  useEffect(() => {
+    if (!navigationOpen) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        const target = event.target as Node | null;
+        const inside =
+          target &&
+          (shellRef.current?.querySelector('#workspace-navigation')?.contains(target) ||
+            navigationToggle.current?.contains(target));
+        setNavigationOpen(false);
+        if (inside) navigationToggle.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [navigationOpen]);
   useLayoutEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
@@ -408,6 +457,8 @@ export default function StaffApp() {
     setError('');
     if (historyMode !== 'pop') setWorkspaceSection(selectedSection);
     setRoute(id);
+    if (navigationOpen) document.getElementById('staff-main')?.focus({ preventScroll: true });
+    setNavigationOpen(false);
     setAccountSurface(
       !['home', 'patients', 'visits'].includes(id)
         ? (id as Exclude<Surface, 'home' | 'patients' | 'visits'>)
@@ -612,6 +663,21 @@ export default function StaffApp() {
           <HeartPulse size={26} />
           <span>Medi</span>
         </a>
+        {session?.authState === 'complete' &&
+          !session.passwordChangeRequired &&
+          !recoveryCodes.length && (
+            <button
+              ref={navigationToggle}
+              className="navigation-toggle"
+              aria-label={t('navigation:label')}
+              aria-expanded={navigationOpen}
+              aria-controls="workspace-navigation"
+              onClick={() => setNavigationOpen((open) => !open)}
+            >
+              {navigationOpen ? <X size={18} /> : <Menu size={18} />}
+              <span>{t('navigation:label')}</span>
+            </button>
+          )}
         <LanguageControl />
         <a href="/" onClick={guardNavigation}>
           {t('public:preview')}
@@ -734,7 +800,8 @@ export default function StaffApp() {
               !recoveryCodes.length &&
               !session.passwordChangeRequired && (
                 <nav
-                  className="staff-navigation staff-primary-navigation"
+                  id="workspace-navigation"
+                  className={`staff-navigation staff-primary-navigation ${navigationOpen ? 'navigation-open' : ''}`}
                   aria-label={t('navigation:label')}
                 >
                   {(['work', 'management'] as const).map((group) => (
@@ -742,21 +809,25 @@ export default function StaffApp() {
                       <h2>{t(`navigation:${group}`)}</h2>
                       {destinations(session.user.role)
                         .filter((d) => d.group === group)
-                        .map((d) => (
-                          <a
-                            key={d.id}
-                            href={surfacePath(d.id)}
-                            aria-current={route === d.id ? 'page' : undefined}
-                            aria-disabled={Boolean(pending) || visitPending || accountPending}
-                            onClick={(e) => {
-                              if (!isPlainLinkClick(e)) return;
-                              e.preventDefault();
-                              goTo(d.id);
-                            }}
-                          >
-                            {t(d.label)}
-                          </a>
-                        ))}
+                        .map((d) => {
+                          const Icon = navIcons[d.id];
+                          return (
+                            <a
+                              key={d.id}
+                              href={surfacePath(d.id)}
+                              aria-current={route === d.id ? 'page' : undefined}
+                              aria-disabled={Boolean(pending) || visitPending || accountPending}
+                              onClick={(e) => {
+                                if (!isPlainLinkClick(e)) return;
+                                e.preventDefault();
+                                goTo(d.id);
+                              }}
+                            >
+                              <Icon size={18} aria-hidden="true" />
+                              {t(d.label)}
+                            </a>
+                          );
+                        })}
                     </div>
                   ))}
                 </nav>
@@ -837,6 +908,7 @@ export default function StaffApp() {
               </section>
             ) : route === 'home' ? (
               <WorkspaceHome
+                key={`${session.csrfToken}:${session.user.role}`}
                 session={session}
                 onNavigate={(id) => {
                   goTo(id);
@@ -875,7 +947,7 @@ export default function StaffApp() {
               />
             ) : accountSurface === 'reports' ? (
               <OperationalReports
-                key={session.csrfToken}
+                key={`${session.csrfToken}:${session.user.role}`}
                 session={session}
                 onSessionError={handleError}
               />

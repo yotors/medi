@@ -33,7 +33,15 @@ export type ReportRange = {
   start: string;
   endExclusive: string;
 };
+/** Openings use opened_at; closures independently use data.closedAt. Max 366 daily
+ * bins and 168 weekday/hour bins, in Africa/Addis_Ababa. Missing on older APIs. */
+export type ReportActivity = {
+  daily: { date: string; opened: number; closed: number }[];
+  /** Sparse nonzero bins: ISO weekday 1=Monday through 7=Sunday; hour 0–23. */
+  openings: { weekday: number; hour: number; count: number }[];
+};
 export type ReportOperations = {
+  activity?: ReportActivity;
   period: {
     visitsOpened: number;
     visitsClosed: number;

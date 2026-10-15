@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -68,6 +69,7 @@ async function signIn(page: Page, role = 'admin', hospital = hospitalCode) {
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
 }
 async function open(page: Page) {
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Operational reports', exact: true }),
@@ -231,6 +233,11 @@ test('combined report uses keyboard, exact amounts, accessible tables and invent
   await expect(page.getByRole('heading', { name: 'Visit operations', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Recorded payments', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Product stock', exact: true })).toBeVisible();
+  await expect(page.locator('.report-results .report-chart')).toBeVisible();
+  await expect(page.locator('.opening-pattern tbody td')).toHaveCount(168);
+  await expect(
+    page.getByText('One selected day shows counts as points, not a trend.', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('region', { name: 'Receipts by payment method' })).toContainText(
     '123.45 ETB',
   );
@@ -248,11 +255,19 @@ test('combined report uses keyboard, exact amounts, accessible tables and invent
   await expect(movementRow.getByRole('cell')).toHaveText(['22', '2', '-2', '18']);
   await expect(movementRow.getByRole('rowheader')).toContainText('tablet');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
+  const overflow = await page.evaluate(() => ({
+    width: innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    elements: [...document.querySelectorAll('body *')]
+      .map((element) => ({
+        tag: element.tagName,
+        className: element.getAttribute('class'),
+        right: element.getBoundingClientRect().right,
+      }))
+      .filter((element) => element.right > innerWidth + 1)
+      .slice(0, 12),
+  }));
+  expect(overflow.scrollWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.width);
   await capture(page, `${info.project.name}-combined`);
   await page.getByRole('button', { name: 'Next report products', exact: true }).click();
   await expect(page.getByText(/products · Page 2/)).toBeVisible();
@@ -346,10 +361,12 @@ test('navigation respects an existing inventory draft and session expiry clears 
   page,
 }) => {
   await signIn(page);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Pharmacy inventory', exact: true }).click();
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   await page.getByLabel('Product code', { exact: true }).fill('UNSAVED');
   page.once('dialog', (dialog) => dialog.dismiss());
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Operational reports', exact: true }).click();
   await expect(page.getByRole('form', { name: 'Inventory change' })).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
@@ -487,7 +504,11 @@ test('delayed completed report responses cannot restore results after navigation
       .poll(() => page.evaluate(() => (window as unknown as { reportReady: boolean }).reportReady))
       .toBe(true);
     if (action === 'navigate') {
-      await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
+      await revealWorkspaceNavigation(page);
+      await page
+        .getByRole('navigation', { name: 'Staff workspace', exact: true })
+        .getByRole('link', { name: 'Patient directory', exact: true })
+        .click();
       await expect(
         page.getByRole('heading', { name: 'Patient directory', exact: true }),
       ).toBeVisible();
@@ -523,4 +544,210 @@ test('delayed completed report responses cannot restore results after navigation
       await signOut(page);
     }
   }
+});
+
+test('a visualization chunk failure keeps exact report tables usable', async ({ page }) => {
+  await signIn(page);
+  await page.route('**/src/staff/ReportVisuals.tsx*', (route) => route.abort());
+  await open(page);
+  await run(page);
+  await expect(
+    page
+      .getByText(
+        'The chart could not load. Exact values and tables are available in Operational reports.',
+      )
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Receipts by payment method', exact: true }),
+  ).toBeVisible();
+  await page.getByText('Exact daily counts', { exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Exact daily counts', exact: true })).toBeVisible();
+});
+
+test('home and report retain bilingual theme and mobile containment', async ({ page }, info) => {
+  test.setTimeout(120000);
+  const runtimeErrors: string[] = [];
+  page.on('pageerror', (error) => runtimeErrors.push(error.message));
+  await signIn(page);
+  for (const [language, theme, accent] of [
+    ['en', 'light', 'teal'],
+    ['en', 'dark', 'blue'],
+    ['am', 'dark', 'violet'],
+  ] as const) {
+    await page.evaluate(
+      ({ language, theme, accent }) => {
+        localStorage.setItem('medi.language', language);
+        localStorage.setItem('medi.appearance', JSON.stringify({ mode: theme, accent }));
+        document.documentElement.dataset.theme = theme;
+      },
+      { language, theme, accent },
+    );
+    await page.goto('/staff');
+    await expect(page.locator('.home-analysis .report-chart')).toBeVisible();
+    await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+    await expect(page.locator('html')).toHaveAttribute('lang', language);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await capture(page, `${info.project.name}-home-${language}-${theme}-${accent}`);
+    await page.goto('/staff/reports');
+    await page.locator('.report-range button[type="submit"], .report-range button.primary').click();
+    await expect(page.locator('.report-results .report-chart')).toBeVisible();
+    await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await capture(page, `${info.project.name}-report-${language}-${theme}-${accent}`);
+  }
+  await page.emulateMedia({ media: 'print', reducedMotion: 'reduce' });
+  await expect(page.locator('.analysis-table .table-scroll').first()).toBeVisible();
+  await expect(page.locator('.staff-primary-navigation')).not.toBeVisible();
+  await page.pdf({
+    path: `artifacts/reports-ui/${info.project.name}-report-print.pdf`,
+    format: 'A4',
+    printBackground: true,
+  });
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('older report sources expose totals without invented daily history', async ({ page }) => {
+  await signIn(page);
+  await open(page);
+  await page.route('**/api/reports/operational?**', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    delete body.operations.activity;
+    await route.fulfill({ response, json: body });
+  });
+  await run(page);
+  await expect(
+    page.getByText(
+      'Daily activity is unavailable from this report source; no history has been inferred. Period totals are available in Operational reports.',
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('.opening-pattern')).toHaveCount(0);
+  await expect(page.locator('.report-chart')).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Selected period activity', exact: true }),
+  ).toBeVisible();
+});
+
+test('opening-pattern weekday header stays separate from hour zero on mobile', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile');
+  await signIn(page);
+  for (const [language, theme, accent] of [
+    ['en', 'light', 'teal'],
+    ['am', 'dark', 'violet'],
+  ] as const) {
+    await page.evaluate(
+      ({ language, theme, accent }) => {
+        localStorage.setItem('medi.language', language);
+        localStorage.setItem('medi.appearance', JSON.stringify({ mode: theme, accent }));
+      },
+      { language, theme, accent },
+    );
+    await page.goto('/staff/reports');
+    await page.locator('.report-range button.primary').click();
+    await expect(page.locator('.opening-pattern tbody td')).toHaveCount(168);
+    const first = page.locator('.opening-pattern thead th').first();
+    const hour = await page.locator('.opening-pattern thead th').nth(1).boundingBox();
+    const textRight = await first.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().right;
+    });
+    expect(textRight).toBeLessThan(hour!.x);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await capture(page, `${info.project.name}-report-${language}-${theme}-${accent}`);
+  }
+});
+
+test('dashboard seven-day range follows Addis midnight and queue has its own receipt time', async ({
+  page,
+}) => {
+  await signIn(page);
+  const requested: string[] = [];
+  await page.route('**/api/reports/operational?**', async (route) => {
+    requested.push(route.request().url());
+    await route.continue();
+  });
+  for (const [instant, from, to] of [
+    ['2026-10-14T20:59:59Z', '2026-10-08', '2026-10-14'],
+    ['2026-10-14T21:00:00Z', '2026-10-09', '2026-10-15'],
+  ]) {
+    await page.clock.setFixedTime(new Date(instant));
+    await page.goto('/staff');
+    await expect(page.locator('.home-analysis > .muted')).toContainText(`${from} – ${to}`);
+    await expect(page.locator('.home-queue-panel .home-generated')).toContainText(
+      'client receipt time',
+    );
+    const params = new URL(requested.at(-1)!).searchParams;
+    expect([params.get('from'), params.get('to')]).toEqual([from, to]);
+  }
+});
+
+test('deterministic opening cells and daily table distinguish counts, zeros and future exposure', async ({
+  page,
+}) => {
+  await signIn(page);
+  await open(page);
+  await page.route('**/api/reports/operational?**', async (route) => {
+    const response = await route.fetch(),
+      body = await response.json();
+    body.generatedAt = '2026-10-15T09:30:00Z';
+    body.range = {
+      from: '2026-10-14',
+      to: '2026-10-16',
+      timezone: 'Africa/Addis_Ababa',
+      start: '2026-10-13T21:00:00Z',
+      endExclusive: '2026-10-16T21:00:00Z',
+    };
+    body.operations.activity = {
+      daily: [
+        { date: '2026-10-14', opened: 3, closed: 0 },
+        { date: '2026-10-15', opened: 0, closed: 0 },
+        { date: '2026-10-16', opened: 0, closed: 0 },
+      ],
+      openings: [{ weekday: 3, hour: 8, count: 3 }],
+    };
+    body.operations.period.visitsOpened = 3;
+    body.operations.period.visitsClosed = 0;
+    await route.fulfill({ response, json: body });
+  });
+  await run(page);
+  const rows = page.locator('.opening-pattern tbody tr');
+  await expect(rows.nth(2).locator('td').nth(8)).toContainText('3');
+  await expect(rows.nth(2).locator('td').nth(9)).toHaveClass('heat-0');
+  await expect(rows.nth(2).locator('td').nth(9).locator('span').first()).toHaveText('0');
+  await expect(rows.nth(3).locator('td').nth(13).locator('span').first()).toHaveText('—');
+  await expect(rows.nth(4).locator('td').first()).toHaveClass('unobserved');
+  await page.locator('.analysis-table summary').first().click();
+  const future = page
+    .getByRole('region', { name: 'Exact daily counts', exact: true })
+    .getByRole('row')
+    .filter({ hasText: '2026-10-16' });
+  await expect(future.getByRole('cell')).toHaveText(['—', '—']);
+  await expect(future.getByRole('img')).toHaveCount(2);
+  await page.getByText('Observed weekday/hour occurrences', { exact: true }).click();
+  await expect(page.locator('.opening-exposure tbody tr').nth(2).locator('td').nth(8)).toHaveText(
+    '1',
+  );
+  await expect(page.locator('.opening-exposure tbody tr').nth(4).locator('td').first()).toHaveText(
+    '0',
+  );
 });

@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
@@ -53,6 +54,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
     data: { name: 'Fictional Browser Care', age: 30, contact: 'fictional' },
   });
   expect(registered.status()).toBe(201);
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill('Fictional Browser Care');
   await page.getByRole('button', { name: 'Search patients' }).click();
@@ -88,6 +90,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
   await page.getByRole('button', { name: 'Sign and save' }).click();
   await expect(page.getByRole('cell', { name: 'arrived', exact: true })).toBeVisible();
   await page.reload();
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill('Fictional Browser Corrected');
   await page.getByRole('button', { name: 'Search patients' }).click();
@@ -133,6 +136,7 @@ test('duplicate resolution selects canonical identity by hospital-scoped name an
       expect(r.headers()['x-csrf-token']).toBeTruthy();
     }
   });
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient care', exact: true }).click();
   await page.getByLabel('Find a patient').fill(names[0]);
   await page.getByRole('button', { name: 'Search patients', exact: true }).click();

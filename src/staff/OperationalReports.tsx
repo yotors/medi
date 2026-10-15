@@ -7,6 +7,7 @@ import type { Session } from '../../shared/registration';
 import { reportQuerySchema, type OperationalReport } from '../../shared/reports';
 import { request, ApiError } from './api';
 import './reports.css';
+import { VisitAnalysis, CollectionAnalysis } from './ReportAnalysis';
 export function reportMoney(minor: string) {
   return formatMinorCurrency(minor);
 }
@@ -209,6 +210,7 @@ export default function OperationalReports({
           {report.operations && (
             <section className="panel" aria-labelledby="report-operations">
               <h2 id="report-operations">{t('reports:visit_operations')}</h2>
+              <VisitAnalysis report={report} />
               <h3>{t('reports:selected_period_activity')}</h3>
               <dl className="report-values">
                 <div>
@@ -264,6 +266,7 @@ export default function OperationalReports({
           {report.finance && (
             <section className="panel" aria-labelledby="report-finance">
               <h2 id="report-finance">{t('common:recorded_payments')}</h2>
+              <CollectionAnalysis report={report} />
               <h3>{t('reports:selected_period_receipts')}</h3>
               <div
                 className="table-region"
@@ -364,9 +367,12 @@ export default function OperationalReports({
                 </p>
               ) : (
                 <>
-                  <h3>{t('reports:current_stock_2')}</h3>
+                  <h3>{t('reports:analysis_stock')}</h3>
+                  <p className="report-definition">
+                    {t('reports:analysis_stockHelp', { page: report.inventory.page })}
+                  </p>
                   <div
-                    className="table-region"
+                    className="table-region stock-matrix"
                     role="region"
                     aria-label={t('reports:current_product_stock')}
                     tabIndex={0}
@@ -403,7 +409,25 @@ export default function OperationalReports({
                                 'expiryToday',
                               ] as const
                             ).map((key) => (
-                              <td key={key}>{quantity(product.current[key])}</td>
+                              <td
+                                key={key}
+                                className={
+                                  key === 'available' && BigInt(product.current[key]) === 0n
+                                    ? 'stock-exception'
+                                    : BigInt(product.current[key]) > 0n
+                                      ? key === 'available'
+                                        ? 'stock-available'
+                                        : key === 'total'
+                                          ? undefined
+                                          : 'stock-exception'
+                                      : undefined
+                                }
+                              >
+                                {quantity(product.current[key])}
+                                {key === 'available' && BigInt(product.current[key]) === 0n && (
+                                  <small> {t('reports:analysis_stockUnavailable')}</small>
+                                )}
+                              </td>
                             ))}
                           </tr>
                         ))}

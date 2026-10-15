@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -82,6 +83,7 @@ async function seed(page: Page, closed = true) {
   return { v, name, orderId, noteId: v.notes![0].id };
 }
 async function open(page: Page, name: string, status: string) {
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -353,6 +355,7 @@ test('laboratory correction reaches assigned clinician in separate sessions with
     role: 'clinician',
     password,
   });
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Patient directory', exact: true })
@@ -383,6 +386,7 @@ test('laboratory correction reaches assigned clinician in separate sessions with
     ).toHaveCount(0);
     const clinician = await clinicianContext.newPage();
     await signIn(clinician, 'clinician');
+    await revealWorkspaceNavigation(clinician);
     await clinician
       .getByRole('navigation', { name: 'Staff workspace' })
       .getByRole('link', { name: 'Outpatient visits', exact: true })

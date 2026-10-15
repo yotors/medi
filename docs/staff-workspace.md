@@ -440,3 +440,23 @@ initial session lookup, return a generic retryable 503 without patient fields. T
 strict input, private browser transport and pagination. These changes do not
 approve provisional hospital roles or complete production readiness: MFA,
 operational monitoring, deployment and hospital approval gates remain unresolved.
+
+### Decision-focused report analysis
+
+Operational reports retain exact financial/stock tables and add four visual
+questions: independent daily opening/closure lines, weekday/hour totals of system
+openings, gross collections by recorded payment method and a current product/status
+stock matrix for the displayed inventory page. Grouping uses Addis local timestamps
+and reconciles the selected-period totals; daily bins are bounded to 366 and
+weekday/hour counts to 168. Closures do not identify the same cohort as openings.
+Openings do not measure physical arrivals, waiting time or clinical outcomes.
+Future hours are unobserved, marked with a dash; differing weekday exposure and
+partial current days/hours are explained. No comparison or forecast is inferred.
+
+The pinned Recharts 3.9.2 module loads independently with a chart error boundary.
+Failure leaves exact report tables available, including a daily table; older API
+responses without series show an explicit unavailable message. Money remains
+string/BigInt minor units, with bounded integer-ratio conversion for donut geometry
+only. Print, keyboard/touch, theme and EN/AM support use the shared semantic tokens.
+The dashboard performs at most one bounded audited report read on entry for
+authorized roles, with no polling. Navigation retains draft/pending-write guards.

@@ -91,7 +91,46 @@ export function registerReportRoutes(
           FROM clinical_events c WHERE hospital_id=$1`,
             args,
           );
+          // Range-filter events before grouping. The tenant-leading queue index
+          // supports hospital scoping; closures remain bounded by the report budget.
+          const { rows: daily } = await client.query(
+            `WITH events AS (
+              SELECT opened_at AS instant, 'opened' AS kind FROM outpatient_visits
+              WHERE hospital_id=$1 AND opened_at >= ($2::date::timestamp AT TIME ZONE 'Africa/Addis_Ababa') AND opened_at < (($3::date+1)::timestamp AT TIME ZONE 'Africa/Addis_Ababa')
+              UNION ALL
+              SELECT (data->>'closedAt')::timestamptz, 'closed' FROM outpatient_visits
+              WHERE hospital_id=$1 AND (data->>'closedAt')::timestamptz >= ($2::date::timestamp AT TIME ZONE 'Africa/Addis_Ababa') AND (data->>'closedAt')::timestamptz < (($3::date+1)::timestamp AT TIME ZONE 'Africa/Addis_Ababa')
+            ), grouped AS (
+              SELECT (instant AT TIME ZONE 'Africa/Addis_Ababa')::date AS day,
+                count(*) FILTER(WHERE kind='opened') AS opened,
+                count(*) FILTER(WHERE kind='closed') AS closed FROM events GROUP BY 1
+            ) SELECT to_char(days.day,'YYYY-MM-DD') AS date,coalesce(opened,0) AS opened,coalesce(closed,0) AS closed
+              FROM generate_series($2::date::timestamp,$3::date::timestamp,interval '1 day') AS days(day)
+              LEFT JOIN grouped ON grouped.day=days.day::date ORDER BY days.day`,
+            args,
+          );
+          const { rows: openings } = await client.query(
+            `SELECT extract(isodow FROM opened_at AT TIME ZONE 'Africa/Addis_Ababa')::int AS weekday,
+              extract(hour FROM opened_at AT TIME ZONE 'Africa/Addis_Ababa')::int AS hour,count(*) AS count
+              FROM outpatient_visits WHERE hospital_id=$1
+              AND opened_at >= ($2::date::timestamp AT TIME ZONE 'Africa/Addis_Ababa')
+              AND opened_at < (($3::date+1)::timestamp AT TIME ZONE 'Africa/Addis_Ababa')
+              GROUP BY 1,2 ORDER BY 1,2`,
+            args,
+          );
           result.operations = {
+            activity: {
+              daily: daily.map((r) => ({
+                date: r.date,
+                opened: count(r.opened),
+                closed: count(r.closed),
+              })),
+              openings: openings.map((r) => ({
+                weekday: r.weekday,
+                hour: r.hour,
+                count: count(r.count),
+              })),
+            },
             period: {
               visitsOpened: count(visits.opened),
               visitsClosed: count(visits.closed),

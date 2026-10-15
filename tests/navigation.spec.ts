@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { accountItem, accountNavigate } from './account-helpers';
 import { chooseLanguage } from './preference-helpers';
 import AxeBuilder from '@axe-core/playwright';
@@ -50,6 +51,13 @@ for (const role of roles)
   test(`${role} home exposes authorized destinations`, async ({ page }) => {
     await signIn(page, role);
     await expect(page.getByRole('heading', { name: 'Start your work' })).toBeVisible();
+    if (role === 'pharmacist') {
+      await expect(
+        page.getByRole('heading', { name: 'Current stock · first page', exact: true }),
+      ).toBeVisible();
+      await expect(page.locator('.home-analysis > .muted')).toContainText('Current work snapshot');
+    }
+    await revealWorkspaceNavigation(page);
     const nav = page.getByRole('navigation', { name: 'Staff workspace', exact: true });
     const expected = expectedRoutes[role].map((route) => (route ? `/staff/${route}` : '/staff'));
     expect(
@@ -84,6 +92,7 @@ test('deep links, refresh, unknown and forbidden routes', async ({ page }) => {
 });
 test('links and Back/Forward preserve a cancelled registration draft and URL', async ({ page }) => {
   await signIn(page, 'receptionist');
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Patient directory', exact: true })
@@ -100,12 +109,14 @@ test('links and Back/Forward preserve a cancelled registration draft and URL', a
   await expect(page.getByLabel('Full name')).toBeFocused();
   await page.getByLabel('Age (optional)', { exact: true }).fill('42');
   await page.getByLabel('Contact (optional)', { exact: true }).fill('Fictional contact');
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Patient directory', exact: true })
     .click();
   await expect(page.getByLabel('Full name')).toHaveValue('Fictional preserved name');
   page.once('dialog', (d) => d.dismiss());
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -137,6 +148,7 @@ test('modified true-link navigation opens another tab without discarding this dr
   await page.getByRole('button', { name: 'Register patient', exact: true }).click();
   await page.getByLabel('Full name').fill('Fictional original-tab draft');
   const opened = context.waitForEvent('page');
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace', exact: true })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -414,7 +426,9 @@ test('review regression: accepted history and MFA return retain the selected sec
     'page',
   );
   const primary = page.getByRole('navigation', { name: 'Staff workspace', exact: true });
+  await revealWorkspaceNavigation(page);
   await primary.getByRole('link', { name: 'Patient directory', exact: true }).click();
+  await revealWorkspaceNavigation(page);
   await primary.getByRole('link', { name: 'Hospital management', exact: true }).click();
   await expect(page).toHaveURL(/section=Organization$/);
   await expect(sections.getByRole('link', { name: 'Organization', exact: true })).toHaveAttribute(
@@ -519,12 +533,14 @@ test('review regression: catalog mount, draft, native tab and pending history st
   const primary = page.getByRole('navigation', { name: 'Staff workspace', exact: true });
   const care = primary.getByRole('link', { name: 'Patient care', exact: true });
   page.once('dialog', (dialog) => dialog.dismiss());
+  await revealWorkspaceNavigation(page);
   await care.click();
   await expect(page).toHaveURL(original);
   page.once('dialog', (dialog) => dialog.dismiss());
   await page.goBack();
   await expect(page).toHaveURL(original);
   const opened = context.waitForEvent('page');
+  await revealWorkspaceNavigation(page);
   await care.click({ modifiers: ['ControlOrMeta'] });
   const other = await opened;
   await expect(other).toHaveURL(/\/staff\/care(?:\?section=profile)?$/);
@@ -541,6 +557,7 @@ test('review regression: catalog mount, draft, native tab and pending history st
   await expect(
     page.getByRole('button', { name: 'Retry configuration save', exact: true }),
   ).toBeVisible();
+  await revealWorkspaceNavigation(page);
   await care.click({ force: true });
   await page.goBack();
   await expect(page).toHaveURL(original);
@@ -567,4 +584,37 @@ test('review regression: restricted care sections normalize before rendering or 
   await expect(sections.locator('a')).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'New entry', exact: true })).toHaveCount(0);
   expect(searched).not.toContain('ward');
+});
+
+test('mobile navigation starts collapsed and Escape returns focus', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile');
+  await signIn(page, 'receptionist');
+  const toggle = page.locator('button[aria-controls="workspace-navigation"]');
+  const nav = page.locator('#workspace-navigation');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(nav).not.toBeVisible();
+  await toggle.click();
+  await expect(nav).toBeVisible();
+  const nested = nav.locator('a').first();
+  await nested.evaluate((element) =>
+    element.addEventListener(
+      'keydown',
+      (event) => {
+        if ((event as KeyboardEvent).key === 'Escape') event.preventDefault();
+      },
+      { once: true },
+    ),
+  );
+  await nested.focus();
+  await page.keyboard.press('Escape');
+  await expect(nav).toBeVisible();
+  await expect(nested).toBeFocused();
+  await page.locator('#staff-main').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#staff-main')).toBeFocused();
+  await toggle.click();
+  await nav.locator('a').first().focus();
+  await page.keyboard.press('Escape');
+  await expect(toggle).toBeFocused();
+  await expect(nav).not.toBeVisible();
 });

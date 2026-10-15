@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut } from './account-helpers';
 import { chooseLanguage } from './preference-helpers';
 import { test, expect, type Page } from '@playwright/test';
@@ -40,6 +41,7 @@ async function signIn(page: Page, username = 'admin', code = hospitalCode) {
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('link', {
       name: username === 'admin' ? 'Hospital configuration' : 'Service catalog',
@@ -174,6 +176,7 @@ test('load recovery, guarded draft, lost-response idempotency and session-loss c
   await page.getByLabel('Stable code').fill('RETRY');
   await page.getByLabel('Department name', { exact: true }).fill('Fictional Retry');
   page.once('dialog', (dialog) => dialog.dismiss());
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Patient directory', exact: true }).click();
   await expect(page.getByLabel('Department name', { exact: true })).toHaveValue('Fictional Retry');
   let lose = true;

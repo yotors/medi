@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut, accountItem } from './account-helpers';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -484,6 +485,7 @@ test('department handoffs complete a visit with permitted API sections and priva
     if (role === 'auditor') {
       await signOut(page);
       await signIn(page, 'clinician');
+      await revealWorkspaceNavigation(page);
       await page
         .getByRole('navigation', { name: 'Staff workspace' })
         .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -508,6 +510,7 @@ test('department handoffs complete a visit with permitted API sections and priva
     const queue = await (await page.request.get('/api/visits?status=all')).json();
     for (const field of allowed.admin) expect(Object.hasOwn(queue.visits[0], field)).toBe(false);
     expect(JSON.stringify(queue)).not.toContain('Private synthetic consultation text.');
+    await revealWorkspaceNavigation(page);
     await page
       .getByRole('navigation', { name: 'Staff workspace' })
       .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -660,6 +663,7 @@ test('non-stale rejections explain the failure and an active-visit conflict leav
 }) => {
   await signIn(page);
   const name = await checkIn(page);
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Patient directory', exact: true })
@@ -773,10 +777,12 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
   await expect(preservedBlood).toHaveCount(0);
   await expect(page.getByLabel('Unsaved Urinalysis result draft', { exact: true })).toBeVisible();
   page.once('dialog', (dialog) => dialog.accept());
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Patient directory', exact: true })
     .click();
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -801,6 +807,7 @@ test('visit pagination changes rows and search and status reset the second page'
   const prefix = `Queue pagination ${randomUUID().slice(0, 8)}`;
   for (let index = 0; index < 26; index++)
     await seedVisit(page, `${prefix} ${String(index).padStart(2, '0')}`);
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -924,6 +931,7 @@ test('private queue name contact and MRN stay in exact bodies while authenticate
       })
     ).status(),
   ).toBe(201);
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })

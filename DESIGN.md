@@ -99,25 +99,29 @@ errors. Status always includes a text label. The frontmatter carries exact value
 ## Typography
 
 Locally bundled Manrope heads sections; DM Sans carries interface and body text.
-The desktop heading is 32px, becoming 29px on small screens. Section titles are
-18px; the dialog title is 25px (23px on mobile). Dates and amounts use tabular
+Routed workspace headings are 30px and section titles are
+17px; the dialog title is 25px (23px on mobile). Dates and amounts use tabular
 numerals. Long user-entered values wrap rather than widen the page.
 
 ## Layout
 
-A 232px fixed desktop navigation rail sits beside a 72px header. The main area
-contains the page action, computed summary strip, filters and patient worklist.
-A right-hand guidance panel disappears below 1250px. The rail narrows at 900px;
-below 650px navigation wraps into two rows and the main area uses 16px side space.
-Tables scroll within labelled regions. Patient-name buttons remain accessible
-without scrolling to the trailing Open action. The visit drawer is at most 800px
-wide and fills the mobile viewport. Registration is a dedicated inline workspace. The public `/` showcase and routed `/staff` workspace reuse this palette. A grouped
-250px desktop sidebar, wrapping mobile navigation, breadcrumbs and role dashboard
-make workflows discoverable. Sign-in remains a bounded 530px surface. It uses inline registration and bounded
-horizontal table scrolling on mobile. Its outpatient visit uses an inline summary,
-completion blockers, and role-specific section buttons above the detail forms.
-Visit navigation and form controls stay disabled while a write is unresolved;
-retries and revision conflicts have explicit recovery messages.
+The routed workspace uses a fixed 250px desktop navigation rail with grouped,
+icon-labelled links. Its compact neutral utility header has a 68px minimum height;
+the rail begins below the measured header and environment notice and remains
+scrollable independently. Identity and breadcrumbs sit above the page heading.
+The home dashboard separates a current-work strip, an authorized activity/stock
+snapshot, useful destinations and the current outpatient queue. It reads once on
+entry; reports retain explicit selected-range controls and exact tables.
+
+At 900px and below, the rail becomes an initially collapsed, labelled disclosure.
+The same true links remain available when opened; Escape closes it and returns
+focus to its button. Desktop navigation stays fixed. Mobile content uses 16px
+side space, stacked dashboard sections and labelled, contained table/chart
+scroll regions. Collapsing navigation preserves drafts, and links retain the
+existing pending-write and draft guards. Sign-in remains bounded to 530px.
+Registration and outpatient visits use inline workspaces, with visit summary,
+completion blockers and role-specific section controls above the forms.
+Retries and revision conflicts retain explicit recovery messages.
 
 ## Elevation & Depth
 

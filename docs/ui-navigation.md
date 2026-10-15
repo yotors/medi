@@ -20,14 +20,17 @@ password replacement. Unknown and forbidden pages offer a return to the dashboar
 | `/staff/staff`                               | Administrator                                                                              |
 | `/staff/mfa`, `/staff/password`              | All roles                                                                                  |
 
-The desktop sidebar groups patient work, hospital operations and personal account
-security. On smaller screens the same true links become grouped, wrapping mobile
-navigation. A current-page marker and breadcrumb show location. The server remains
+The fixed desktop sidebar groups patient work and hospital operations; account
+security remains in the header profile menu. Below 900px, a labelled disclosure
+button reveals the same grouped true links. Escape closes it and returns focus
+to the button; collapsed links leave the keyboard order. A current-page marker and breadcrumb show location. The server remains
 the authorization authority; hiding links never grants access.
 
-The dashboard offers authorized tasks and one current outpatient list request.
-It does not poll reports or infer totals from a partial page. Period reports remain
-explicitly requested and audited in their own workspace.
+The dashboard offers authorized tasks, one current outpatient list request and,
+for report-authorized roles, one audited report covering the last seven Addis
+calendar days per dashboard entry. It does not poll or infer totals from a
+partial page. Current work and stock are labelled snapshots; the generated time
+and period are visible. Reports retain explicit range selection and audited reads.
 
 Internal links and browser Back/Forward share draft and pending-write guards.
 Cancelling a departure preserves the URL and input state. A pending mutation blocks

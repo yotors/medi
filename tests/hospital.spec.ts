@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -37,6 +38,7 @@ async function signIn(page: Page, role = 'admin') {
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Patient directory', exact: true })).toBeVisible();
+  await revealWorkspaceNavigation(page);
   await page.getByRole('link', { name: 'Hospital management', exact: true }).click();
 }
 

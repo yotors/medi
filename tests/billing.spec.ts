@@ -1,3 +1,4 @@
+import { revealWorkspaceNavigation } from './workspace-navigation';
 import { signOut, accountItem } from './account-helpers';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -79,6 +80,7 @@ async function seed(page: Page) {
   });
   const { patient } = await post(page, '/api/patients', { name, contact: '' });
   const { visit } = await post(page, `/api/patients/${patient.id}/visits`, {});
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -175,6 +177,7 @@ test('catalog invoice, partial cash and transfer receipts remain collectible aft
     fullPage: true,
   });
   await page.reload();
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -419,6 +422,7 @@ test('cashier cannot void and auditor can inspect receipts without financial mut
   for (const role of ['cashier', 'auditor']) {
     await signOut(page);
     await signIn(page, role);
+    await revealWorkspaceNavigation(page);
     await page
       .getByRole('navigation', { name: 'Staff workspace' })
       .getByRole('link', { name: 'Outpatient visits', exact: true })
@@ -613,6 +617,7 @@ test('cashier price refresh identifies an unavailable line and retains other upd
   });
   await signOut(page);
   await signIn(page, 'cashier');
+  await revealWorkspaceNavigation(page);
   await page
     .getByRole('navigation', { name: 'Staff workspace' })
     .getByRole('link', { name: 'Outpatient visits', exact: true })

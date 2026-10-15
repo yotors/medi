@@ -237,6 +237,8 @@ test('strict Gregorian ranges include leap day and independent half-open Addis/y
   ])
     assert.equal((await get(users.admin, `/api/reports/operational${query}`)).statusCode, 400);
   const leap = await report(users.admin, '2024-01-01', '2024-12-31');
+  assert.equal(leap.operations!.activity!.daily.length, 366);
+  assert.ok(leap.operations!.activity!.openings.length <= 168);
   assert.equal(leap.range.start, '2023-12-31T21:00:00.000Z');
   assert.equal(leap.range.endExclusive, '2024-12-31T21:00:00.000Z');
   assert.equal(
@@ -253,6 +255,14 @@ test('strict Gregorian ranges include leap day and independent half-open Addis/y
 test('empty report is zero-valued, role-projected, immutable audited and omits protected source data', async () => {
   const r = await report();
   assert.deepEqual(r.operations, {
+    activity: {
+      daily: Array.from({ length: 31 }, (_, i) => ({
+        date: `2026-10-${String(i + 1).padStart(2, '0')}`,
+        opened: 0,
+        closed: 0,
+      })),
+      openings: [],
+    },
     period: { visitsOpened: 0, visitsClosed: 0, noteAmendments: 0, resultCorrections: 0 },
     current: {
       activeVisits: 0,
@@ -320,6 +330,27 @@ test('opened-outside closed-inside uses closure time and exact start/end boundar
   const r = await report(users.admin, '2026-10-14', '2026-10-14');
   assert.equal(r.operations!.period.visitsClosed, 1);
   assert.equal(r.operations!.period.visitsOpened, 0);
+  assert.deepEqual(r.operations!.activity!.daily, [{ date: '2026-10-14', opened: 0, closed: 1 }]);
+  assert.deepEqual(r.operations!.activity!.openings, []);
+  const broader = await report(users.admin, '2026-09-01', '2026-10-15');
+  assert.equal(broader.operations!.activity!.daily.length, 45);
+  assert.equal(
+    broader.operations!.activity!.daily.reduce((sum, day) => sum + day.opened, 0),
+    broader.operations!.period.visitsOpened,
+  );
+  assert.equal(
+    broader.operations!.activity!.daily.reduce((sum, day) => sum + day.closed, 0),
+    broader.operations!.period.visitsClosed,
+  );
+  assert.equal(
+    broader.operations!.activity!.openings.reduce((sum, cell) => sum + cell.count, 0),
+    broader.operations!.period.visitsOpened,
+  );
+  assert.ok(
+    broader.operations!.activity!.openings.some(
+      (cell) => cell.weekday === 4 && cell.hour === 0 && cell.count === 1,
+    ),
+  );
   assert.equal(r.operations!.current.activeVisits, 1);
   assert.equal(r.operations!.current.pendingPrescriptions, 1);
   assert.deepEqual((await pool.query('SELECT * FROM outpatient_visits ORDER BY id')).rows, before);

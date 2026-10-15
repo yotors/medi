@@ -61,3 +61,10 @@ retention policy and a measured restore target. The [installation guide](deploym
 provides concrete commands and refuses invented or unsafe configuration. Local
 engineering does not require a cloud database; PostgreSQL Docker is already used.
 Branch protection and human incident escalation remain operator/account settings.
+
+Operational analytics adds scoped daily/weekday-hour aggregates and accessible
+visual analysis alongside exact tables, plus a role-authorized dashboard snapshot
+and collapsible mobile navigation. This is recorded operational activity, not
+clinical outcomes, arrival measurement or validated capacity/staffing guidance.
+EN/AM terminology still requires fluent hospital acceptance; analytics does not
+resolve existing production, clinical or deployment decisions.

@@ -9,5 +9,15 @@
   "loading": "Loading current queue…",
   "failed": "The current queue could not be loaded. Open outpatient visits to retry.",
   "patient": "Patient",
-  "status": "Status"
+  "status": "Status",
+  "current": "Current work snapshot",
+  "overview": "Recorded activity · last 7 days",
+  "reportFailed": "The summary could not load. Open Operational reports to choose dates and retry.",
+  "activityHelp": "Daily system openings and closures, counted independently in Addis time. These are not one patient cohort. Exact daily tables are available in Operational reports.",
+  "entrySnapshot": "Captured once on entry; open a workspace for current details.",
+  "gross": "Gross recorded collections",
+  "inventoryHelp": "Available stock for up to five products on the first inventory page. Each quantity uses its own unit; open inventory for all products and exceptions.",
+  "active": "Active",
+  "stockOverview": "Current stock · first page",
+  "queueLoaded": "Queue received on this device at {{time}} · Addis Ababa (client receipt time)."
 }
