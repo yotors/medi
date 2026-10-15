@@ -132,9 +132,7 @@ async function checkIn(page: Page) {
 }
 async function section(page: Page, name: string) {
   await activate(
-    page
-      .getByRole('navigation', { name: 'Visit sections' })
-      .getByRole('button', { name, exact: true }),
+    page.getByRole('tablist', { name: 'Visit sections' }).getByRole('tab', { name, exact: true }),
   );
 }
 async function apiSession(page: Page) {
@@ -219,24 +217,39 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
   await page.keyboard.press('Tab');
   await expect(
     page
-      .getByRole('navigation', { name: 'Visit sections' })
-      .getByRole('button', { name: 'Consultation', exact: true }),
+      .getByRole('tablist', { name: 'Visit sections' })
+      .getByRole('tab', { name: 'Consultation', exact: true }),
   ).toBeFocused();
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowRight');
   await expect(page.getByLabel('Investigation', { exact: true })).toBeVisible();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Enter');
-  for (const label of ['Diagnostics', 'Pharmacy', 'Billing', 'History']) {
-    await page.keyboard.press('Tab');
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Visit sections' })
-        .getByRole('button', { name: label, exact: true }),
-    ).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Diagnostics', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  for (const label of ['Pharmacy', 'Billing', 'History']) {
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: label, exact: true })).toBeFocused();
   }
-  await page.keyboard.press('Tab');
-  await expect(page.getByLabel('Consultation note', { exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Consultation', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'Billing', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab', { name: 'Consultation', exact: true })).toBeFocused();
+  await expect(page.getByRole('tabpanel')).toHaveAttribute(
+    'aria-labelledby',
+    'visit-tab-Consultation',
+  );
+  await page.getByLabel('Consultation note', { exact: true }).focus();
   await page
     .getByLabel('Consultation note', { exact: true })
     .fill('Synthetic consultation for the connected journey.');
@@ -335,6 +348,21 @@ test('lost check-in and note responses retain one request and block navigation',
   await page.getByRole('button', { name: 'Retry visit save', exact: true }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   const initial = await currentVisit(page, name);
+  await page.getByRole('tab', { name: 'Consultation', exact: true }).focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Consultation', exact: true })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'Billing', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab', { name: 'Consultation', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+
   const requests: { body: string; key: string | undefined }[] = [];
   let lose = true;
   await page.route('**/api/visits/*/commands', async (route) => {
@@ -358,6 +386,22 @@ test('lost check-in and note responses retain one request and block navigation',
     'One durable note despite a lost response.',
   );
   await expect(page.getByLabel('Consultation note', { exact: true })).toBeDisabled();
+  const selectedTab = page.getByRole('tab', { name: 'Consultation', exact: true });
+  for (const tab of await page
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab')
+    .all()) {
+    await expect(tab).toBeDisabled();
+  }
+  await selectedTab.dispatchEvent('keydown', { key: 'ArrowRight' });
+  await selectedTab.dispatchEvent('keydown', { key: 'End' });
+  await page.getByRole('tab', { name: 'Diagnostics', exact: true }).dispatchEvent('click');
+  await expect(selectedTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel')).toHaveAttribute(
+    'aria-labelledby',
+    'visit-tab-Consultation',
+  );
+
   await expect(await accountItem(page, 'Sign out')).toBeDisabled();
   await page.keyboard.press('Escape');
   await expect(
@@ -471,10 +515,10 @@ test('department handoffs complete a visit with permitted API sections and priva
     await page.getByLabel('Visit status', { exact: true }).selectOption('all');
     await page.getByRole('button', { name, exact: true }).click();
     if (role === 'receptionist')
-      await expect(page.getByRole('navigation', { name: 'Visit sections' })).toHaveCount(0);
+      await expect(page.getByRole('tablist', { name: 'Visit sections' })).toHaveCount(0);
     else
       await expect(
-        page.getByRole('navigation', { name: 'Visit sections' }).getByRole('button'),
+        page.getByRole('tablist', { name: 'Visit sections' }).getByRole('tab'),
       ).toHaveCount(body.visit.sections.length);
     if (role === 'clinician') {
       await section(page, 'Diagnostics');

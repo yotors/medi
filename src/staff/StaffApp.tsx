@@ -30,10 +30,35 @@ import type { RegisteredPatient } from '../../shared/registration';
 const emptyPage: PatientPage = { patients: [], page: 1, pageSize: 25, total: 0 };
 export default function StaffApp() {
   const { t } = useTranslation();
+  const shellRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const header = shell.querySelector('.staff-header');
+    const environment = shell.querySelector('.staff-environment');
+    const measure = () => {
+      const bottom =
+        environment?.getBoundingClientRect().bottom ?? header?.getBoundingClientRect().bottom ?? 0;
+      shell.style.setProperty('--shell-header-height', `${Math.max(0, bottom)}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    if (header) observer.observe(header);
+    if (environment) observer.observe(environment);
+    measure();
+    window.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', measure);
+    };
+  }, []);
+
   const [route, setRoute] = useState<Surface | null>(() => routeSurface(window.location.pathname));
-  const [departmentSection, setDepartmentSection] = useState(
+  const [workspaceSection, setWorkspaceSection] = useState(
     () => new URLSearchParams(window.location.search).get('section') ?? '',
   );
+  const rememberedSections = useRef<Partial<Record<Surface, string>>>({
+    ...(route ? { [route]: workspaceSection } : {}),
+  });
   const historyIndex = useRef<number>(window.history.state?.mediIndex ?? 0);
   const mfaReturn = useRef<Surface>(routeSurface(window.location.pathname) ?? 'home');
   const restoringHistory = useRef(false);
@@ -339,7 +364,7 @@ export default function StaffApp() {
     }
   }, [
     route,
-    departmentSection,
+    workspaceSection,
     registering,
     session?.user.id,
     session?.authState,
@@ -353,22 +378,35 @@ export default function StaffApp() {
       )
     );
   }
+  function changeSection(section: string, replace = false) {
+    if (!replace && (pending || visitPending || accountPending || !mayDiscardVisit())) return false;
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', section);
+    if (!replace) historyIndex.current++;
+    window.history[replace ? 'replaceState' : 'pushState'](
+      { mediIndex: historyIndex.current },
+      '',
+      url,
+    );
+    if (route) rememberedSections.current[route] = section;
+    setWorkspaceSection(section);
+    return true;
+  }
   function goTo(id: Surface, historyMode: 'push' | 'pop' | 'replace' = 'push') {
     if (historyMode === 'push' && id === route) return true;
     if (historyMode === 'push' && (pending || visitPending || accountPending || !mayDiscardVisit()))
       return false;
     if (id === 'mfa' && route && route !== 'mfa') mfaReturn.current = route;
+    const selectedSection = rememberedSections.current[id] ?? '';
     const destination =
-      surfacePath(id) +
-      (id === 'departments' && departmentSection
-        ? `?section=${encodeURIComponent(departmentSection)}`
-        : '');
+      surfacePath(id) + (selectedSection ? `?section=${encodeURIComponent(selectedSection)}` : '');
     setCheckInPatient(null);
     setAccountDirty(false);
     setVisitDirty(false);
     clearForm();
     setRegistering(false);
     setError('');
+    if (historyMode !== 'pop') setWorkspaceSection(selectedSection);
     setRoute(id);
     setAccountSurface(
       !['home', 'patients', 'visits'].includes(id)
@@ -397,8 +435,10 @@ export default function StaffApp() {
         return;
       }
       historyIndex.current = target;
-      setDepartmentSection(new URLSearchParams(window.location.search).get('section') ?? '');
+      const section = new URLSearchParams(window.location.search).get('section') ?? '';
+      setWorkspaceSection(section);
       const desired = routeSurface(window.location.pathname);
+      if (desired) rememberedSections.current[desired] = section;
       if (desired) goTo(desired, 'pop');
       else {
         setRoute(null);
@@ -554,6 +594,7 @@ export default function StaffApp() {
   const readOnly = session?.user.role !== 'admin' && session?.user.role !== 'receptionist';
   return (
     <div
+      ref={shellRef}
       className={
         session?.authState === 'complete' &&
         !session.passwordChangeRequired &&
@@ -804,6 +845,8 @@ export default function StaffApp() {
               />
             ) : accountSurface === 'care' ? (
               <CareWorkspace
+                section={workspaceSection}
+                onSectionChange={changeSection}
                 key={session.csrfToken}
                 session={session}
                 onDirty={setAccountDirty}
@@ -817,23 +860,13 @@ export default function StaffApp() {
                 onDirty={setAccountDirty}
                 onPending={setAccountPending}
                 onSessionError={handleError}
-                section={departmentSection}
-                onSectionChange={(section, replace = false) => {
-                  if (!replace && (pending || accountPending || !mayDiscardVisit())) return false;
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('section', section);
-                  if (!replace) historyIndex.current++;
-                  window.history[replace ? 'replaceState' : 'pushState'](
-                    { mediIndex: historyIndex.current },
-                    '',
-                    url,
-                  );
-                  setDepartmentSection(section);
-                  return true;
-                }}
+                section={workspaceSection}
+                onSectionChange={changeSection}
               />
             ) : accountSurface === 'hospital' ? (
               <HospitalWorkspace
+                section={workspaceSection}
+                onSectionChange={changeSection}
                 key={session.csrfToken}
                 session={session}
                 onDirty={setAccountDirty}
@@ -856,6 +889,8 @@ export default function StaffApp() {
               />
             ) : accountSurface === 'configuration' ? (
               <HospitalConfiguration
+                section={workspaceSection}
+                onSectionChange={changeSection}
                 key={session.csrfToken}
                 session={session}
                 onDirty={setAccountDirty}

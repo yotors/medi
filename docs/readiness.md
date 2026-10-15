@@ -1,5 +1,12 @@
 # Release status and acceptance
 
+The compact-shell correction keeps the desktop sidebar fixed with reserved content
+and footer space, uses icon-only profile/preferences, and extends section links to
+care, hospital management and the catalog. Visit views use keyboard tabs. Its
+[implementation specification](../_bmad-output/implementation-artifacts/spec-compact-workspace-shell.md)
+records focused desktop/mobile and final packaged evidence. Exact-revision GitHub
+verification remains pending at delivery; earlier release evidence is historical.
+
 The workspace appearance/navigation update adds Light/Dark/Device modes, three
 accent palettes, accessible language/appearance menus and a header profile menu
 for password, MFA and sign-out. Department section links retain guarded drafts

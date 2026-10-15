@@ -301,19 +301,46 @@ export default function VisitPanel({
       </section>
       {visit.sections.length > 0 && (
         <section className="panel visit-detail">
-          <nav className="detail-tabs" aria-label={t('common:visit_sections')}>
+          <div role="tablist" className="detail-tabs" aria-label={t('common:visit_sections')}>
             {visit.sections.map((item) => (
               <button
                 key={item}
                 disabled={clinicalDisabled}
-                aria-pressed={section === item}
+                role="tab"
+                id={`visit-tab-${item}`}
+                aria-controls="visit-section-panel"
+                aria-selected={section === item}
+                tabIndex={section === item ? 0 : -1}
+                onKeyDown={(event) => {
+                  if (clinicalDisabled) return;
+                  const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+                  if (!keys.includes(event.key)) return;
+                  event.preventDefault();
+                  const items = visit.sections;
+                  const index = items.indexOf(item);
+                  const next =
+                    event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? items.length - 1
+                        : (index + (event.key === 'ArrowRight' ? 1 : -1) + items.length) %
+                          items.length;
+                  setSection(items[next]);
+                  document.getElementById(`visit-tab-${items[next]}`)?.focus();
+                }}
                 onClick={() => setSection(item)}
               >
                 {presentationLabel(item)}
               </button>
             ))}
-          </nav>
-          <div className="detail-content">
+          </div>
+          <div
+            className="detail-content"
+            role="tabpanel"
+            id="visit-section-panel"
+            aria-labelledby={`visit-tab-${section}`}
+            tabIndex={0}
+          >
             {section === 'Consultation' && visit.notes && (
               <section aria-labelledby="consultation-title">
                 <h2 id="consultation-title">{t('common:consultation_notes')}</h2>

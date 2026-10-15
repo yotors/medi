@@ -90,8 +90,8 @@ async function seed(page: Page) {
   await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Billing', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Billing', exact: true })
     .click();
   await expect(
     page
@@ -182,8 +182,8 @@ test('catalog invoice, partial cash and transfer receipts remain collectible aft
   await page.getByLabel('Visit status', { exact: true }).selectOption('closed');
   await page.getByRole('button', { name, exact: true }).click();
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Billing', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Billing', exact: true })
     .click();
   await page.getByRole('button', { name: detail.invoice.number, exact: true }).click();
   await expect(page.getByText('Reference: FICTION-TRANSFER-001', { exact: true })).toBeVisible();
@@ -289,12 +289,12 @@ test('drafts survive section changes, guard leaving, and clear on session change
   const { service, name } = await seed(page);
   await addService(page, service);
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Consultation', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Consultation', exact: true })
     .click();
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Billing', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Billing', exact: true })
     .click();
   await expect(page.getByLabel(`Quantity for ${service.name}`, { exact: true })).toHaveValue('1');
   page.once('dialog', (dialog) => dialog.dismiss());

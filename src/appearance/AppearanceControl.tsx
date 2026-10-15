@@ -13,7 +13,7 @@ export default function AppearanceControl() {
   }, []);
   const update = (next: Appearance) => setAppearance(next);
   return (
-    <PreferenceMenu label={t('common:appearance')} icon={<Palette size={17} aria-hidden />}>
+    <PreferenceMenu compact label={t('common:appearance')} icon={<Palette size={17} aria-hidden />}>
       <Menu.Label className="preference-label">{t('common:mode')}</Menu.Label>
       <Menu.RadioGroup
         aria-label={t('common:mode')}

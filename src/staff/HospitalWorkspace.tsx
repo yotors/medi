@@ -1,3 +1,4 @@
+import { isPlainLinkClick } from './navigation';
 import { uiMessage } from '../i18n';
 import { presentationLabel } from '../i18n';
 import { interfaceMessage } from '../i18n';
@@ -7,15 +8,32 @@ import { useEffect, useState } from 'react';
 import type { Session, PatientPage } from '../../shared/registration';
 import { exportTables, type HospitalCommand, type HospitalOverview } from '../../shared/hospital';
 import { ApiError, request } from './api';
+const sections = [
+  'Facilities',
+  'Organization',
+  'Record requests',
+  'Record holds',
+  'Support access',
+  'Exports',
+];
 type Props = {
+  section: string;
+  onSectionChange: (section: string, replace?: boolean) => boolean;
   session: Session;
   onSessionError: (error: unknown) => void;
   onDirty: (value: boolean) => void;
   onPending: (value: boolean) => void;
 };
-export default function HospitalWorkspace({ session, onSessionError, onDirty, onPending }: Props) {
+export default function HospitalWorkspace({
+  section,
+  onSectionChange,
+  session,
+  onSessionError,
+  onDirty,
+  onPending,
+}: Props) {
   const [overview, setOverview] = useState<HospitalOverview | null>(null),
-    [tab, setTab] = useState('Facilities'),
+    [tab, setTab] = useState(() => (sections.includes(section) ? section : sections[0])),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false);
@@ -87,13 +105,16 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
       setBusy(false);
     }
   }
+  useEffect(() => {
+    const next = sections.includes(section) ? section : sections[0];
+    if (next !== section) onSectionChange(next, true);
+    if (next !== tab) resetSection(next);
+  }, [section]);
   function switchTab(next: string) {
-    if (pending) return;
-    if (
-      (reason || patient || search || Object.values(fields).some(Boolean)) &&
-      !window.confirm(t('configuration:discard_the_changes_in_this_form'))
-    )
-      return;
+    if (busy || pending || next === tab || !onSectionChange(next)) return;
+    resetSection(next);
+  }
+  function resetSection(next: string) {
     setFields({});
     setFacility('');
     setPatient('');
@@ -214,7 +235,7 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
         {t('configuration:facilities_governed_record_requests_and_approved_support_access')}
       </p>
       <nav
-        className="staff-navigation"
+        className="staff-navigation workspace-section-navigation"
         aria-label={t('configuration:hospital_management_sections')}
       >
         {[
@@ -225,14 +246,19 @@ export default function HospitalWorkspace({ session, onSessionError, onDirty, on
           'Support access',
           'Exports',
         ].map((t) => (
-          <button
+          <a
+            href={`/staff/hospital?section=${encodeURIComponent(t)}`}
             key={t}
-            aria-pressed={tab === t}
-            disabled={busy || Boolean(pending)}
-            onClick={() => switchTab(t)}
+            aria-current={tab === t ? 'page' : undefined}
+            aria-disabled={busy || Boolean(pending)}
+            onClick={(event) => {
+              if (!isPlainLinkClick(event)) return;
+              event.preventDefault();
+              switchTab(t);
+            }}
           >
             {interfaceMessage(t)}
-          </button>
+          </a>
         ))}
       </nav>
       {error && (

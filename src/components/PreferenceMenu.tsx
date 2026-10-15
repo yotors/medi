@@ -7,19 +7,35 @@ export function PreferenceMenu({
   children,
   disabled = false,
   triggerLabel,
+  compact = false,
 }: {
   label: string;
   icon?: ReactNode;
   children: ReactNode;
   disabled?: boolean;
   triggerLabel?: string;
+  compact?: boolean;
 }) {
   return (
     <Menu.Root modal={false}>
-      <Menu.Trigger className="preference-trigger" aria-label={triggerLabel} disabled={disabled}>
+      <Menu.Trigger
+        className={`preference-trigger${compact ? ' preference-trigger-compact' : ''}`}
+        aria-label={triggerLabel ?? label}
+        title={triggerLabel ?? label}
+        disabled={disabled}
+      >
         {icon}
-        <span>{label}</span>
-        <ChevronDown size={15} aria-hidden />
+        {!compact && (
+          <>
+            <span>{label}</span>
+            <ChevronDown size={15} aria-hidden />
+          </>
+        )}
+        {compact && (
+          <span className="preference-hint" aria-hidden>
+            {triggerLabel ?? label}
+          </span>
+        )}
       </Menu.Trigger>
       <Menu.Portal>
         <section aria-label={label}>

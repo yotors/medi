@@ -98,7 +98,7 @@ revalidate this label; no identity is stored and no clinical/report APIs are pol
 
 ## Header account menu
 
-Authenticated staff use the top-right profile icon/name menu for Change password,
+Authenticated staff use the top-right profile icon menu for Change password,
 Authenticator security and Sign out. The workflow sidebar contains patient work
 and hospital operations only. Account items remain true links with guarded ordinary
 navigation and native modified-click/new-tab behavior. Pending writes disable
@@ -107,3 +107,17 @@ cancelled draft departures preserve the current URL and inputs. MFA, recovery-co
 acknowledgement and required-password gates expose sign-out alone until completed.
 The menu uses the shared nonmodal primitive, named popup region, keyboard focus
 handling and mobile collision bounds. No profile photo or editing backend is added.
+
+
+## Compact controls and fixed navigation
+
+Profile, Appearance and Language use compact icons with localized accessible names
+and hover/focus labels. The profile menu contains the staff identity and existing
+account actions. The desktop sidebar remains fixed and scrolls internally; header
+height is measured and its width is reserved in both content and footer. Narrow
+screens use in-flow navigation so it cannot cover workspace text.
+
+Care workflows, hospital management and the configuration catalog use section
+links with `?section=...`, matching department operations. Ordinary navigation and
+Back/Forward retain draft/pending guards; modified clicks open actual section URLs.
+Visit record sections use keyboard-operated tabs rather than workflow links.

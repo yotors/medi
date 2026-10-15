@@ -91,8 +91,8 @@ async function open(page: Page, name: string, status: string) {
 }
 async function section(page: Page, name: string) {
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name, exact: true })
     .click();
 }
 async function amend(page: Page) {

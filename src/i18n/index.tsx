@@ -98,6 +98,7 @@ export function LanguageControl() {
     <div className="language-switcher">
       <AppearanceControl />
       <PreferenceMenu
+        compact
         disabled={busy}
         label={t('language:label')}
         icon={<Globe2 size={17} aria-hidden />}

@@ -150,8 +150,8 @@ async function openVisit(page: Page, name: string) {
     .click();
   await page.getByRole('button', { name, exact: true }).click();
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Diagnostics', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Diagnostics', exact: true })
     .click();
 }
 async function workflow(page: Page, category: string, action: string) {

@@ -1,3 +1,4 @@
+import { isPlainLinkClick } from './navigation';
 import { uiMessage } from '../i18n';
 import { presentationLabel } from '../i18n';
 import { interfaceMessage } from '../i18n';
@@ -20,19 +21,36 @@ import { ApiError, request } from './api';
 import './configuration.css';
 type Kind = 'departments' | 'services';
 type Props = {
+  section: string;
+  onSectionChange: (section: string, replace?: boolean) => boolean;
   session: Session;
   onDirty: (value: boolean) => void;
   onPending: (value: boolean) => void;
   onSessionError: (error: unknown) => void;
 };
 export default function HospitalConfiguration({
+  section,
+  onSectionChange,
   session,
   onDirty,
   onPending,
   onSessionError,
 }: Props) {
   const admin = session.user.role === 'admin';
-  const [kind, setKind] = useState<Kind>('services');
+  const [kind, setKind] = useState<Kind>(() =>
+    section === 'departments' ? 'departments' : 'services',
+  );
+  useEffect(() => {
+    const next = section === 'departments' ? 'departments' : 'services';
+    if (next !== section) onSectionChange(next, true);
+    if (next === kind) return;
+    setKind(next);
+    setPage(1);
+    setQuery('');
+    setSearch('');
+    setEditing(false);
+    setSelected(null);
+  }, [section]);
   const [list, setList] = useState<ConfigurationList | null>(null);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -665,10 +683,17 @@ export default function HospitalConfiguration({
         </div>
       ) : (
         <section className="panel configuration-directory">
-          <nav className="button-row" aria-label={t('configuration:catalog_sections')}>
-            <button
+          <nav
+            className="button-row workspace-section-navigation"
+            aria-label={t('configuration:catalog_sections')}
+          >
+            <a
+              href="/staff/configuration?section=services"
               aria-current={kind === 'services' ? 'page' : undefined}
-              onClick={() => {
+              onClick={(event) => {
+                if (!isPlainLinkClick(event)) return;
+                event.preventDefault();
+                if (kind === 'services' || !onSectionChange('services')) return;
                 setKind('services');
                 setPage(1);
                 setQuery('');
@@ -677,10 +702,14 @@ export default function HospitalConfiguration({
             >
               {' '}
               {t('configuration:services')}{' '}
-            </button>
-            <button
+            </a>
+            <a
+              href="/staff/configuration?section=departments"
               aria-current={kind === 'departments' ? 'page' : undefined}
-              onClick={() => {
+              onClick={(event) => {
+                if (!isPlainLinkClick(event)) return;
+                event.preventDefault();
+                if (kind === 'departments' || !onSectionChange('departments')) return;
                 setKind('departments');
                 setPage(1);
                 setQuery('');
@@ -689,7 +718,7 @@ export default function HospitalConfiguration({
             >
               {' '}
               {t('configuration:departments')}{' '}
-            </button>
+            </a>
           </nav>
           <form
             className="staff-search"

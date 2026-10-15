@@ -219,3 +219,46 @@ a {
     display: none;
   }
 }
+
+.preference-trigger.preference-trigger-compact {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.preference-hint {
+  display: none;
+  position: absolute;
+  z-index: 101;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: min(240px, 80vw);
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  pointer-events: none;
+}
+.preference-trigger:hover .preference-hint,
+.preference-trigger:focus-visible .preference-hint {
+  display: block;
+}
+.account-menu .preference-label {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .account-menu {
+    width: auto;
+  }
+}
+.preference-trigger[data-state='open'] .preference-hint {
+  display: none;
+}

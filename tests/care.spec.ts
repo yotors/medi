@@ -68,7 +68,7 @@ test('persistent patient profile correction and appointment arrival', async ({ p
   await expect(
     page.getByRole('heading', { name: /Revision 1 · Fictional care administrator/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Appointments', exact: true }).click();
+  await page.getByRole('link', { name: 'Appointments', exact: true }).click();
   await page.getByRole('button', { name: 'New entry', exact: true }).click();
   await page
     .getByLabel('Responsible clinician', { exact: true })

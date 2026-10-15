@@ -102,8 +102,8 @@ async function openVisit(page: Page, v: VisitView) {
     .click();
   await page.getByRole('button', { name: v.patient.name, exact: true }).click();
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Pharmacy', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Pharmacy', exact: true })
     .click();
 }
 async function confirmInventory(page: Page) {
@@ -355,12 +355,12 @@ test('stock conflict preserves supply draft and requires current version; drafts
   await authorize(page, fixture.code);
   await supplyDraft(page, fixture.code, '2');
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Consultation', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Consultation', exact: true })
     .click();
   await page
-    .getByRole('navigation', { name: 'Visit sections' })
-    .getByRole('button', { name: 'Pharmacy', exact: true })
+    .getByRole('tablist', { name: 'Visit sections' })
+    .getByRole('tab', { name: 'Pharmacy', exact: true })
     .click();
   await expect(page.getByLabel(/Quantity supplied/)).toHaveValue('2');
   page.once('dialog', (dialog) => dialog.dismiss());

@@ -48,7 +48,7 @@ async function signIn(page: Page, username = 'admin', code = hospitalCode) {
     .click();
 }
 async function createDepartment(page: Page, code: string, name: string) {
-  await page.getByRole('button', { name: 'Departments', exact: true }).click();
+  await page.getByRole('link', { name: 'Departments', exact: true }).click();
   await page.getByRole('button', { name: 'Add department', exact: true }).click();
   await page.getByLabel('Stable code').fill(code);
   await page.getByLabel('Department name', { exact: true }).fill(name);
@@ -79,7 +79,7 @@ test('keyboard department and service configuration, immutable prices, retiremen
     page.getByText('No services have been configured yet.', { exact: false }),
   ).toBeVisible();
   await createDepartment(page, 'OPD', 'Fictional Outpatient');
-  await page.getByRole('button', { name: 'Services', exact: true }).click();
+  await page.getByRole('link', { name: 'Services', exact: true }).click();
   await page.getByRole('button', { name: 'Add service', exact: true }).click();
   await page.getByLabel('Stable code').fill('CONSULT');
   await page.getByLabel('Service name', { exact: true }).fill('Fictional Consultation');
@@ -138,7 +138,7 @@ test('keyboard department and service configuration, immutable prices, retiremen
     fullPage: true,
   });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.getByRole('button', { name: 'Departments', exact: true }).click();
+  await page.getByRole('link', { name: 'Departments', exact: true }).click();
   await page.getByRole('button', { name: 'Fictional Outpatient', exact: true }).click();
   await page.getByLabel('Active department', { exact: true }).uncheck();
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
@@ -166,7 +166,7 @@ test('load recovery, guarded draft, lost-response idempotency and session-loss c
       });
     else await route.continue();
   });
-  await page.getByRole('button', { name: 'Departments', exact: true }).click();
+  await page.getByRole('link', { name: 'Departments', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable');
   fail = false;
   await page.getByRole('button', { name: 'Retry catalog' }).click();
@@ -335,7 +335,7 @@ test('catalog recovers from an empty second page and history pages show distinct
       name: 'Fictional page match 25',
       active: true,
     });
-  await page.getByRole('button', { name: 'Departments', exact: true }).click();
+  await page.getByRole('link', { name: 'Departments', exact: true }).click();
   await page.getByLabel('Search departments by name or code').fill('Fictional page match');
   await page.getByRole('button', { name: 'Search catalog', exact: true }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
@@ -561,7 +561,7 @@ test('Amharic catalog keeps protocol routes through history revision reload and 
     (r) => r.url().includes('/api/configuration/departments?') && r.status() === 200,
   );
   await page.reload();
-  await page.getByRole('button', { name: 'ክፍሎች', exact: true }).click();
+  await page.getByRole('link', { name: 'ክፍሎች', exact: true }).click();
   await read;
   await page.getByRole('button', { name: 'Fictional Amharic catalog', exact: true }).click();
   await expect(page.getByRole('region', { name: 'የቅንብር ታሪክ' })).toContainText(

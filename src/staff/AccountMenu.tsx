@@ -22,11 +22,12 @@ export default function AccountMenu({
   return (
     <div className="account-menu">
       <PreferenceMenu
+        compact
         label={session.user.displayName}
         triggerLabel={`${t('navigation:account')}: ${session.user.displayName}`}
         icon={<UserRound size={19} aria-hidden />}
       >
-        <Menu.Label className="preference-label">{t('navigation:account')}</Menu.Label>
+        <Menu.Label className="preference-label">{session.user.displayName}</Menu.Label>
         {settingsAvailable && (
           <>
             {(['password', 'mfa'] as const).map((surface) => (

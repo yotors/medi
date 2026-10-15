@@ -50,13 +50,13 @@ test('governance facilities settings download keyboard axe and responsive captur
   await page.getByLabel('Reason', { exact: true }).fill('Approved fictional facility');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Fictional governed facility' })).toBeVisible();
-  await page.getByRole('button', { name: 'Organization', exact: true }).click();
+  await page.getByRole('link', { name: 'Organization', exact: true }).click();
   await page.getByLabel('Preferred record locale').selectOption('am-ET');
   await page.getByLabel('Display calendar').selectOption('ethiopic');
   await page.getByLabel('Reason', { exact: true }).fill('Approved fictional display preference');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Exports', exact: true }).click();
+  await page.getByRole('link', { name: 'Exports', exact: true }).click();
   await page.getByLabel('Record collection').selectOption('hospital_facilities');
   await page.getByLabel('Reason', { exact: true }).fill('Approved fictional exit export');
   const download = page.waitForEvent('download');
@@ -83,6 +83,6 @@ test('governance facilities settings download keyboard axe and responsive captur
 test('auditor governance renders records without write forms', async ({ page }) => {
   await signIn(page, 'auditor');
   await expect(page.getByRole('heading', { name: 'Add facility' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Support access', exact: true }).click();
+  await page.getByRole('link', { name: 'Support access', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Approve named support access' })).toHaveCount(0);
 });

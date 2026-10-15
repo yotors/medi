@@ -1,3 +1,4 @@
+import { isPlainLinkClick } from './navigation';
 import { uiMessage } from '../i18n';
 import { presentationLabel } from '../i18n';
 import { interfaceMessage } from '../i18n';
@@ -489,19 +490,28 @@ const title = (r: CareRecord) => {
   );
 };
 export function CareWorkspace({
+  section,
+  onSectionChange,
   session,
   onDirtyChange,
   onDirty,
   onPending,
   onSessionError,
 }: {
+  section: string;
+  onSectionChange: (section: string, replace?: boolean) => boolean;
   session: Session;
   onDirtyChange?: (dirty: boolean) => void;
   onDirty?: (dirty: boolean) => void;
   onPending?: (pending: boolean) => void;
   onSessionError?: (error: unknown) => void;
 }) {
-  const [kind, setKind] = useState<CareKind>('profile'),
+  const [kind, setKind] = useState<CareKind>(() => {
+      const allowed = careKinds.filter((k) => canReadCare(session.user.role, k));
+      return allowed.includes(section as CareKind)
+        ? (section as CareKind)
+        : (allowed[0] ?? 'profile');
+    }),
     [patient, setPatient] = useState<RegisteredPatient | null>(null),
     [query, setQuery] = useState(''),
     [patients, setPatients] = useState<RegisteredPatient[]>([]),
@@ -674,6 +684,23 @@ export function CareWorkspace({
       live = false;
     };
   }, [kind, patient?.id]);
+  useEffect(() => {
+    const allowed = careKinds.filter((k) => canReadCare(session.user.role, k));
+    const next = allowed.includes(section as CareKind) ? (section as CareKind) : allowed[0];
+    if (!next) return;
+    if (next !== section) onSectionChange(next, true);
+    if (kind === next) return;
+    setKind(next);
+    setCanonicalPatient(null);
+    setMergeQuery('');
+    setMergePatients([]);
+    setReason('');
+    setDraft(null);
+    setSelected(null);
+    setEvents([]);
+    setPage(1);
+    setError('');
+  }, [section]);
   function depart() {
     return !dirty || (!pending && window.confirm(t('care:discard_the_unsaved_care_draft')));
   }
@@ -930,16 +957,20 @@ export function CareWorkspace({
           )}
         </div>
       )}
-      <nav className="care-tabs" aria-label={t('care:care_workflows')}>
+      <nav className="care-tabs workspace-section-navigation" aria-label={t('care:care_workflows')}>
         {careKinds
           .filter((k) => canReadCare(role, k))
           .map((k) => (
-            <button
+            <a
+              href={`/staff/care?section=${k}`}
               key={k}
               aria-current={kind === k ? 'page' : undefined}
-              disabled={saving || !!pending}
-              onClick={() => {
-                if (depart()) {
+              aria-disabled={saving || !!pending}
+              onClick={(event) => {
+                if (!isPlainLinkClick(event)) return;
+                event.preventDefault();
+                if (saving || pending || kind === k || !onSectionChange(k)) return;
+                {
                   setKind(k);
                   setCanonicalPatient(null);
                   setMergeQuery('');
@@ -954,7 +985,7 @@ export function CareWorkspace({
               }}
             >
               {labels[k]}
-            </button>
+            </a>
           ))}
       </nav>
       {error && (
