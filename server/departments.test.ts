@@ -449,13 +449,18 @@ test('immutable credit refund projections prevent concurrent overrefund and pres
       reason: 'Recorded refund',
       method: 'cash',
     },
-    key = randomUUID();
-  const responses = await Promise.all([
-    post(users.admin, '/api/departments/commands', refund, key),
-    post(users.admin, '/api/departments/commands', refund),
-  ]);
+    keys = [randomUUID(), randomUUID()];
+  const responses = await Promise.all(
+    keys.map((key) => post(users.admin, '/api/departments/commands', refund, key)),
+  );
   assert.deepEqual(responses.map((r) => r.statusCode).sort(), [200, 409]);
-  await department(refund, users.admin, key);
+  const winner = responses.findIndex((r) => r.statusCode === 200);
+  const replay = await department(refund, users.admin, keys[winner]);
+  assert.deepEqual(replay, { ...responses[winner].json(), replayed: true });
+  assert.equal(
+    (await post(users.admin, '/api/departments/commands', refund, keys[1 - winner])).statusCode,
+    409,
+  );
   assert.equal(
     (
       await post(users.admin, '/api/departments/commands', {
