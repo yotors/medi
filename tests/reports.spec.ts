@@ -701,6 +701,43 @@ test('dashboard seven-day range follows Addis midnight and queue has its own rec
   }
 });
 
+test('session expiry rechecks long client-clock deadlines and still clears the dashboard on time', async ({
+  page,
+}) => {
+  await signIn(page);
+  const now = Date.now(),
+    duration = 30 * 24 * 60 * 60 * 1000,
+    maxTimerDelay = 2_147_483_647,
+    expiresAt = new Date(now + duration).toISOString();
+  // Keep real authentication and report reads, but model a browser whose clock
+  // is more than the timer's 24.8-day limit behind the session deadline.
+  await page.route('**/api/auth/session', async (route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    await route.fulfill({ response, json: { ...(await response.json()), expiresAt } });
+  });
+  await page.clock.install({ time: new Date(now - 60_000) });
+  await page.clock.pauseAt(new Date(now));
+  await page.goto('/staff');
+  const dashboard = page.getByRole('heading', { name: 'Start your work', exact: true });
+  await expect(page.locator('.home-analysis > .muted')).toBeVisible();
+  await page.clock.runFor(1);
+  await expect(dashboard).toBeVisible();
+  const advanceAndRevalidate = async (milliseconds: number) => {
+    const revalidated = page.waitForResponse('**/api/auth/session');
+    await page.clock.fastForward(milliseconds);
+    await (await revalidated).finished();
+  };
+  await advanceAndRevalidate(maxTimerDelay - 1);
+  await expect(dashboard).toBeVisible();
+  await advanceAndRevalidate(duration - maxTimerDelay - 1);
+  await expect(dashboard).toBeVisible();
+  await page.clock.runFor(1);
+  await expect(page.getByRole('heading', { name: 'Staff sign-in', exact: true })).toBeVisible();
+  await expect(page.locator('.home-analysis')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Your session ended.');
+});
+
 test('deterministic opening cells and daily table distinguish counts, zeros and future exposure', async ({
   page,
 }) => {

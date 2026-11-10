@@ -1,6 +1,6 @@
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { Check, ChevronDown } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 export function PreferenceMenu({
   label,
   icon,
@@ -16,9 +16,11 @@ export function PreferenceMenu({
   triggerLabel?: string;
   compact?: boolean;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <Menu.Root modal={false}>
       <Menu.Trigger
+        ref={trigger}
         className={`preference-trigger${compact ? ' preference-trigger-compact' : ''}`}
         aria-label={triggerLabel ?? label}
         title={triggerLabel ?? label}
@@ -45,6 +47,11 @@ export function PreferenceMenu({
             sideOffset={6}
             align="end"
             collisionPadding={12}
+            onCloseAutoFocus={() => {
+              // Nonmodal menus leave focus outside after pointer dismissal. Restore
+              // a useful keyboard position only if no other control received focus.
+              if (document.activeElement === document.body) trigger.current?.focus();
+            }}
           >
             {children}
           </Menu.Content>

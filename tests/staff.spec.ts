@@ -174,7 +174,8 @@ test('lost registration response retries the original write exactly once', async
   await expect(page.getByLabel('Full name')).toBeDisabled();
   await expect(await accountItem(page, 'Sign out')).toBeDisabled();
   await page.keyboard.press('Escape');
-  await page.getByRole('link', { name: 'Inside the workspace' }).click();
+  // The brand uses the same departure guard and remains available on mobile.
+  await page.getByRole('banner').getByRole('link', { name: 'Medi', exact: true }).click();
   await expect(page).toHaveURL(/\/staff\/patients$/);
   await expect(page.getByRole('alert')).toContainText('pending registration');
   await page.getByRole('button', { name: 'Retry registration' }).click();
