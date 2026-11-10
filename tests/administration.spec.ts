@@ -127,6 +127,7 @@ test('review2: a reset with a lost response clears the obsolete displayed creden
     timeout: 15000,
   });
   await expect(page.getByLabel('Temporary password', { exact: true })).toHaveCount(0);
+  await revealWorkspaceNavigation(page);
   await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Retry account save' }).click();
   await expect(page.getByLabel('Temporary password', { exact: true })).toBeVisible({
@@ -443,6 +444,7 @@ for (const initialCommitted of [true, false]) {
     await page.getByRole('button', { name: 'Retry account save' }).click();
     await expect(page.getByRole('alert')).toContainText('temporarily unavailable');
     await expect(page.getByLabel('Staff username')).toBeDisabled();
+    await revealWorkspaceNavigation(page);
     await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
     await page.getByLabel('Your current password').fill('incorrect synthetic password');
     await page.getByRole('button', { name: 'Retry account save' }).click();

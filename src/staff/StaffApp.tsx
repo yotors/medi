@@ -369,10 +369,19 @@ export default function StaffApp() {
           expire();
       }
     };
-    const expiry = window.setTimeout(
-      expire,
-      Math.max(0, Date.parse(session.expiresAt) - Date.now()),
-    );
+    let expiry: number;
+    const scheduleExpiry = () => {
+      if (cancelled || current !== generation.current) return;
+      const remaining = Date.parse(session.expiresAt) - Date.now();
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        expire();
+        return;
+      }
+      // A client clock far behind the server can exceed the signed 32-bit timer
+      // limit. Recheck long deadlines instead of overflowing into immediate expiry.
+      expiry = window.setTimeout(scheduleExpiry, Math.min(remaining, 2_147_483_647));
+    };
+    scheduleExpiry();
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void validate();
     }, 60000);

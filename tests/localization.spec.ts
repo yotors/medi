@@ -303,6 +303,7 @@ test('dark operational surfaces preserve drafts and contain bilingual controls',
     ['Pharmacy inventory', 'inventory'],
     ['Operational reports', 'reports'],
   ]) {
+    await revealWorkspaceNavigation(page);
     await page
       .getByRole('navigation', { name: 'Staff workspace', exact: true })
       .getByRole('link', { name, exact: true })
@@ -343,6 +344,24 @@ test('blocked preference storage still permits in-memory appearance and menu dis
   await expect(trigger).toBeFocused();
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto('/staff');
+  await trigger.click();
+  const hospital = page.getByLabel('Hospital code', { exact: true });
+  await hospital.click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(hospital).toBeFocused();
+  await trigger.click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  const language = page.getByRole('button', { name: 'Language', exact: true });
+  await language.click();
+  await expect(page.getByRole('menu', { name: 'Language', exact: true })).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(language).toBeFocused();
 });
 
 test('preference read guards label groups reset cross-tab clear and hide portaled print menu', async ({

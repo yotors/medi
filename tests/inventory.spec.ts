@@ -341,6 +341,7 @@ test('inventory uncertain retry preserves product creation and blocks navigation
   await expect(
     page.getByRole('button', { name: 'Retry inventory save', exact: true }),
   ).toBeEnabled();
+  await revealWorkspaceNavigation(page);
   await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await expect(page.getByLabel('Product code', { exact: true })).toHaveValue(code);
   await page.getByRole('button', { name: 'Retry inventory save', exact: true }).click();

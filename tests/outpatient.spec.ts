@@ -300,6 +300,7 @@ test('keyboard admin journey persists a closed visit, with accessible desktop an
     ),
   ).toBeVisible();
   await page.reload();
+  await revealWorkspaceNavigation(page, 'keyboard');
   await activate(
     page
       .getByRole('navigation', { name: 'Staff workspace' })
@@ -408,7 +409,8 @@ test('lost check-in and note responses retain one request and block navigation',
   await expect(
     page.getByRole('button', { name: 'Back to visit queue', exact: true }),
   ).toBeDisabled();
-  await page.getByRole('link', { name: 'Inside the workspace' }).click();
+  // The brand uses the same departure guard and remains available on mobile.
+  await page.getByRole('banner').getByRole('link', { name: 'Medi', exact: true }).click();
   await expect(page).toHaveURL(/\/staff\/visits$/);
   await page.getByRole('button', { name: 'Retry visit save', exact: true }).click();
   await expect(page.getByLabel('Consultation note', { exact: true })).toHaveValue('');
@@ -759,12 +761,13 @@ test('refresh preserves drafts and conflicting result drafts stay copyable until
   await expect(page.getByLabel('Prescription instructions')).toHaveValue(
     'Unsaved prescription draft.',
   );
+  await revealWorkspaceNavigation(page);
   for (const control of [
     page.getByRole('button', { name: 'Back to visit queue', exact: true }),
     page
       .getByRole('navigation', { name: 'Staff workspace' })
       .getByRole('link', { name: 'Patient directory', exact: true }),
-    page.getByRole('link', { name: 'Inside the workspace' }),
+    page.getByRole('banner').getByRole('link', { name: 'Medi', exact: true }),
   ]) {
     page.once('dialog', (dialog) => dialog.dismiss());
     await control.click();

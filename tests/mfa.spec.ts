@@ -175,6 +175,7 @@ test('keyboard enrollment, one-time saving, challenge errors, recovery and expir
   });
   await page.getByRole('button', { name: 'Generate new recovery codes' }).click();
   await responseReady;
+  await revealWorkspaceNavigation(page);
   await expect(page.getByRole('link', { name: 'Patient directory', exact: true })).toBeDisabled();
   await expect(page.getByRole('status')).toContainText('Generating new recovery codes…');
   await capture(page, info.project.name + '-maintenance-pending');
